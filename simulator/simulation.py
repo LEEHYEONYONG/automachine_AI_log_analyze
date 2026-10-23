@@ -57,6 +57,15 @@ class Simulation:
         self.machine.maintenance_listeners.append(lambda action: self.faults.on_maintenance(action, self.clock.now))
         self._hidden = CsvSink(self.truth_dir / "hidden_state.csv", HIDDEN_FIELDS)
         self._sensor_rng = Random(f"{self.seed}-sensor")
+        self.latest_sensors: dict = {}
+        self._closed = False
+
+    def inject_fault(self, fault_type: str, params: dict | None = None):
+        """Start a fault right now (used by the engineer console during a live run)."""
+        fault_id = f"F{len(self.faults.faults) + 1:03d}"
+        fault = FAULT_TYPES[fault_type](fault_id, self.clock.now, params or {})
+        self.faults.faults.append(fault)
+        return fault
 
     def run(self, hours: float | None = None) -> dict:
         hours = self.scenario.get("duration_hours", 8) if hours is None else hours
@@ -77,7 +86,29 @@ class Simulation:
             self._sample_hidden()
         self.clock.tick()
 
+    def flush(self) -> None:
+        self.log.flush()
+        self._hidden.flush()
+
+    def engineer_view(self) -> dict:
+        """Hidden state for the engineer console. Never shown on the HMI."""
+        p = self.machine.physics
+        return {
+            "faults": [f.truth() for f in self.faults.faults],
+            "hidden": {
+                "nozzle_open_ratio": round(p.dispenser.nozzle_open_ratio, 4),
+                "pick_leak_ratio": round(p.loader.leak_ratio, 4),
+                "achievable_vac_kpa": round(p.loader.achievable_vacuum_kpa, 2),
+                "temp_true_c": round(p.dispenser.temp_true_c, 3),
+                "temp_sensor_offset_c": round(self.machine.sensors["disp_temp"].offset, 3),
+                "material_viscosity": round(p.dispenser.material_viscosity, 4),
+            },
+        }
+
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         self.log.close()
         self._hidden.close()
         self._write_machine_info()
@@ -104,7 +135,7 @@ class Simulation:
         vac_true = p.loader.achievable_vacuum_kpa if m.loader.vacuum_on else 0.0
         pressure_true = (m.dispenser.dispensing_pressure_kpa() if m.dispenser.valve_open
                          else m.recipe["dispense_pressure_kpa"])
-        m.log.sensor({
+        self.latest_sensors = {
             "timestamp": m.log.timestamp(),
             "mode": m.mode.value,
             "loader_vac_kpa": m.sensors["loader_vac"].read(vac_true, rng),
@@ -112,7 +143,8 @@ class Simulation:
             "disp_valve_open": int(m.dispenser.valve_open),
             "disp_temp_c": m.sensors["disp_temp"].read(p.dispenser.temp_true_c, rng),
             "syringe_level_pct": round(m.dispenser.level_pct, 1),
-        })
+        }
+        m.log.sensor(self.latest_sensors)
 
     def _sample_hidden(self) -> None:
         p = self.machine.physics

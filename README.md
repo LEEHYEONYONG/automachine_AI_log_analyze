@@ -25,6 +25,34 @@ python -m unittest -v                                     # 테스트
 
 8시간 가동 시뮬레이션은 약 2초가 걸립니다.
 
+## 실시간 실행 (HMI)
+
+Python 패키지와 Node.js 20 이상이 필요합니다.
+
+```powershell
+pip install -r requirements-dev.txt
+cd web; npm install; npm run build; cd ..
+python -m server                  # http://127.0.0.1:8000 에서 HMI가 열립니다
+```
+
+화면을 수정하면서 개발할 때는 서버를 켜 둔 상태에서 `cd web; npm run dev`를 실행하고 http://localhost:5173 을 엽니다.
+API와 WebSocket 요청은 8000번 포트로 프록시됩니다.
+
+- 서버는 새 실행을 **정지 상태**로 시작합니다. HMI에서 START를 눌러 가동하세요.
+- 헤더에서 배속(×1~×300)과 일시정지를 바꿀 수 있습니다.
+- **자동 작업자**를 끄면 알람에 직접 대응해야 합니다. STOP 상태에서 유지보수 조치를 한 뒤 RESET, START 순서로 재가동합니다.
+- 실시간 실행 로그도 `logs/<run_id>/`에 1초마다 기록됩니다.
+
+| API | 설명 |
+|---|---|
+| `GET /api/state`, `WS /ws` | 장비 상태 (WebSocket은 0.1초마다 전송) |
+| `POST /api/machine/{start\|stop\|reset}` | 운전 명령 |
+| `POST /api/maintenance` `{action}` | 유지보수 조치 (정지 상태에서만) |
+| `POST /api/operator` `{auto}` | 자동 작업자 켜기/끄기 |
+| `POST /api/sim` `{speed, paused}` | 배속, 일시정지 |
+| `POST /api/runs` `{scenario}` | 새 실행 시작 (시나리오 생략 시 고장 없는 live 실행) |
+| `POST /api/faults` `{type, params}` | 지금 시점에 고장 주입 (엔지니어 콘솔용) |
+
 ## 장비 구성
 
 ```
@@ -70,6 +98,8 @@ python -m unittest -v                                     # 테스트
 config/          장비 설정, 시나리오
 simulator/       시뮬레이터 (clock, physics, sensors, stations, machine, operator, simulation)
 faults/          고장 엔진과 고장 라이브러리
+server/          FastAPI 실시간 서버 (시뮬레이터 구동, REST + WebSocket)
+web/             React + Vite 화면 (HMI, 이후 엔지니어 콘솔과 3D 뷰어)
 analysis/        AI 로그 분석 (직접 구현)
 eval/            분석 결과 평가 (직접 구현)
 docs/references/ 참고 매뉴얼 보관 (git 제외)
@@ -79,6 +109,6 @@ tests/
 ## 다음 단계
 
 1. 실제 디스펜싱 경험과 매뉴얼을 바탕으로 파라미터, 알람, 고장 시나리오 보강
-2. FastAPI + WebSocket 서버 (`Machine.snapshot()`과 start/stop/reset 명령을 노출)
-3. 2D HMI, 2D 엔지니어 콘솔(고장 주입, 배속)
-4. 3D 뷰어 (Three.js)
+2. HMI 센서 트렌드 그래프
+3. 2D 엔지니어 콘솔 (고장 주입, 시나리오 선택, 숨겨진 상태 확인)
+4. 3D 뷰어 (Three.js / React Three Fiber)

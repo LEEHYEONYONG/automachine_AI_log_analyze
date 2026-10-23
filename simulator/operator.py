@@ -42,6 +42,7 @@ class Operator:
         self.m = machine
         self.rng = rng
         self.names = names
+        self.enabled = True  # off when a person runs the machine from the HMI
         self.history: list[tuple[datetime, str]] = []
         self._phase: str | None = None
         self._due: datetime | None = None
@@ -53,7 +54,7 @@ class Operator:
 
     def update(self, now: datetime) -> None:
         if self._phase is None:
-            if self.m.mode is MachineMode.ALARM:
+            if self.enabled and self.m.mode is MachineMode.ALARM:
                 self._phase = "ack"
                 self._due = now + timedelta(seconds=self.rng.uniform(15, 180))
             return
@@ -72,8 +73,10 @@ class Operator:
             self._due = now + timedelta(minutes=self.rng.uniform(lo, hi))
         else:
             self.m.log.event("INFO", "MAINT", "Maintenance done", action=self._action, by=self._who)
-            self.m.reset(by=self._who)
-            self.m.start(by=self._who)
+            # Someone may have reset the alarm from the HMI in the meantime.
+            if self.m.mode is MachineMode.ALARM:
+                self.m.reset(by=self._who)
+                self.m.start(by=self._who)
             self._phase = None
 
     def _choose(self, code: str, now: datetime) -> str:

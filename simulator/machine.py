@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, deque
 from enum import Enum
 from random import Random
 from typing import Callable
@@ -61,6 +61,7 @@ class Machine:
         self.maintenance_listeners: list[Callable[[str], None]] = []
         self.counts: Counter[str] = Counter()
         self.alarm_counts: Counter[str] = Counter()
+        self.alarm_history: deque[dict] = deque(maxlen=50)  # newest first
 
         self._lot_id: str | None = None
         self._lot_no = 0
@@ -88,6 +89,8 @@ class Machine:
         self.active_alarm = None
         self.mode = MachineMode.STOPPED
         adef = ALARMS[alarm.code]
+        if self.alarm_history and self.alarm_history[0]["cleared_at"] is None:
+            self.alarm_history[0]["cleared_at"] = self.log.timestamp()
         self.log.alarm("CLEAR", alarm.code, station.name, adef.text)
         self.log.event("INFO", "MACHINE", "Alarm reset", code=alarm.code, by=by)
         station.on_reset(alarm.code)
@@ -123,6 +126,10 @@ class Machine:
         self.mode = MachineMode.ALARM
         self.active_alarm = (station, alarm)
         self.alarm_counts[alarm.code] += 1
+        self.alarm_history.appendleft({
+            "set_at": self.log.timestamp(), "cleared_at": None,
+            "code": alarm.code, "unit": station.name, "text": adef.text, "detail": alarm.detail,
+        })
         self.log.alarm("SET", alarm.code, station.name, adef.text, alarm.detail)
         station.log("ALARM", f"{alarm.code} {adef.text}", detail=f"[{alarm.detail}]")
         self.log.event("INFO", "MACHINE", "Mode change", mode=self.mode.value)
@@ -171,14 +178,19 @@ class Machine:
 
     def snapshot(self) -> dict:
         """Current state for the HMI / 3D viewer."""
-        alarm = self.active_alarm[1].code if self.active_alarm else None
         return {
             "time": self.log.timestamp(),
+            "machine_id": self.machine_id,
+            "recipe": self.recipe["name"],
             "mode": self.mode.value,
-            "alarm": alarm,
+            "alarm": self.alarm_history[0] if self.active_alarm else None,
+            "alarm_history": list(self.alarm_history)[:20],
             "lot": self._lot_id,
-            "counts": dict(self.counts),
+            "counts": {"OK": self.counts["OK"], "NG": self.counts["NG"]},
             "magazine": self.loader.magazine,
+            "magazine_capacity": self.cfg["loader"]["magazine_capacity"],
+            "tray_count": self.unloader.tray_count,
+            "tray_capacity": self.cfg["unloader"]["tray_capacity"],
             "syringe_level_pct": round(self.dispenser.level_pct, 1),
             "stations": [
                 {"name": s.name, "state": s.state.value, "step": s.step, "wp": s.wp.wp_id if s.wp else None}

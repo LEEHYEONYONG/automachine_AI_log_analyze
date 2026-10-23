@@ -19,6 +19,9 @@ class CsvSink:
     def write(self, row: dict) -> None:
         self._writer.writerow({k: fmt_ts(v) if isinstance(v, datetime) else v for k, v in row.items()})
 
+    def flush(self) -> None:
+        self._file.flush()
+
     def close(self) -> None:
         self._file.close()
 
@@ -51,6 +54,13 @@ class MachineLogger:
 
     def production(self, row: dict) -> None:
         self._production.write(row)
+
+    def flush(self) -> None:
+        """Make the files readable while a live run is still going."""
+        self._event.flush()
+        self._alarm.flush()
+        self._sensor.flush()
+        self._production.flush()
 
     def close(self) -> None:
         self._event.close()
