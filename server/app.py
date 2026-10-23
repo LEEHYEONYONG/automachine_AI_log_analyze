@@ -72,6 +72,10 @@ def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
     async def get_state():
         return runner.state()
 
+    @app.get("/api/trends")
+    async def get_trends(minutes: float = 60.0):
+        return runner.trends(min(max(minutes, 1.0), 24 * 60.0))
+
     @app.get("/api/meta")
     async def get_meta():
         return {

@@ -4,6 +4,7 @@ import { ControlPanel } from "./ControlPanel";
 import { ProductionPanel } from "./ProductionPanel";
 import { SensorPanel } from "./SensorPanel";
 import { StationFlow } from "./StationFlow";
+import { TrendPanel } from "./TrendPanel";
 
 interface Props {
   state: MachineState;
@@ -20,6 +21,7 @@ export function HmiPage({ state, run }: Props) {
         <ProductionPanel state={state} />
         <SensorPanel sensors={state.sensors} />
       </div>
+      <TrendPanel />
       <AlarmHistory history={state.alarm_history} />
     </main>
   );

@@ -47,6 +47,19 @@ class ServerTest(unittest.TestCase):
         bad = self.client.post("/api/faults", json={"type": "vacuum_leak", "params": {"nope": 1}})
         self.assertEqual(bad.status_code, 400)
 
+    def test_trends_collect_part_values_and_downsample(self):
+        runner = self.client.app.state.runner
+        runner.sim.machine.start(by="test")
+        for _ in range(round(3600 / runner.sim.clock.dt)):
+            runner.sim.step()
+        trends = self.client.get("/api/trends", params={"minutes": 60}).json()["series"]
+        widths = trends["bead_width_mm"]["points"]
+        # ~700 parts averaged into at most 300 buckets (buckets during stoppages stay empty)
+        self.assertTrue(200 < len(widths) <= 300, len(widths))
+        self.assertTrue(all(0.6 < v < 1.0 for _, v in widths))
+        self.assertGreater(len(trends["weight_check_mg"]["points"]), 3)
+        self.assertEqual(trends["pick_vac_kpa"]["limits"], {"hi": -60.0})
+
     def test_websocket_pushes_state(self):
         with self.client.websocket_connect("/ws") as ws:
             self.assertIn("stations", ws.receive_json())

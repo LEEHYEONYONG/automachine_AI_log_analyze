@@ -11,7 +11,12 @@ from simulator.logger import MachineLogger
 from simulator.physics import DispenserPhysics, LoaderPhysics, Physics
 from simulator.sensors import Sensor
 from simulator.stations import Dispenser, Inspection, Loader, Station, StationState, Unloader, Vision
+from simulator.trends import TrendStore
 from simulator.workpiece import Workpiece
+
+
+# Per-part measurements that feed the HMI trend charts (weight checks are added by the dispenser).
+PART_TRENDS = ("pick_vac_kpa", "disp_pressure_kpa", "disp_temp_c", "bead_width_mm")
 
 
 class MachineMode(str, Enum):
@@ -62,6 +67,7 @@ class Machine:
         self.counts: Counter[str] = Counter()
         self.alarm_counts: Counter[str] = Counter()
         self.alarm_history: deque[dict] = deque(maxlen=50)  # newest first
+        self.trends = TrendStore()
 
         self._lot_id: str | None = None
         self._lot_no = 0
@@ -199,7 +205,11 @@ class Machine:
         }
 
     def _record(self, wp: Workpiece) -> None:
-        self.log.production(wp.production_row(self.clock.now))
+        now = self.clock.now
+        self.log.production(wp.production_row(now))
+        for name in PART_TRENDS:
+            if name in wp.data:
+                self.trends.add(name, now, wp.data[name])
         self.counts[wp.judge] += 1
         lot = self._lots[wp.lot_id]
         lot[wp.judge] += 1

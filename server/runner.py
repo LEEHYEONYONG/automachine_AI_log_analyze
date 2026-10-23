@@ -76,6 +76,31 @@ class SimRunner:
             "engineer": sim.engineer_view(),
         }
 
+    def trends(self, minutes: float, max_points: int = 300) -> dict:
+        m = self.sim.machine
+        r = m.recipe
+        cfg = self.machine_cfg
+        target = r["target_bead_weight_mg"]
+        tol = target * r["weight_tolerance_pct"] / 100.0
+        band = cfg["dispenser"]["temp_alarm_band_c"]
+        limits = {
+            "pick_vac_kpa": {"hi": cfg["loader"]["vacuum_threshold_kpa"]},
+            "weight_check_mg": {"lo": target - tol, "hi": target + tol},
+            "bead_width_mm": {"lo": r["bead_width_spec_mm"][0], "hi": r["bead_width_spec_mm"][1]},
+            "disp_temp_c": {"lo": r["syringe_temp_c"] - band, "hi": r["syringe_temp_c"] + band},
+            "disp_pressure_kpa": {},
+        }
+        now_ms = m.clock.now.timestamp() * 1000.0
+        since_ms = now_ms - minutes * 60_000.0
+        return {
+            "now": now_ms,
+            "since": since_ms,
+            "series": {
+                name: {"points": m.trends.window(name, since_ms, max_points), "limits": lim}
+                for name, lim in limits.items()
+            },
+        }
+
     async def run_forever(self, on_frame: Callable[[dict], Awaitable[None]]) -> None:
         last = time.perf_counter()
         last_flush = last

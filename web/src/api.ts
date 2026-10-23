@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { MachineState, Meta } from "./types";
+import type { MachineState, Meta, Trends } from "./types";
 
 async function post(path: string, body?: unknown): Promise<void> {
   const res = await fetch(path, {
@@ -22,6 +22,29 @@ export const api = {
   injectFault: (type: string, params: Record<string, number>, delayMin: number) =>
     post("/api/faults", { type, params, delay_min: delayMin }),
 };
+
+/** Trend data for the last `minutes` of simulated time, refreshed every second.
+ *  The previous data stays on screen while a refresh is in flight. */
+export function useTrends(minutes: number) {
+  const [trends, setTrends] = useState<Trends | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      fetch(`/api/trends?minutes=${minutes}`)
+        .then((r) => r.json())
+        .then((t: Trends) => {
+          if (!cancelled) setTrends(t);
+        })
+        .catch(() => {});
+    load();
+    const timer = window.setInterval(load, 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [minutes]);
+  return trends;
+}
 
 /** Static lists (scenarios, fault types, actions) fetched once. */
 export function useMeta() {

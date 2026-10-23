@@ -57,6 +57,20 @@ export interface Meta {
   fault_types: Record<string, FaultTypeInfo>;
 }
 
+/** [epoch ms of simulated time, value] */
+export type TrendPoint = [number, number];
+
+export interface TrendLimits {
+  lo?: number;
+  hi?: number;
+}
+
+export interface Trends {
+  now: number;
+  since: number;
+  series: Record<string, { points: TrendPoint[]; limits: TrendLimits }>;
+}
+
 export interface HiddenState {
   nozzle_open_ratio: number;
   pick_leak_ratio: number;

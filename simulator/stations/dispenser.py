@@ -79,6 +79,7 @@ class Dispenser(Station):
         weight, _ = self._shot(duration)
         yield self.motion("WEIGH", 3.0)
         measured = round(weight + self.m.rng.gauss(0.0, 0.03), 2)
+        self.m.trends.add("weight_check_mg", self.m.clock.now, measured)
         yield self.motion("MOVE_FROM_SCALE", 1.5)
 
         if not lo <= measured <= hi:
