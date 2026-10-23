@@ -1,0 +1,44 @@
+{
+  "machine_id": "DSP-CELL-01",
+  "tick_s": 0.1,
+  "sensor_sample_s": 1.0,
+  "hidden_sample_s": 10.0,
+  "log_steps": true,
+  "lot_size": 500,
+  "recipe": {
+    "name": "REAR_HOUSING_ADH_A",
+    "dispense_pressure_kpa": 250.0,
+    "dispense_time_s": 2.0,
+    "syringe_temp_c": 35.0,
+    "nozzle_height_mm": 0.15,
+    "target_bead_weight_mg": 12.0,
+    "weight_tolerance_pct": 10.0,
+    "nominal_bead_width_mm": 0.80,
+    "bead_width_spec_mm": [0.68, 0.92]
+  },
+  "loader": {
+    "magazine_capacity": 600,
+    "vacuum_threshold_kpa": -60.0,
+    "max_pick_retries": 2
+  },
+  "vision": {
+    "score_threshold": 0.70,
+    "max_offset_mm": 0.15,
+    "glitch_probability": 0.003,
+    "mark_defect_probability": 0.0008
+  },
+  "dispenser": {
+    "syringe_capacity_ml": 30.0,
+    "syringe_low_pct": 5.0,
+    "material_density_g_per_ml": 1.2,
+    "weight_check_interval": 100,
+    "temp_alarm_band_c": 3.0
+  },
+  "inspection": {
+    "max_consecutive_ng": 3,
+    "random_defect_probability": 0.002
+  },
+  "unloader": {
+    "tray_capacity": 600
+  }
+}

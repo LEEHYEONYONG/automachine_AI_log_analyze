@@ -1,0 +1,10 @@
+{
+  "name": "nozzle_clog",
+  "description": "Adhesive gradually cures inside the nozzle and reduces the dispensed amount.",
+  "start_time": "2026-10-20T08:00:00",
+  "duration_hours": 8,
+  "seed": 101,
+  "faults": [
+    {"type": "nozzle_clog", "start_after_min": 90, "params": {"ramp_min": 180, "min_open_ratio": 0.7}}
+  ]
+}

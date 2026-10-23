@@ -1,0 +1,8 @@
+{
+  "name": "normal",
+  "description": "One day shift with no injected faults. Baseline for comparison.",
+  "start_time": "2026-10-19T08:00:00",
+  "duration_hours": 8,
+  "seed": 100,
+  "faults": []
+}

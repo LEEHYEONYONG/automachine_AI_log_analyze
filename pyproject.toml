@@ -1,0 +1,6 @@
+[project]
+name = "automachine"
+version = "0.1.0"
+description = "Virtual smartphone-assembly dispensing cell that generates machine logs with injected faults"
+requires-python = ">=3.11"
+dependencies = []

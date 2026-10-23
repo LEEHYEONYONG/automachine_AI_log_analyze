@@ -1,0 +1,10 @@
+{
+  "name": "vacuum_leak",
+  "description": "The loader pick pad wears out and leaks, so pick vacuum slowly weakens.",
+  "start_time": "2026-10-21T08:00:00",
+  "duration_hours": 8,
+  "seed": 102,
+  "faults": [
+    {"type": "vacuum_leak", "start_after_min": 60, "params": {"ramp_min": 240, "max_leak_ratio": 0.4}}
+  ]
+}

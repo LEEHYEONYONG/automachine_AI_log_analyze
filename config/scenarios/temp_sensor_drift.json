@@ -1,0 +1,10 @@
+{
+  "name": "temp_sensor_drift",
+  "description": "The syringe heater thermocouple reads high, so the controller under-heats while the HMI shows a normal temperature.",
+  "start_time": "2026-10-22T08:00:00",
+  "duration_hours": 8,
+  "seed": 103,
+  "faults": [
+    {"type": "temp_sensor_drift", "start_after_min": 60, "params": {"ramp_min": 240, "max_offset_c": 6.0}}
+  ]
+}
