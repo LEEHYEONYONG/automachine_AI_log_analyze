@@ -15,6 +15,7 @@ from server.runner import SimRunner
 from server.session import AccessDenied, HmiSession
 from simulator.alarms import ALARMS
 from simulator.manual import InterlockError
+from simulator.recipe import RECIPE_SPEC
 from simulator.operator import ACTION_MINUTES
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -65,6 +66,10 @@ class ForceRequest(BaseModel):
 
 class RecipeRequest(BaseModel):
     recipe: str
+
+
+class RecipeEditRequest(BaseModel):
+    values: dict[str, float | list[float]]
 
 
 class LoginRequest(BaseModel):
@@ -264,6 +269,42 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
         machine.maintenance(req.action, by=session.by)
         machine.log.event("INFO", "MAINT", "Maintenance done", action=req.action, by=session.by)
         return runner.state()
+
+    @app.get("/api/recipes")
+    async def recipes():
+        m = runner.sim.machine
+        history = [e for e in m.log.query_events("INFO", text="Recipe", limit=500)
+                   if e["text"].startswith(("Recipe edited", "Recipe parameter changed"))
+                   or e["text"].startswith("Model change ")][:50]
+        return {
+            "current": m.recipe["name"],
+            "spec": RECIPE_SPEC,
+            "recipes": m.recipes,
+            "setpoints": m.setpoints,
+            "history": history,
+        }
+
+    @app.post("/api/recipes/{name}")
+    async def edit_recipe(name: str, req: RecipeEditRequest):
+        gate("recipe_edit")
+        m = runner.sim.machine
+        try:
+            changed = m.edit_recipe(name, req.values, by=session.by)
+        except InterlockError as e:
+            raise HTTPException(400, str(e)) from None
+        return {"changed": changed, **(await recipes())}
+
+    @app.post("/api/recipes/{name}/load")
+    async def load_recipe(name: str):
+        """Model change from the HMI: immediate, machine stopped, AUTO mode."""
+        gate("recipe_load")
+        m = runner.sim.machine
+        if name not in m.recipes:
+            raise HTTPException(400, f"unknown recipe: {name}")
+        if m.mode.value != "STOPPED" or m.op_mode != "AUTO":
+            raise HTTPException(409, "장비가 정지한 AUTO 상태에서만 레시피를 로드할 수 있습니다")
+        m.change_recipe(name, by=session.by)
+        return await recipes()
 
     @app.post("/api/recipe")
     async def model_change(req: RecipeRequest):

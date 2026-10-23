@@ -58,6 +58,7 @@ class DispenserPhysics:
     bubbles: int = 0                 # air pockets left in the syringe
     bubble_void_probability: float = 0.0
     heater_tau_s: float = 120.0
+    ref_temp_c: float = 35.0  # temperature the adhesive was validated at (viscosity 1.0)
 
     def update(self, dt: float, temp_sensor_offset: float) -> None:
         # The heater regulates on the *measured* value, so a biased sensor shifts the true temperature.
@@ -66,7 +67,7 @@ class DispenserPhysics:
 
     def viscosity(self) -> float:
         thickening = 1.0 + self.thickening_per_h * self.syringe_age_h
-        return self.material_viscosity * thickening * math.exp(-0.04 * (self.temp_true_c - self.temp_setpoint_c))
+        return self.material_viscosity * thickening * math.exp(-0.04 * (self.temp_true_c - self.ref_temp_c))
 
 
 @dataclass

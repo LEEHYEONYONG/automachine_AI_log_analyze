@@ -93,7 +93,9 @@ class Dispenser(Station):
 
         self.wp.hidden.update(
             bead_weight_mg=shot.weight_mg, bead_break=shot.broken, bead_void=shot.void, stringing=shot.stringing,
-            gap_error_mm=p.needle_z_offset_mm, xy_offset_mm=p.needle_xy_offset_mm,
+            # gap vs. the validated recipe: a shifted needle or an edited gap both change the bead
+            gap_error_mm=p.needle_z_offset_mm
+            + sp["nozzle_height_mm"] - self.m.recipe_base[self.m.recipe["name"]]["nozzle_height_mm"], xy_offset_mm=p.needle_xy_offset_mm,
         )
         self.wp.data.update(disp_pressure_kpa=pressure, disp_temp_c=temp, nozzle_height_mm=height)
         self.log("INFO", "Dispense done", vac=f"{vac:.1f}kPa", pressure=f"{pressure:.1f}kPa", temp=f"{temp:.2f}C",
@@ -114,10 +116,10 @@ class Dispenser(Station):
 
     def _shot(self, duration: float) -> Shot:
         """Dispense for `duration` seconds and work out what actually came out."""
-        r = self.m.recipe
+        r = self.m.recipe_base[self.m.recipe["name"]]
         p = self.m.physics.dispenser
         rng = self.m.rng
-        # Flow constant chosen so the validated recipe gives exactly its target weight.
+        # Flow constant chosen so the recipe as validated at power-on gives exactly its target weight.
         k = r["target_bead_weight_mg"] / (r["dispense_time_s"] * r["dispense_pressure_kpa"])
         flow = k * p.regulator_out_kpa * p.nozzle_open_ratio / p.viscosity()
         weight = max(0.0, flow * duration * rng.gauss(1.0, 0.015))

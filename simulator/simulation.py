@@ -220,7 +220,7 @@ class Simulation:
             "machine_id": self.machine.machine_id,
             "start_time": self.clock.start.isoformat(),
             "end_time": self.clock.now.isoformat(timespec="milliseconds"),
-            "recipes": self.cfg["recipes"],
+            "recipes": self.machine.recipes,
             "planned_breaks": self.cfg["plant"]["breaks"],
             "io_map": self.machine.io.io_map(),
             "alarm_codes": [dataclasses.asdict(a) for a in ALARMS.values()],

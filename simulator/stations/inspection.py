@@ -35,7 +35,8 @@ class Inspection(Station):
         yield self.motion("SCAN_RETURN", 0.5)
         # A needle sitting too high lays a thinner bead; too low squashes it wider.
         gap_factor = max(0.5, 1.0 - 2.5 * hidden["gap_error_mm"])
-        width = (r["nominal_bead_width_mm"] * math.sqrt(hidden["bead_weight_mg"] / r["target_bead_weight_mg"])
+        base = self.m.recipe_base[r["name"]]  # physics: width follows weight the same way whatever the recipe says
+        width = (base["nominal_bead_width_mm"] * math.sqrt(hidden["bead_weight_mg"] / base["target_bead_weight_mg"])
                  * gap_factor * rng.gauss(1.0, 0.01))
         width = round(width, 3)
         offset = round(abs(hidden["xy_offset_mm"] + rng.gauss(0.0, 0.015)), 3)

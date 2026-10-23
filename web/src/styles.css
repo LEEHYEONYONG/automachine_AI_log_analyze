@@ -541,6 +541,14 @@ button.io-bit { cursor: pointer; }
 button.io-bit:hover { outline: 2px solid var(--engineer); }
 .force-mark { color: var(--engineer); }
 
+/* recipe screen */
+.recipe-tabs { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.recipe-actions { display: flex; gap: 8px; align-items: center; }
+.recipe-inputs { display: flex; gap: 6px; align-items: center; }
+.recipe-inputs input { width: 96px; }
+.recipe-table tr.edited td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.recipe-table .tag { margin-left: 8px; }
+
 /* maintenance screen */
 .maint-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 900px) { .maint-groups { grid-template-columns: 1fr; } }

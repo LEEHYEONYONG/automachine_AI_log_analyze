@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from collections import Counter, deque
 from enum import Enum
 from random import Random
@@ -11,6 +12,7 @@ from simulator.logger import MachineLogger
 from simulator.initializer import Initializer
 from simulator.io import IoMonitor
 from simulator.manual import InterlockError, ManualDevices
+from simulator.recipe import validate as validate_recipe
 from simulator.physics import DispenserPhysics, FixturePhysics, Physics, PlantAir
 from simulator.sensors import Sensor
 from simulator.stations import Dispenser, Infeed, Inspection, Outfeed, Station, StationState, Vision
@@ -43,6 +45,10 @@ class Machine:
         self.current_operator = "OP"
 
         # `recipe` is the validated recipe; `setpoints` is what is actually loaded and can be mistyped.
+        # recipes: editable from the HMI. recipe_base: the recipes as validated at power-on; the process
+        # physics (flow constant, bead width) is tied to these, so editing a recipe has real consequences.
+        self.recipes = copy.deepcopy(cfg["recipes"])
+        self.recipe_base = copy.deepcopy(cfg["recipes"])
         self.recipe = self._load_recipe(cfg["default_recipe"])
         self.setpoints = dict(self.recipe)
 
@@ -212,6 +218,26 @@ class Machine:
         for listener in self.maintenance_listeners:
             listener("model_change", by)
 
+    def edit_recipe(self, name: str, values: dict, by: str) -> list[str]:
+        """Change stored recipe values (from the HMI recipe screen). Returns the changed keys.
+        If the recipe is loaded, the new values are also applied to the running setpoints."""
+        problems = validate_recipe(values)
+        if name not in self.recipes:
+            problems.append(f"알 수 없는 레시피: {name}")
+        if problems:
+            raise InterlockError("; ".join(problems))
+        changed = [k for k, v in values.items() if self.recipes[name][k] != v]
+        for key in changed:
+            old = self.recipes[name][key]
+            self.recipes[name][key] = copy.deepcopy(values[key])
+            self.log.event("INFO", "HMI", "Recipe edited", recipe=name, param=key, old=old, new=values[key], by=by)
+            if name == self.recipe["name"]:
+                self.recipe[key] = copy.deepcopy(values[key])
+                self.setpoints[key] = copy.deepcopy(values[key])
+        if changed and name == self.recipe["name"]:
+            self.dispenser.need_weight_check = True
+        return changed
+
     def set_param(self, param: str, value: float, by: str) -> None:
         old = self.setpoints[param]
         self.setpoints[param] = value
@@ -270,6 +296,7 @@ class Machine:
         p.air.update(dt, self.rng)
         p.update_air_users(self.setpoints["dispense_pressure_kpa"])
         p.dispenser.temp_setpoint_c = self.setpoints["syringe_temp_c"]
+        p.dispenser.ref_temp_c = self.recipe_base[self.recipe["name"]]["syringe_temp_c"]
         p.dispenser.syringe_age_h = (self.clock.now - self.dispenser.syringe_installed_at).total_seconds() / 3600.0
         p.dispenser.update(dt, self.sensors["disp_temp"].offset)
         self.mode_seconds[self.mode.value] += dt
@@ -353,7 +380,7 @@ class Machine:
         }
 
     def _load_recipe(self, name: str) -> dict:
-        return {**self.cfg["recipes"][name], "name": name}
+        return {**copy.deepcopy(self.recipes[name]), "name": name}
 
     def _restore_setpoints(self, by: str) -> None:
         for param, value in self.recipe.items():

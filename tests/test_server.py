@@ -160,6 +160,35 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(any(t.startswith("Access denied") for t in
                             [e["text"] for e in c.get("/api/logs", params={"level": "WARN"}).json()["items"]]))
 
+    def test_recipe_edit_limits_permissions_and_physics(self):
+        c = self.client
+        data = c.get("/api/recipes").json()
+        self.assertEqual(data["current"], "REAR_HOUSING_ADH_A")
+        self.assertIn("dispense_pressure_kpa", data["spec"])
+
+        # out of range values are refused with the reason
+        bad = c.post("/api/recipes/REAR_HOUSING_ADH_A", json={"values": {"dispense_pressure_kpa": 900}})
+        self.assertEqual(bad.status_code, 400)
+        self.assertIn("100~400", bad.json()["detail"])
+
+        # only the maker may edit; an engineer may load
+        c.post("/api/login", json={"user": "ENG01", "pin": "2222"})
+        self.assertEqual(c.post("/api/recipes/REAR_HOUSING_ADH_A", json={"values": {"dispense_pressure_kpa": 270}}).status_code, 403)
+        c.post("/api/login", json={"user": "MAKER", "pin": "9999"})
+        res = c.post("/api/recipes/REAR_HOUSING_ADH_A", json={"values": {"dispense_pressure_kpa": 270}}).json()
+        self.assertEqual(res["changed"], ["dispense_pressure_kpa"])
+        self.assertEqual(res["setpoints"]["dispense_pressure_kpa"], 270)
+        self.assertTrue(res["history"][0]["text"].startswith("Recipe edited"))
+
+        # physics follows the edit: 8% more pressure gives about 8% more adhesive
+        m = c.app.state.runner.sim.machine
+        self._steps(0.2)  # the regulator follows the new setpoint on the next tick
+        weights =[m.dispenser._shot(m.setpoints["dispense_time_s"]).weight_mg for _ in range(200)]
+        self.assertAlmostEqual(sum(weights) / len(weights), 12.0 * 270 / 250, delta=0.15)
+
+        c.post("/api/login", json={"user": "ENG01", "pin": "2222"})
+        self.assertEqual(c.post("/api/recipes/REAR_HOUSING_ADH_B/load").json()["current"], "REAR_HOUSING_ADH_B")
+
     def test_initialize_gates_start_and_handles_parts_left_in_the_line(self):
         c = self.client
         self.assertEqual(c.get("/api/state").json()["init"]["state"], "DONE")

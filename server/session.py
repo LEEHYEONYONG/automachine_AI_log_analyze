@@ -22,6 +22,7 @@ REQUIRED = {
     "op_mode": "ENGINEER",
     "manual": "ENGINEER",
     "io_force": "ENGINEER",
+    "recipe_load": "ENGINEER",
     "recipe_edit": "MAKER",
 }
 # Maintenance actions that need more than an operator.
