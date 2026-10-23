@@ -143,6 +143,7 @@ export interface MachineState {
   recipe: string;
   mode: MachineMode;
   op_mode: "AUTO" | "MANUAL";
+  init: { state: "REQUIRED" | "RUNNING" | "DONE"; step: string; progress: number };
   manual: { devices: ManualDevice[]; axes: ManualAxis[] } | null; // only in MANUAL
   alarm: AlarmEntry | null;
   alarm_history: AlarmEntry[];

@@ -37,6 +37,10 @@ class RunRequest(BaseModel):
     scenario: str | None = None
 
 
+class InitRequest(BaseModel):
+    clear_parts: bool = False
+
+
 class OpModeRequest(BaseModel):
     mode: Literal["AUTO", "MANUAL"]
 
@@ -143,6 +147,10 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
         except InterlockError as e:
             raise HTTPException(409, str(e)) from None
         return runner.state()
+
+    @app.post("/api/initialize")
+    async def initialize(req: InitRequest):
+        return interlocked(lambda: runner.sim.machine.init.start(req.clear_parts, by="HMI"))
 
     @app.post("/api/opmode")
     async def op_mode(req: OpModeRequest):

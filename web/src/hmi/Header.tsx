@@ -1,5 +1,6 @@
 import { MODE_LABEL, OPERATOR_PHASE_LABEL } from "../labels";
 import type { MachineState } from "../types";
+import { INIT_STEP_LABEL } from "./hmiLabels";
 
 /** Machine status line shown at the top of every screen. */
 export function Header({ state }: { state: MachineState }) {
@@ -13,6 +14,10 @@ export function Header({ state }: { state: MachineState }) {
 
       <div className={`mode-badge mode-${state.mode}`}>{MODE_LABEL[state.mode]}</div>
       <span className={`opmode-badge opmode-${state.op_mode}`}>{state.op_mode}</span>
+      {state.init.state === "REQUIRED" && <span className="tag warn">원점 복귀 필요</span>}
+      {state.init.state === "RUNNING" && (
+        <span className="tag warn">원점 복귀 중 · {INIT_STEP_LABEL[state.init.step] ?? state.init.step}</span>
+      )}
       {state.cycle_stop && <span className="tag warn">사이클 정지 중</span>}
 
       <div className="header-status">

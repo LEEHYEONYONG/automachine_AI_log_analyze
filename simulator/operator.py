@@ -4,6 +4,7 @@ from datetime import datetime, time, timedelta
 from random import Random
 
 from simulator.machine import Machine, MachineMode
+from simulator.manual import InterlockError
 
 # What the operator tries for each alarm. For E4001 they look at the NG type first.
 # If the same problem keeps coming back within the escalation window, they move one
@@ -77,7 +78,7 @@ class Operator:
         self.history: list[tuple[datetime, str, str]] = []  # (time, problem key, action)
         self.names = self._crew(start)
         self.m.current_operator = self.names[0]
-        self.phase = "idle"  # idle, ack, work, break, changeover_wait
+        self.phase = "idle"  # idle, ack, work, break, changeover_wait, init
         self._due: datetime | None = None
         self._action = ""
         self._who = ""
@@ -85,7 +86,21 @@ class Operator:
         self._changeover: dict | None = None
 
     def start_shift(self) -> None:
-        self.m.start(by=self.names[0])
+        self._start_machine(self.names[0])
+
+    def _start_machine(self, by: str) -> None:
+        """Press START, running the initialization first if the machine needs one."""
+        if self.m.init.done:
+            self.m.start(by=by)
+            return
+        if self.m.init.state != "RUNNING":
+            try:
+                self.m.init.start(clear_parts=False, by=by)
+            except InterlockError as e:
+                self.m.log.event("WARN", "OPERATOR", "Initialize refused", reason=f"[{e}]", by=by)
+                return
+        self.phase = "init"
+        self._who = by
 
     def request_model_change(self, recipe: str) -> None:
         self.changeovers.append({"at": self.m.clock.now, "recipe": recipe, "done": False})
@@ -96,6 +111,13 @@ class Operator:
         self._check_shift(now)
         if self.m.op_mode == "MANUAL":
             return  # someone is working on the machine by hand
+        if self.phase == "init":
+            if self.m.init.done:
+                self.phase = "idle"
+                self.m.start(by=self._who)
+            elif self.m.init.state != "RUNNING":
+                self.phase = "idle"
+            return
         if self.phase in ("ack", "work"):
             if now >= self._due:
                 self._advance_task(now)
@@ -105,7 +127,7 @@ class Operator:
                 self.phase = "idle"
                 self.m.log.event("INFO", "OPERATOR", "Break end", by=self.names[0])
                 if self.m.mode is MachineMode.STOPPED:
-                    self.m.start(by=self.names[0])
+                    self._start_machine(self.names[0])
             return
         if self.phase == "changeover_wait":
             if self.m.mode is MachineMode.STOPPED:
@@ -156,9 +178,9 @@ class Operator:
         # Someone may have reset the alarm from the HMI in the meantime.
         if self.m.mode is MachineMode.ALARM:
             self.m.reset(by=self._who)
-        if self.m.mode is MachineMode.STOPPED:
-            self.m.start(by=self._who)
         self.phase = "idle"
+        if self.m.mode is MachineMode.STOPPED:
+            self._start_machine(self._who)
 
     def _begin_changeover(self, now: datetime) -> None:
         change = self._changeover

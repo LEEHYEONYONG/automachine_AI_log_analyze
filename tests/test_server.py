@@ -15,6 +15,9 @@ class ServerTest(unittest.TestCase):
         self.client.__enter__()  # runs the lifespan, which starts a live run
         # Live runs start at the real clock time; without this a planned break could land mid-test.
         self.client.post("/api/operator", json={"auto": False})
+        # Power-on state needs an initialization before START, like the real machine.
+        self.client.post("/api/initialize", json={"clear_parts": False})
+        self._steps(15)
 
     def tearDown(self):
         self.client.__exit__(None, None, None)
@@ -128,6 +131,53 @@ class ServerTest(unittest.TestCase):
         c.post("/api/manual/home_all")
         self._steps(10)
         self.assertEqual(c.post("/api/opmode", json={"mode": "AUTO"}).json()["op_mode"], "AUTO")
+
+    def test_initialize_gates_start_and_handles_parts_left_in_the_line(self):
+        c = self.client
+        self.assertEqual(c.get("/api/state").json()["init"]["state"], "DONE")
+        c.post("/api/machine/start")
+        self._steps(25)
+        c.post("/api/machine/stop")  # stopped mid-cycle with parts in several stations
+
+        # moving something by hand means AUTO needs a fresh initialization
+        c.post("/api/opmode", json={"mode": "MANUAL"})
+        c.post("/api/manual/home_all")
+        self._steps(10)
+        state = c.post("/api/opmode", json={"mode": "AUTO"}).json()
+        self.assertEqual(state["init"]["state"], "REQUIRED")
+        self.assertEqual(c.post("/api/machine/start").json()["mode"], "STOPPED")
+
+        # keep the parts: stations restart, nothing is lost
+        before = sum(c.get("/api/state").json()["counts"].values())
+        wip = [s["wp"] for s in c.get("/api/state").json()["stations"] if s["wp"]]
+        self.assertTrue(wip)
+        c.post("/api/initialize", json={"clear_parts": False})
+        self.assertEqual(c.get("/api/state").json()["init"]["state"], "RUNNING")
+        self.assertEqual(c.post("/api/machine/start").json()["mode"], "STOPPED")  # not while initializing
+        self._steps(15)
+        state = c.get("/api/state").json()
+        self.assertEqual(state["init"]["state"], "DONE")
+        self.assertEqual([s["wp"] for s in state["stations"] if s["wp"]], wip)
+        self.assertEqual(sum(state["counts"].values()), before)
+        self.assertIn("Initialize done", c.get("/api/logs", params={"q": "Initialize"}).json()["items"][0]["text"])
+        self.assertEqual(c.post("/api/machine/start").json()["mode"], "RUNNING")
+        self._steps(30)
+        c.post("/api/machine/stop")
+
+        # clear the parts: everything in the line is scrapped as removed by the operator
+        c.post("/api/opmode", json={"mode": "MANUAL"})
+        c.post("/api/manual/device", json={"device": "INFEED_BELT", "on": True})
+        c.post("/api/manual/home_all")
+        self._steps(5)
+        c.post("/api/opmode", json={"mode": "AUTO"})
+        wip = [s["wp"] for s in c.get("/api/state").json()["stations"] if s["wp"]]
+        c.post("/api/initialize", json={"clear_parts": True})
+        self._steps(15)
+        state = c.get("/api/state").json()
+        self.assertTrue(all(s["wp"] is None and s["state"] == "IDLE" for s in state["stations"]))
+        scrapped = [r for r in c.get("/api/logs", params={"kind": "production"}).json()["items"]
+                    if r["ng_reason"] == "SCRAP_INIT"]
+        self.assertEqual(sorted(r["wp_id"] for r in scrapped), sorted(wip))
 
     def test_io_follows_sequence_and_can_be_forced_in_manual(self):
         c = self.client

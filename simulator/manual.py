@@ -134,6 +134,7 @@ class ManualDevices:
         ]
         self.axes = {a.id: a for a in axes}
         self._homing = False
+        self.used = False  # anything moved by hand -> AUTO needs an initialization first
 
     # ---- commands -------------------------------------------------------------
 
@@ -141,12 +142,14 @@ class ManualDevices:
         d = self._device(device_id)
         self._check_device(d, on)
         d.command(on)
+        self.used = True
         self.m.log.event("INFO", d.unit, "Manual command", device=d.id, cmd="ON" if on else "OFF", by=by)
 
     def move_axis(self, axis_id: str, mm: float, by: str) -> None:
         a = self._axis(axis_id)
         self._check_axis(a, mm)
         a.move_to(round(mm, 3))
+        self.used = True
         self.m.log.event("INFO", a.unit, "Manual move", axis=a.id, target=f"{mm:.2f}mm", by=by)
 
     def jog_axis(self, axis_id: str, delta_mm: float, by: str) -> None:
@@ -157,6 +160,7 @@ class ManualDevices:
         """Bring everything to its AUTO-ready position, in stages so nothing collides."""
         self.m.log.event("INFO", "MACHINE", "Manual return to auto position", by=by)
         self._homing = True
+        self.used = True
 
     def not_ready_for_auto(self) -> list[str]:
         problems = [d.id for d in self.devices.values() if d.position != d.auto_ready or d.moving]

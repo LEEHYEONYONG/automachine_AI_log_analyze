@@ -54,6 +54,18 @@ export const WAIT_LABEL: Record<string, string> = {
   WAIT_DOWNSTREAM: "다음 공정 대기",
 };
 
+export const INIT_STEP_LABEL: Record<string, string> = {
+  SAFETY_CHECK: "안전 확인",
+  VACUUM_OFF: "진공 해제",
+  CYLINDERS_RETRACT: "푸셔 후진 · 픽커 상승",
+  LIFTS_DOWN: "리프트 하강",
+  STOPPERS_UP: "스토퍼 상승",
+  Z_HOME: "Z축 원점",
+  XY_HOME: "X/Y축 원점",
+  AUX_AXES_HOME: "스캔 축 · 픽커 Y축 원점",
+  WIP_CHECK: "재공품 확인",
+};
+
 /** Manual-mode device names and what OFF (home) / ON (extended) mean for each. */
 export const DEVICE_LABEL: Record<string, { name: string; off: string; on: string }> = {
   INFEED_STOPPER: { name: "투입 스토퍼", off: "하강", on: "상승" },

@@ -8,6 +8,7 @@ from typing import Callable
 from simulator.alarms import ALARMS, MachineAlarm
 from simulator.clock import VirtualClock
 from simulator.logger import MachineLogger
+from simulator.initializer import Initializer
 from simulator.io import IoMonitor
 from simulator.manual import InterlockError, ManualDevices
 from simulator.physics import DispenserPhysics, FixturePhysics, Physics, PlantAir
@@ -81,6 +82,7 @@ class Machine:
         self.manual = ManualDevices(self)
         self.io = IoMonitor(self)
         self.io.update(force=True)  # initial read so the I/O screen is filled before the first tick
+        self.init = Initializer(self)  # power-on: START needs an initialization first
         self._cycle_stop = False
 
         self._lot_id: str | None = None
@@ -96,6 +98,9 @@ class Machine:
             return
         if self.op_mode != "AUTO":
             self.log.event("WARN", "MACHINE", "Start rejected: not in AUTO mode", by=by)
+            return
+        if not self.init.done:
+            self.log.event("WARN", "MACHINE", "Start rejected: initialize required", by=by)
             return
         self._cycle_stop = False
         self.mode = MachineMode.RUNNING
@@ -119,6 +124,8 @@ class Machine:
             not_ready = self.manual.not_ready_for_auto()
             if not_ready:
                 raise InterlockError("자동 운전 원위치가 아닌 장치가 있습니다: " + ", ".join(not_ready))
+            if self.manual.used:
+                self.init.require("manual operation")
         else:
             raise InterlockError(f"알 수 없는 모드: {op_mode}")
         self.op_mode = op_mode
@@ -268,6 +275,7 @@ class Machine:
         self.mode_seconds[self.mode.value] += dt
         if self.op_mode == "MANUAL":
             self.manual.update(dt)
+        self.init.update(dt)
         if self.mode is not MachineMode.RUNNING:
             return
         if self.infeed.step == "WAIT_UPSTREAM":
@@ -313,6 +321,7 @@ class Machine:
             "recipe": self.recipe["name"],
             "mode": self.mode.value,
             "op_mode": self.op_mode,
+            "init": self.init.view(),
             "manual": self.manual.view() if self.op_mode == "MANUAL" else None,
             "cycle_stop": self._cycle_stop,
             "alarm": self.alarm_history[0] if self.active_alarm else None,

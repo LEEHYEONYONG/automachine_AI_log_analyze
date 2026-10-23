@@ -19,6 +19,11 @@ class Inspection(Station):
         self.consecutive_ng = 0
 
     def process(self):
+        if self.wp.judge == "NG":
+            # Already rejected upstream (e.g. by an initialization); do not overwrite that judgement.
+            self.log("INFO", "Skip inspection: already NG", reason=self.wp.ng_reason)
+            return
+
         r = self.m.recipe
         rng = self.m.rng
         hidden = self.wp.hidden

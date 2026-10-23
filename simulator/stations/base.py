@@ -85,6 +85,27 @@ class Station:
         self.m.io.dirty = True
         return wp
 
+    # ---- used by initialization ---------------------------------------------
+
+    def reset_sequence(self) -> None:
+        """Empty and idle (the part, if any, has been taken away)."""
+        self._proc = None
+        self.state = StationState.IDLE
+        self.step = ""
+        self.m.io.dirty = True
+
+    def finish_now(self) -> None:
+        """Treat the current part as done here so it moves on."""
+        self._proc = None
+        self.state = StationState.DONE
+        self.step = ""
+        self.m.io.dirty = True
+
+    def restart_sequence(self) -> None:
+        """Run this station's process again from the beginning for the part it holds."""
+        self._begin(transfer=False)
+        self.m.io.dirty = True
+
     def abort_if_empty(self) -> None:
         """Drop a sequence that has not taken a part yet (e.g. still waiting for upstream)."""
         if self.state is StationState.BUSY and self.wp is None:
