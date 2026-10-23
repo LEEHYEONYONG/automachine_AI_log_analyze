@@ -9,6 +9,8 @@ export const STATION_X: Record<string, number> = {
 };
 export const STATION_SPACING = 2.4;
 
+export const FLOOR_Y = -1.15;
+export const FRAME = { x: 6.85, zBack: -2.65, zFront: 2.05, height: 2.6 };
 export const BELT_TOP = 0.15;
 export const PART = { w: 0.7, h: 0.06, d: 0.36 };
 export const PART_Y = BELT_TOP + PART.h / 2;

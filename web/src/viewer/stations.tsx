@@ -1,7 +1,8 @@
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
-import { MathUtils, type Group, type Mesh } from "three";
+import { DoubleSide, MathUtils, type Group, type Mesh } from "three";
 import type { MachineState, StationView } from "../types";
+import { Box, CableChain, Cyl, Hose, LinearRail, ServoMotor, Syringe, TrayStack, trayStackTop } from "./details";
 import {
   BACK_Z,
   COLORS,
@@ -37,35 +38,13 @@ function usePartOnBelt(station: StationView, progress: () => number) {
   return ref;
 }
 
-function Post({ z, height }: { z: number; height: number }) {
+/** Profile column behind the belt with an arm reaching over it, for overhead cameras. */
+function CameraMount({ armY }: { armY: number }) {
   return (
-    <mesh position={[0, height / 2, z]} castShadow>
-      <boxGeometry args={[0.1, height, 0.1]} />
-      <meshStandardMaterial color={COLORS.frame} />
-    </mesh>
-  );
-}
-
-/** Stack of housings whose height follows how full it is. */
-function Stack({ z, fill, color }: { z: number; fill: number; color: string }) {
-  const h = 0.06 + 0.8 * fill;
-  return (
-    <group position={[0, 0, z]}>
-      <mesh position={[0, h / 2, 0]} castShadow>
-        <boxGeometry args={[PART.w, h, PART.d]} />
-        <meshStandardMaterial color={color} metalness={0.4} roughness={0.5} />
-      </mesh>
-      {[
-        [-0.4, -0.23],
-        [0.4, -0.23],
-        [-0.4, 0.23],
-        [0.4, 0.23],
-      ].map(([px, pz]) => (
-        <mesh key={`${px}${pz}`} position={[px, 0.5, pz]}>
-          <boxGeometry args={[0.04, 1, 0.04]} />
-          <meshStandardMaterial color={COLORS.frame} />
-        </mesh>
-      ))}
+    <group>
+      <Box size={[0.26, 0.03, 0.26]} position={[0, 0.015, -0.95]} mat="aluDark" />
+      <Box size={[0.08, armY + 0.06, 0.08]} position={[0, (armY + 0.06) / 2, -0.95]} />
+      <Box size={[0.08, 0.08, 1.0]} position={[0, armY, -0.47]} />
     </group>
   );
 }
@@ -74,7 +53,8 @@ function Stack({ z, fill, color }: { z: number; fill: number; color: string }) {
 
 export function Loader3D({ station, m, running, speed }: StationProps) {
   const p = useStepClock(station, running, speed);
-  const magTop = 0.06 + 0.8 * (m.magazine / m.magazine_capacity);
+  const fill = m.magazine / m.magazine_capacity;
+  const magTop = trayStackTop(fill);
   const carrying = !!station.wp && ["PICK_UP", "MOVE_TO_PLACE", "PLACE"].includes(station.step);
 
   const target = (): [number, number] => {
@@ -100,7 +80,9 @@ export function Loader3D({ station, m, running, speed }: StationProps) {
   return (
     <group position={[STATION_X.LOADER, 0, 0]}>
       <StationBase station={station} x={0} />
-      <Stack z={BACK_Z} fill={m.magazine / m.magazine_capacity} color="#8d98a3" />
+      <group position={[0, 0, BACK_Z]}>
+        <TrayStack fill={fill} />
+      </group>
       <PickGantry target={target} vacuum={m.loader_vacuum_on}>
         {carrying && <Part position={[0, -PART.h / 2, 0]} />}
       </PickGantry>
@@ -117,28 +99,29 @@ export function Vision3D({ station, running, speed }: StationProps) {
   return (
     <group position={[STATION_X.VISION, 0, 0]}>
       <StationBase station={station} x={0} />
-      <Post z={-0.95} height={1.6} />
-      <mesh position={[0, 1.55, -0.45]}>
-        <boxGeometry args={[0.1, 0.1, 1.0]} />
-        <meshStandardMaterial color={COLORS.frame} />
+      <CameraMount armY={1.6} />
+      {/* area camera with lens */}
+      <Box size={[0.16, 0.24, 0.16]} position={[0, 1.42, 0]} mat="black" />
+      <Box size={[0.17, 0.02, 0.17]} position={[0, 1.55, 0]} mat="aluDark" />
+      <Cyl r={0.055} h={0.14} position={[0, 1.23, 0]} mat="black" color="#0d1013" />
+      <Cyl r={0.06} h={0.02} position={[0, 1.17, 0]} mat="steel" />
+      <Hose points={[[0.06, 1.5, 0], [0.12, 1.62, -0.1], [0.08, 1.66, -0.5], [0.05, 1.5, -0.9]]} radius={0.012} />
+      {/* ring light: housing and LED ring */}
+      <Box size={[0.04, 0.48, 0.04]} position={[0.32, 1.0, 0]} mat="aluDark" />
+      <mesh position={[0, 0.78, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.3, 0.035, 12, 48]} />
+        <meshStandardMaterial color="#1c2127" metalness={0.3} roughness={0.5} />
       </mesh>
-      <mesh position={[0, 1.32, 0]} castShadow>
-        <boxGeometry args={[0.22, 0.36, 0.22]} />
-        <meshStandardMaterial color="#20262d" metalness={0.3} roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 1.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.07, 0.09, 0.1, 20]} />
-        <meshStandardMaterial color="#0b0e11" />
-      </mesh>
-      <mesh position={[0, 0.75, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.3, 0.025, 12, 48]} />
+      <mesh position={[0, 0.745, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.3, 0.012, 8, 48]} />
         <meshStandardMaterial
-          color={capture ? "#ffffff" : COLORS.steel}
-          emissive={capture ? "#cfe6ff" : "#000000"}
-          emissiveIntensity={capture ? 3 : 0}
+          color={capture ? "#ffffff" : "#5a6672"}
+          emissive={capture ? "#d8ecff" : "#000000"}
+          emissiveIntensity={capture ? 4 : 0}
+          toneMapped={!capture}
         />
       </mesh>
-      {capture && <pointLight position={[0, 0.7, 0]} intensity={2} distance={1.5} color="#cfe6ff" />}
+      {capture && <pointLight position={[0, 0.65, 0]} intensity={3} distance={1.5} color="#d8ecff" />}
       {station.wp && <Part ref={part} />}
     </group>
   );
@@ -152,9 +135,10 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
   const head = useRef<Group>(null);
   const rod = useRef<Mesh>(null);
 
-  const HOME_Y = 0.9;
+  const BEAM_Y = 1.85;
+  const HOME_Y = 0.75;
   const WORK_Y = PART_TOP + 0.05;
-  const SCALE_TOP = 0.35;
+  const SCALE_TOP = 0.2;
   const SCALE_X = 0.75; // beside the belt so it does not hide the head from the default camera
   const SCALE_Z = -1.0;
   const [sx, sz] = beadPoint(0);
@@ -178,9 +162,9 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
       case "MOVE_TO_SCALE":
         return [lerp(0, SCALE_X, t), lerp(0, SCALE_Z, t), HOME_Y];
       case "TEST_SHOT":
-        return [SCALE_X, SCALE_Z, SCALE_TOP + 0.05];
+        return [SCALE_X, SCALE_Z, SCALE_TOP + 0.06];
       case "WEIGH":
-        return [SCALE_X, SCALE_Z, lerp(SCALE_TOP + 0.05, HOME_Y, t)];
+        return [SCALE_X, SCALE_Z, lerp(SCALE_TOP + 0.06, HOME_Y, t)];
       case "MOVE_FROM_SCALE":
         return [lerp(SCALE_X, 0, t), lerp(SCALE_Z, 0, t), HOME_Y];
       default:
@@ -194,9 +178,10 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
     bridge.current.position.x = MathUtils.damp(bridge.current.position.x, x, 16, dt);
     carriage.current.position.z = MathUtils.damp(carriage.current.position.z, z, 16, dt);
     head.current.position.y = MathUtils.damp(head.current.position.y, y, 16, dt);
-    const bottom = head.current.position.y + 0.8;
-    rod.current.position.y = (1.75 + bottom) / 2;
-    rod.current.scale.y = Math.max(0.01, 1.75 - bottom);
+    const top = BEAM_Y - 0.12;
+    const bottom = head.current.position.y + 0.28;
+    rod.current.position.y = (top + bottom) / 2;
+    rod.current.scale.y = Math.max(0.01, top - bottom);
   });
 
   const bead = () =>
@@ -205,79 +190,74 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
       : station.step === "DWELL" || station.step === "RETRACT" || station.state === "DONE"
         ? 1
         : 0;
-  const level = Math.max(0, m.syringe_level_pct) / 100;
-  const valveOpen = m.dispenser_valve_open;
 
   return (
     <group position={[STATION_X.DISPENSER, 0, 0]}>
       <StationBase station={station} x={0} />
 
-      {/* weigh scale behind the belt */}
-      <mesh position={[SCALE_X, SCALE_TOP / 2, SCALE_Z]} castShadow>
-        <boxGeometry args={[0.5, SCALE_TOP, 0.42]} />
-        <meshStandardMaterial color="#3a4450" />
-      </mesh>
-      <mesh position={[SCALE_X, SCALE_TOP + 0.01, SCALE_Z]}>
-        <cylinderGeometry args={[0.14, 0.14, 0.02, 24]} />
-        <meshStandardMaterial color={COLORS.steel} metalness={0.7} roughness={0.3} />
-      </mesh>
-      <mesh position={[SCALE_X, SCALE_TOP * 0.55, SCALE_Z + 0.215]}>
-        <planeGeometry args={[0.3, 0.1]} />
-        <meshStandardMaterial color="#0c1a12" emissive={COLORS.ok} emissiveIntensity={0.6} />
-      </mesh>
+      {/* dispensing controller with its air line */}
+      <group position={[-0.8, 0, -2.2]}>
+        <Box size={[0.7, 0.32, 0.4]} position={[0, 0.16, 0]} mat="white" color="#d5dade" />
+        <mesh position={[-0.12, 0.2, 0.201]}>
+          <planeGeometry args={[0.3, 0.1]} />
+          <meshStandardMaterial color="#0c1a12" emissive={COLORS.ok} emissiveIntensity={0.7} />
+        </mesh>
+        {[0.12, 0.22].map((x) => (
+          <Cyl key={x} r={0.025} h={0.03} position={[x, 0.2, 0.215]} rotation={[Math.PI / 2, 0, 0]} mat="black" />
+        ))}
+        <Hose points={[[0.3, 0.3, 0], [0.55, 0.45, 0.1], [0.75, 0.6, 0.25]]} radius={0.015} />
+      </group>
 
-      {/* X-moving bridge with a Z carriage and a Z-axis syringe head */}
-      <group ref={bridge}>
-        <mesh position={[0, 0.95, -1.9]} castShadow>
-          <boxGeometry args={[0.14, 1.9, 0.14]} />
-          <meshStandardMaterial color={COLORS.frame} />
-        </mesh>
-        <mesh position={[0, 1.85, -0.8]} castShadow>
-          <boxGeometry args={[0.18, 0.16, 2.35]} />
-          <meshStandardMaterial color={COLORS.frame} />
-        </mesh>
-        <group ref={carriage}>
-          <mesh position={[0, 1.85, 0]}>
-            <boxGeometry args={[0.3, 0.24, 0.3]} />
-            <meshStandardMaterial color={COLORS.steel} metalness={0.6} roughness={0.3} />
+      {/* weigh scale with a draft shield */}
+      <group position={[SCALE_X, 0, SCALE_Z]}>
+        <Box size={[0.42, 0.12, 0.38]} position={[0, 0.06, 0]} mat="white" color="#cfd5db" />
+        <Cyl r={0.11} h={0.015} position={[0, SCALE_TOP - 0.06, 0]} mat="steel" />
+        {[
+          { size: [0.36, 0.2, 0.005], pos: [0, 0.22, -0.16] },
+          { size: [0.005, 0.2, 0.32], pos: [-0.18, 0.22, 0] },
+          { size: [0.005, 0.2, 0.32], pos: [0.18, 0.22, 0] },
+        ].map((g, i) => (
+          <mesh key={i} position={g.pos as [number, number, number]}>
+            <boxGeometry args={g.size as [number, number, number]} />
+            <meshPhysicalMaterial color="#d6e6f5" transparent opacity={0.18} depthWrite={false} side={DoubleSide} />
           </mesh>
-          <mesh ref={rod}>
-            <boxGeometry args={[0.06, 1, 0.06]} />
-            <meshStandardMaterial color={COLORS.steel} metalness={0.7} roughness={0.25} />
+        ))}
+        <mesh position={[0, 0.07, 0.191]}>
+          <planeGeometry args={[0.22, 0.06]} />
+          <meshStandardMaterial color="#0c1a12" emissive={COLORS.ok} emissiveIntensity={0.7} />
+        </mesh>
+      </group>
+
+      {/* X axis on the table, then the bridge, its Z carriage and the vertical head */}
+      <LinearRail length={1.4} position={[0, 0.02, -1.9]} axis="x" />
+      <ServoMotor position={[-0.85, 0.08, -1.9]} rotation={[0, -Math.PI / 2, 0]} />
+      <group ref={bridge}>
+        <Box size={[0.3, 0.08, 0.3]} position={[0, 0.06, -1.9]} mat="aluDark" />
+        <Box size={[0.14, BEAM_Y, 0.14]} position={[0, BEAM_Y / 2 + 0.1, -1.9]} />
+        <Box size={[0.18, 0.16, 2.35]} position={[0, BEAM_Y, -0.8]} />
+        <LinearRail length={2.2} position={[0.11, BEAM_Y, -0.8]} />
+        <ServoMotor position={[0, BEAM_Y, -2.1]} rotation={[0, Math.PI, 0]} />
+        <CableChain length={1.3} position={[-0.03, BEAM_Y + 0.11, -1.25]} />
+        <group ref={carriage}>
+          <Box size={[0.3, 0.24, 0.3]} position={[0, BEAM_Y, 0]} mat="aluDark" />
+          <ServoMotor position={[0, BEAM_Y + 0.2, -0.12]} rotation={[-Math.PI / 2, 0, 0]} />
+          <mesh ref={rod} position={[0, 1, -0.12]}>
+            <boxGeometry args={[0.07, 1, 0.07]} />
+            <meshStandardMaterial color={COLORS.steel} metalness={0.8} roughness={0.25} />
           </mesh>
           <group ref={head} position={[0, HOME_Y, 0]}>
-            {/* needle (tip at y = 0) */}
-            <mesh position={[0, 0.06, 0]} rotation={[Math.PI, 0, 0]}>
-              <coneGeometry args={[0.018, 0.12, 12]} />
-              <meshStandardMaterial color={COLORS.steel} metalness={0.8} roughness={0.2} />
-            </mesh>
-            <mesh position={[0, 0.01, 0]} visible={valveOpen}>
-              <sphereGeometry args={[0.025, 12, 12]} />
-              <meshStandardMaterial color={COLORS.bead} emissive={COLORS.bead} emissiveIntensity={2} />
-            </mesh>
-            {/* valve body */}
-            <mesh position={[0, 0.17, 0]} castShadow>
-              <boxGeometry args={[0.18, 0.1, 0.18]} />
-              <meshStandardMaterial color="#2b3440" metalness={0.4} />
-            </mesh>
-            {/* syringe barrel with adhesive level */}
-            <mesh position={[0, 0.47, 0]}>
-              <cylinderGeometry args={[0.07, 0.07, 0.5, 20]} />
-              <meshStandardMaterial color="#cfe0ef" transparent opacity={0.25} />
-            </mesh>
-            <mesh position={[0, 0.23 + (0.48 * level) / 2, 0]} visible={level > 0.005}>
-              <cylinderGeometry args={[0.058, 0.058, Math.max(0.001, 0.48 * level), 20]} />
-              <meshStandardMaterial color={COLORS.bead} roughness={0.4} />
-            </mesh>
+            <Box size={[0.08, 0.14, 0.12]} position={[0, 0.24, -0.1]} mat="aluDark" />
+            <Syringe level={m.syringe_level_pct / 100} valveOpen={m.dispenser_valve_open} />
             {/* laser height sensor */}
-            <mesh position={[0.13, 0.17, 0]}>
-              <boxGeometry args={[0.07, 0.12, 0.07]} />
-              <meshStandardMaterial color="#20262d" />
+            <Box size={[0.07, 0.13, 0.08]} position={[0.14, 0.2, 0]} mat="black" />
+            <mesh position={[0.14, 0.13, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[0.04, 0.04]} />
+              <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={1} side={DoubleSide} />
             </mesh>
             {station.step === "HEIGHT_MEASURE" && (
-              <mesh position={[0.13, 0.05, 0]}>
-                <cylinderGeometry args={[0.004, 0.004, 0.14, 6]} />
-                <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={3} />
+              <mesh position={[0.14, 0.06, 0]}>
+                <cylinderGeometry args={[0.004, 0.004, 0.13, 6]} />
+                <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={3} toneMapped={false} />
               </mesh>
             )}
           </group>
@@ -298,29 +278,33 @@ export function Inspection3D({ station, running, speed }: StationProps) {
     if (line.current) line.current.position.x = lerp(-0.38, 0.38, p());
   });
 
+  const scanning = station.step === "SCAN";
   const judged = station.judge === "OK" || station.judge === "NG";
   const lampColor = !judged ? COLORS.idle : station.judge === "OK" ? COLORS.ok : COLORS.ng;
 
   return (
     <group position={[STATION_X.INSPECTION, 0, 0]}>
       <StationBase station={station} x={0} />
-      <Post z={-0.95} height={1.6} />
-      <mesh position={[0, 1.55, -0.45]}>
-        <boxGeometry args={[0.1, 0.1, 1.0]} />
-        <meshStandardMaterial color={COLORS.frame} />
-      </mesh>
-      <mesh position={[0, 1.3, 0]} castShadow>
-        <boxGeometry args={[0.5, 0.18, 0.2]} />
-        <meshStandardMaterial color="#20262d" metalness={0.3} roughness={0.5} />
-      </mesh>
-      <mesh position={[0.18, 1.3, 0.105]}>
-        <sphereGeometry args={[0.035, 16, 16]} />
+      <CameraMount armY={1.55} />
+      {/* line-scan camera */}
+      <Box size={[0.2, 0.18, 0.18]} position={[0, 1.36, 0]} mat="black" />
+      <Box size={[0.22, 0.02, 0.2]} position={[0, 1.46, 0]} mat="aluDark" />
+      <Cyl r={0.05} h={0.12} position={[0, 1.21, 0]} mat="black" color="#0d1013" />
+      <Cyl r={0.055} h={0.02} position={[0, 1.15, 0]} mat="steel" />
+      <mesh position={[0.07, 1.36, 0.091]}>
+        <sphereGeometry args={[0.022, 16, 16]} />
         <meshStandardMaterial color={lampColor} emissive={lampColor} emissiveIntensity={judged ? 2 : 0.2} />
       </mesh>
-      {station.step === "SCAN" && (
+      {/* line laser, angled down onto the part */}
+      <group position={[0.42, 0.75, 0]} rotation={[0, 0, 0.6]}>
+        <Box size={[0.06, 0.2, 0.08]} mat="black" />
+        <Box size={[0.03, 0.04, 0.06]} position={[0, 0.12, 0]} mat="aluDark" />
+      </group>
+      <Box size={[0.04, 0.75, 0.04]} position={[0.5, 0.375, -0.2]} mat="aluDark" />
+      {scanning && (
         <mesh ref={line} position={[0, PART_TOP + 0.02, 0]}>
           <boxGeometry args={[0.012, 0.004, 0.5]} />
-          <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={4} />
+          <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={4} toneMapped={false} />
         </mesh>
       )}
       {station.wp && <Part ref={part} bead={1} ng={station.judge === "NG"} />}
@@ -331,7 +315,8 @@ export function Inspection3D({ station, running, speed }: StationProps) {
 export function Unloader3D({ station, m, running, speed }: StationProps) {
   const p = useStepClock(station, running, speed);
   const beltPart = useRef<Group>(null);
-  const trayTop = 0.06 + 0.8 * (m.tray_count / m.tray_capacity);
+  const fill = m.tray_count / m.tray_capacity;
+  const trayTop = trayStackTop(fill);
   const carrying = !!station.wp && ["MOVE_TO_TRAY", "PLACE"].includes(station.step);
 
   const target = (): [number, number] => {
@@ -367,16 +352,18 @@ export function Unloader3D({ station, m, running, speed }: StationProps) {
   return (
     <group position={[STATION_X.UNLOADER, 0, 0]}>
       <StationBase station={station} x={0} />
-      <Stack z={BACK_Z} fill={m.tray_count / m.tray_capacity} color="#9aa59a" />
-      {/* reject chute and bin in front of the belt */}
-      <mesh position={[0, 0.12, 0.9]} rotation={[0.35, 0, 0]}>
-        <boxGeometry args={[0.8, 0.02, 0.5]} />
-        <meshStandardMaterial color={COLORS.frame} />
-      </mesh>
-      <mesh position={[0, 0.08, 1.3]}>
-        <boxGeometry args={[0.85, 0.16, 0.4]} />
-        <meshStandardMaterial color={COLORS.ng} transparent opacity={0.55} />
-      </mesh>
+      <group position={[0, 0, BACK_Z]}>
+        <TrayStack fill={fill} />
+      </group>
+      {/* reject chute with side walls, and the NG bin */}
+      <group position={[0, 0.12, 0.85]} rotation={[0.35, 0, 0]}>
+        <Box size={[0.8, 0.015, 0.55]} mat="steel" />
+        {[-0.4, 0.4].map((x) => (
+          <Box key={x} size={[0.015, 0.08, 0.55]} position={[x, 0.04, 0]} mat="steel" />
+        ))}
+      </group>
+      <Box size={[0.9, 0.2, 0.42]} position={[0, 0.1, 1.32]} mat="white" color="#b9262d" />
+      <Box size={[0.92, 0.03, 0.44]} position={[0, 0.205, 1.32]} mat="white" color="#e2b521" />
       <PickGantry target={target} vacuum={carrying}>
         {carrying && <Part position={[0, -PART.h / 2, 0]} bead={1} />}
       </PickGantry>

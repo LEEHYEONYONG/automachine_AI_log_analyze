@@ -1,6 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { forwardRef, useRef } from "react";
 import type { Group, Mesh } from "three";
+import { Housing } from "./details";
 import { BEAD_LENGTHS, BEAD_SEGMENTS, BEAD_STARTS, BEAD_TOTAL, COLORS, PART } from "./layout";
 
 const BEAD_W = 0.025;
@@ -29,7 +30,7 @@ function Bead({ fraction, color }: { fraction: () => number; color: string }) {
       {BEAD_SEGMENTS.map((_, i) => (
         <mesh key={i} ref={(m) => (meshes.current[i] = m)} visible={false}>
           <boxGeometry args={[1, BEAD_H, 1]} />
-          <meshStandardMaterial color={color} roughness={0.35} />
+          <meshStandardMaterial color={color} roughness={0.25} metalness={0.05} />
         </mesh>
       ))}
     </>
@@ -50,10 +51,7 @@ export const Part = forwardRef<Group, PartProps>(function Part({ bead = 0, ng = 
   const fraction = typeof bead === "function" ? bead : bead >= 1 ? FULL : null;
   return (
     <group ref={ref} position={position}>
-      <mesh castShadow>
-        <boxGeometry args={[PART.w, PART.h, PART.d]} />
-        <meshStandardMaterial color={COLORS.part} metalness={0.5} roughness={0.35} />
-      </mesh>
+      <Housing />
       {fraction && <Bead fraction={fraction} color={ng ? COLORS.ng : COLORS.bead} />}
     </group>
   );

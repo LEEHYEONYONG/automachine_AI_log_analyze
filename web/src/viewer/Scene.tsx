@@ -1,9 +1,8 @@
-import { Grid, OrbitControls } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
-import type { MeshStandardMaterial } from "three";
+import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import type { MachineState } from "../types";
-import { BELT_TOP, COLORS } from "./layout";
+import { CameraRig, VIEWS, type ViewName } from "./CameraRig";
+import { Conveyor } from "./Conveyor";
+import { BaseCabinet, Enclosure, Floor, HmiPendant, SignalTower } from "./MachineFrame";
 import { Dispenser3D, Inspection3D, Loader3D, Unloader3D, Vision3D, type StationProps } from "./stations";
 
 const STATION_COMPONENTS: Record<string, (p: StationProps) => JSX.Element> = {
@@ -14,104 +13,60 @@ const STATION_COMPONENTS: Record<string, (p: StationProps) => JSX.Element> = {
   UNLOADER: Unloader3D,
 };
 
-function TowerLamp({ mode }: { mode: MachineState["mode"] }) {
-  const red = useRef<MeshStandardMaterial>(null);
-  useFrame(({ clock }) => {
-    if (red.current && mode === "ALARM") red.current.emissiveIntensity = Math.sin(clock.elapsedTime * 8) > 0 ? 3 : 0.1;
-  });
-  const lamps = [
-    { y: 2.3, color: COLORS.ng, on: mode === "ALARM", ref: red },
-    { y: 2.1, color: COLORS.warn, on: mode === "STOPPED", ref: undefined },
-    { y: 1.9, color: COLORS.ok, on: mode === "RUNNING", ref: undefined },
-  ];
+/** Soft factory-style reflections generated in the scene, so nothing is downloaded. */
+function FactoryLighting() {
   return (
-    <group position={[-6.5, 0, -1.7]}>
-      <mesh position={[0, 0.9, 0]}>
-        <cylinderGeometry args={[0.03, 0.03, 1.8, 10]} />
-        <meshStandardMaterial color={COLORS.frame} />
-      </mesh>
-      {lamps.map((l) => (
-        <mesh key={l.y} position={[0, l.y, 0]}>
-          <cylinderGeometry args={[0.1, 0.1, 0.19, 20]} />
-          <meshStandardMaterial
-            ref={l.ref}
-            color={l.color}
-            emissive={l.color}
-            emissiveIntensity={l.on ? 3 : 0.08}
-            transparent
-            opacity={l.on ? 1 : 0.45}
-          />
-        </mesh>
-      ))}
-    </group>
+    <Environment resolution={256} frames={1}>
+      <Lightformer intensity={2.2} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[14, 4, 1]} />
+      <Lightformer intensity={1.2} position={[0, 3, 8]} scale={[16, 2, 1]} />
+      <Lightformer intensity={0.8} position={[-9, 2, 0]} rotation-y={Math.PI / 2} scale={[8, 2, 1]} />
+      <Lightformer intensity={0.8} position={[9, 2, 0]} rotation-y={-Math.PI / 2} scale={[8, 2, 1]} />
+    </Environment>
   );
 }
 
-function Conveyor() {
-  return (
-    <group>
-      <mesh position={[0, BELT_TOP / 2, 0]} receiveShadow>
-        <boxGeometry args={[12.6, BELT_TOP, 0.8]} />
-        <meshStandardMaterial color={COLORS.belt} roughness={0.9} />
-      </mesh>
-      {[-0.45, 0.45].map((z) => (
-        <mesh key={z} position={[0, BELT_TOP + 0.02, z]} castShadow>
-          <boxGeometry args={[12.6, 0.1, 0.06]} />
-          <meshStandardMaterial color={COLORS.steel} metalness={0.6} roughness={0.35} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-export function Scene({ state }: { state: MachineState }) {
+export function Scene({ state, covers, view }: { state: MachineState; covers: boolean; view: ViewName }) {
   const running = state.mode === "RUNNING" && !state.sim.paused;
   const speed = state.sim.speed;
+  const indexing = running && state.stations.some((s) => s.step === "TRANSFER_IN");
   return (
     <>
       <color attach="background" args={["#0f1419"]} />
-      <hemisphereLight args={["#e8eef5", "#2a323a", 1.4]} />
-      <ambientLight intensity={0.35} />
+      <fog attach="fog" args={["#0f1419", 22, 45]} />
+      <FactoryLighting />
+      <hemisphereLight args={["#e8eef5", "#2a323a", 0.5]} />
       <directionalLight
-        position={[6, 10, 6]}
-        intensity={2.2}
+        position={[6, 12, 7]}
+        intensity={1.8}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-9}
-        shadow-camera-right={9}
-        shadow-camera-top={6}
-        shadow-camera-bottom={-6}
+        shadow-bias={-0.0005}
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={8}
+        shadow-camera-bottom={-8}
       />
 
-      {/* machine table */}
-      <mesh position={[0, -0.3, -0.3]} receiveShadow>
-        <boxGeometry args={[13.6, 0.6, 4.6]} />
-        <meshStandardMaterial color={COLORS.table} roughness={0.8} />
-      </mesh>
-      <Grid
-        position={[0, -0.6, 0]}
-        args={[40, 40]}
-        cellColor="#1c242c"
-        sectionColor="#26313b"
-        fadeDistance={30}
-        infiniteGrid
-      />
-
-      <Conveyor />
+      <Floor />
+      <BaseCabinet />
+      <Enclosure covers={covers} />
+      <Conveyor moving={indexing} speed={speed} />
       {state.stations.map((s) => {
         const Comp = STATION_COMPONENTS[s.name];
         return Comp ? <Comp key={s.name} station={s} m={state} running={running} speed={speed} /> : null;
       })}
-      <TowerLamp mode={state.mode} />
+      <SignalTower mode={state.mode} />
+      <HmiPendant mode={state.mode} />
 
       <OrbitControls
         makeDefault
         enableDamping
-        target={[0, 0.4, -0.3]}
-        maxPolarAngle={Math.PI / 2.1}
-        minDistance={3}
-        maxDistance={22}
+        target={[...VIEWS.overview.target]}
+        maxPolarAngle={Math.PI / 2.05}
+        minDistance={1.2}
+        maxDistance={24}
       />
+      <CameraRig view={view} />
     </>
   );
 }
