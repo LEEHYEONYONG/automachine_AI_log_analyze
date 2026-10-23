@@ -397,6 +397,14 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .dialog-option { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel-2); }
 .dialog-option span { font-size: 12px; color: var(--muted); }
 .dialog-option:hover { border-color: var(--accent); }
+.login-control { display: flex; align-items: center; gap: 8px; }
+.login-control .btn { padding: 4px 12px; }
+.level-badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--line); color: var(--muted); }
+.level-OPERATOR { color: var(--ok); border-color: var(--ok); }
+.level-ENGINEER { color: var(--engineer); border-color: var(--engineer); }
+.level-MAKER { background: var(--engineer); color: #fff; border-color: var(--engineer); }
+.dialog .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .btn-text { align-self: flex-end; background: none; border: none; color: var(--muted); padding: 6px 10px; }
 .mode-switch { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .mode-switch button { border: none; background: var(--panel-2); font-weight: 800; letter-spacing: 1px; color: var(--muted); }

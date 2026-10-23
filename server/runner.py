@@ -27,6 +27,7 @@ class SimRunner:
         self.speed = 1.0
         self.paused = False
         self._debt = 0.0
+        self.session = None  # HmiSession, set by the app
 
     def scenarios(self) -> list[str]:
         return sorted(p.stem for p in (self.root / "config" / "scenarios").glob("*.json"))
@@ -76,6 +77,7 @@ class SimRunner:
                 "paused": self.paused,
                 "auto_operator": sim.operator.enabled,
             },
+            "hmi": self.session.view() if self.session else None,
             "operator": {
                 "phase": sim.operator.phase,
                 "crew": list(sim.operator.names),

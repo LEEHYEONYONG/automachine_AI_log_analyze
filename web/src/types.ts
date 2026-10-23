@@ -37,6 +37,8 @@ export interface SequenceStep {
   condition: string;
 }
 
+export type HmiLevel = "GUEST" | "OPERATOR" | "ENGINEER" | "MAKER";
+
 export interface ManualDevice {
   id: string;
   unit: string;
@@ -143,6 +145,13 @@ export interface MachineState {
   recipe: string;
   mode: MachineMode;
   op_mode: "AUTO" | "MANUAL";
+  hmi: {
+    user: { id: string; name: string } | null;
+    level: HmiLevel;
+    permissions: Record<string, boolean>; // action -> allowed for the current level
+    users: { id: string; name: string; level: HmiLevel }[];
+    maintenance_level: Record<string, HmiLevel>; // maintenance actions that need more than OPERATOR
+  };
   init: { state: "REQUIRED" | "RUNNING" | "DONE"; step: string; progress: number };
   manual: { devices: ManualDevice[]; axes: ManualAxis[] } | null; // only in MANUAL
   alarm: AlarmEntry | null;

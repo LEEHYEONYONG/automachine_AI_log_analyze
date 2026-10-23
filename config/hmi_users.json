@@ -1,0 +1,8 @@
+{
+  "auto_logout_min": 10,
+  "users": [
+    {"id": "OP01", "name": "오퍼레이터", "level": "OPERATOR", "pin": "1111"},
+    {"id": "ENG01", "name": "설비 엔지니어", "level": "ENGINEER", "pin": "2222"},
+    {"id": "MAKER", "name": "장비 제작사", "level": "MAKER", "pin": "9999"}
+  ]
+}

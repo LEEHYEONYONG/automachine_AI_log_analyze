@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from faults import FAULT_TYPES
 from server.runner import SimRunner
+from server.session import AccessDenied, HmiSession
 from simulator.alarms import ALARMS
 from simulator.manual import InterlockError
 from simulator.operator import ACTION_MINUTES
@@ -66,6 +67,11 @@ class RecipeRequest(BaseModel):
     recipe: str
 
 
+class LoginRequest(BaseModel):
+    user: str
+    pin: str
+
+
 class FaultRequest(BaseModel):
     type: str
     params: dict[str, float] = {}
@@ -76,6 +82,8 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
                live: bool = True) -> FastAPI:
     """live=False skips the real-time loop, so tests can step the simulation from their own thread."""
     runner = SimRunner(root, out_root, seed)
+    session = HmiSession(root / "config" / "hmi_users.json")
+    runner.session = session
     clients: set[WebSocket] = set()
 
     async def broadcast(state: dict) -> None:
@@ -131,13 +139,40 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
             "alarm_codes": [vars(a) for a in ALARMS.values()],
         }
 
+    def gate(action: str, detail: str = "") -> None:
+        """Refuse an HMI command the logged-in level may not use (403), and log the attempt."""
+        try:
+            session.require(action, detail)
+        except AccessDenied as e:
+            runner.sim.log.event("WARN", "HMI", "Access denied", action=detail or action,
+                                 role=session.level, by=session.by)
+            raise HTTPException(403, str(e)) from None
+
+    @app.post("/api/login")
+    async def login(req: LoginRequest):
+        try:
+            user = session.login(req.user, req.pin)
+        except AccessDenied as e:
+            runner.sim.log.event("WARN", "HMI", "Login failed", user=req.user)
+            raise HTTPException(401, str(e)) from None
+        runner.sim.log.event("INFO", "HMI", "Login", user=user["id"], role=user["level"])
+        return runner.state()
+
+    @app.post("/api/logout")
+    async def logout():
+        if session.user:
+            runner.sim.log.event("INFO", "HMI", "Logout", user=session.by)
+        session.logout()
+        return runner.state()
+
     @app.post("/api/machine/{command}")
     async def machine_command(command: Literal["start", "stop", "cycle_stop", "reset"]):
+        gate(command)
         machine = runner.sim.machine
         if command == "cycle_stop":
-            machine.cycle_stop(by="HMI", reason="operator")
+            machine.cycle_stop(by=session.by, reason="operator")
         else:
-            getattr(machine, command)(by="HMI")
+            getattr(machine, command)(by=session.by)
         return runner.state()
 
     def interlocked(fn, *args):
@@ -150,22 +185,26 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
 
     @app.post("/api/initialize")
     async def initialize(req: InitRequest):
-        return interlocked(lambda: runner.sim.machine.init.start(req.clear_parts, by="HMI"))
+        gate("initialize")
+        return interlocked(lambda: runner.sim.machine.init.start(req.clear_parts, by=session.by))
 
     @app.post("/api/opmode")
     async def op_mode(req: OpModeRequest):
-        return interlocked(lambda: runner.sim.machine.set_op_mode(req.mode, by="HMI"))
+        gate("op_mode")
+        return interlocked(lambda: runner.sim.machine.set_op_mode(req.mode, by=session.by))
 
     @app.post("/api/manual/device")
     async def manual_device(req: DeviceRequest):
+        gate("manual")
         m = runner.sim.machine
-        return interlocked(lambda: m.manual_command(m.manual.set_device, req.device, req.on, by="HMI"))
+        return interlocked(lambda: m.manual_command(m.manual.set_device, req.device, req.on, by=session.by))
 
     @app.post("/api/manual/axis")
     async def manual_axis(req: AxisRequest):
+        gate("manual")
         m = runner.sim.machine
         if req.jog is not None:
-            return interlocked(lambda: m.manual_command(m.manual.jog_axis, req.axis, req.jog, by="HMI"))
+            return interlocked(lambda: m.manual_command(m.manual.jog_axis, req.axis, req.jog, by=session.by))
         target = req.move_to
         if req.preset is not None:
             axis = m.manual.axes.get(req.axis)
@@ -174,7 +213,7 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
             target = axis.presets[req.preset]
         if target is None:
             raise HTTPException(400, "give move_to, jog or preset")
-        return interlocked(lambda: m.manual_command(m.manual.move_axis, req.axis, target, by="HMI"))
+        return interlocked(lambda: m.manual_command(m.manual.move_axis, req.axis, target, by=session.by))
 
     @app.get("/api/io")
     async def io():
@@ -184,18 +223,20 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
     @app.post("/api/io/force")
     async def io_force(req: ForceRequest):
         """Force an output from the I/O screen (MANUAL only). It drives the device behind the output."""
+        gate("io_force")
         m = runner.sim.machine
         signal = next((s for s in m.io.outputs if s.address == req.address), None)
         if signal is None or signal.device is None:
             raise HTTPException(400, f"{req.address} cannot be forced")
         on = (not req.value) if signal.invert else req.value
-        interlocked(lambda: m.manual_command(m.manual.set_device, signal.device, on, by="HMI"))
+        interlocked(lambda: m.manual_command(m.manual.set_device, signal.device, on, by=session.by))
         return {"op_mode": m.op_mode, **m.io.view()}
 
     @app.post("/api/manual/home_all")
     async def manual_home_all():
+        gate("manual")
         m = runner.sim.machine
-        return interlocked(lambda: m.manual_command(m.manual.home_all, by="HMI"))
+        return interlocked(lambda: m.manual_command(m.manual.home_all, by=session.by))
 
     @app.get("/api/logs")
     async def logs(kind: Literal["event", "alarm", "production"] = "event", level: str = "INFO",
@@ -216,11 +257,12 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
     async def maintenance(req: MaintenanceRequest):
         if req.action not in MAINTENANCE_ACTIONS:
             raise HTTPException(400, f"unknown action: {req.action}")
+        gate("maintenance", req.action)
         machine = runner.sim.machine
         if machine.mode.value == "RUNNING":
             raise HTTPException(409, "stop the machine before maintenance")
-        machine.maintenance(req.action, by="HMI")
-        machine.log.event("INFO", "MAINT", "Maintenance done", action=req.action, by="HMI")
+        machine.maintenance(req.action, by=session.by)
+        machine.log.event("INFO", "MAINT", "Maintenance done", action=req.action, by=session.by)
         return runner.state()
 
     @app.post("/api/recipe")

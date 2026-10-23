@@ -15,17 +15,20 @@ interface Props {
 /** Jog axes and fire cylinders one at a time. Only usable in MANUAL; interlocks are enforced by the machine. */
 export function ManualPage({ state, run }: Props) {
   const manual = state.manual;
-  if (state.op_mode !== "MANUAL" || !manual) {
+  const allowed = state.hmi.permissions.manual;
+  if (state.op_mode !== "MANUAL" || !manual || !allowed) {
     return (
       <div className="page">
         <section className="panel">
           <h2>수동 조작</h2>
           <p className="hint">
-            수동 조작은 MANUAL 모드에서만 할 수 있습니다. 장비를 정지한 뒤 하단의 모드 스위치를 MANUAL로 바꾸세요.
+            {allowed
+              ? "수동 조작은 MANUAL 모드에서만 할 수 있습니다. 장비를 정지한 뒤 하단의 모드 스위치를 MANUAL로 바꾸세요."
+              : "수동 조작은 엔지니어 이상 권한이 필요합니다. 오른쪽 위에서 로그인하세요."}
           </p>
           <button
             className="btn"
-            disabled={state.mode === "RUNNING"}
+            disabled={state.mode === "RUNNING" || !allowed || state.op_mode === "MANUAL"}
             onClick={() => run(() => api.setOpMode("MANUAL"))}
           >
             MANUAL로 전환

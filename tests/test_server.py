@@ -15,6 +15,8 @@ class ServerTest(unittest.TestCase):
         self.client.__enter__()  # runs the lifespan, which starts a live run
         # Live runs start at the real clock time; without this a planned break could land mid-test.
         self.client.post("/api/operator", json={"auto": False})
+        # Most tests act as the machine maker, who may do everything; permissions have their own test.
+        self.client.post("/api/login", json={"user": "MAKER", "pin": "9999"})
         # Power-on state needs an initialization before START, like the real machine.
         self.client.post("/api/initialize", json={"clear_parts": False})
         self._steps(15)
@@ -131,6 +133,32 @@ class ServerTest(unittest.TestCase):
         c.post("/api/manual/home_all")
         self._steps(10)
         self.assertEqual(c.post("/api/opmode", json={"mode": "AUTO"}).json()["op_mode"], "AUTO")
+
+    def test_permissions_by_login_level(self):
+        c = self.client
+        c.post("/api/logout")
+        self.assertEqual(c.get("/api/state").json()["hmi"]["level"], "GUEST")
+        self.assertEqual(c.post("/api/machine/start").status_code, 403)
+        self.assertEqual(c.post("/api/machine/stop").status_code, 200)  # stopping is always allowed
+        self.assertEqual(c.post("/api/login", json={"user": "OP01", "pin": "0000"}).status_code, 401)
+
+        state = c.post("/api/login", json={"user": "OP01", "pin": "1111"}).json()
+        self.assertEqual(state["hmi"]["level"], "OPERATOR")
+        self.assertFalse(state["hmi"]["permissions"]["manual"])
+        self.assertEqual(c.post("/api/machine/start").json()["mode"], "RUNNING")
+        c.post("/api/machine/stop")
+        self.assertEqual(c.post("/api/opmode", json={"mode": "MANUAL"}).status_code, 403)
+        self.assertEqual(c.post("/api/maintenance", json={"action": "nozzle_clean"}).status_code, 200)
+        self.assertEqual(c.post("/api/maintenance", json={"action": "needle_calibration"}).status_code, 403)
+
+        c.post("/api/login", json={"user": "ENG01", "pin": "2222"})
+        self.assertEqual(c.post("/api/opmode", json={"mode": "MANUAL"}).json()["op_mode"], "MANUAL")
+        self.assertEqual(c.post("/api/maintenance", json={"action": "needle_calibration"}).status_code, 200)
+
+        texts = [e["text"] for e in c.get("/api/logs", params={"limit": 100}).json()["items"]]
+        self.assertTrue(any("by=OP01" in t for t in texts))
+        self.assertTrue(any(t.startswith("Access denied") for t in
+                            [e["text"] for e in c.get("/api/logs", params={"level": "WARN"}).json()["items"]]))
 
     def test_initialize_gates_start_and_handles_parts_left_in_the_line(self):
         c = self.client

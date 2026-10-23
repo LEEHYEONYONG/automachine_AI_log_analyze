@@ -1,5 +1,6 @@
 import { api } from "../../api";
 import { ACTION_LABEL } from "../../labels";
+import { LEVEL_LABEL, atLeast } from "../hmiLabels";
 import type { MachineState } from "../../types";
 
 const GROUPS: { title: string; actions: { id: string; note: string }[] }[] = [
@@ -43,6 +44,7 @@ interface Props {
 
 export function MaintenancePage({ state, run }: Props) {
   const running = state.mode === "RUNNING";
+  const need = (action: string) => state.hmi.maintenance_level[action] ?? "OPERATOR";
   return (
     <div className="page">
       <p className={`notice ${running ? "notice-warn" : ""}`}>
@@ -56,10 +58,17 @@ export function MaintenancePage({ state, run }: Props) {
             <h2>{g.title}</h2>
             {g.actions.map((a) => (
               <div key={a.id} className="maint-row">
-                <button className="maint" disabled={running} onClick={() => run(() => api.maintenance(a.id))}>
+                <button
+                  className="maint"
+                  disabled={running || !atLeast(state.hmi.level, need(a.id))}
+                  onClick={() => run(() => api.maintenance(a.id))}
+                >
                   {ACTION_LABEL[a.id] ?? a.id}
                 </button>
-                <span className="hint">{a.note}</span>
+                <span className="hint">
+                  {a.note}
+                  {need(a.id) !== "OPERATOR" && ` (${LEVEL_LABEL[need(a.id)]} 이상)`}
+                </span>
               </div>
             ))}
           </section>

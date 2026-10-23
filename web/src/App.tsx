@@ -63,7 +63,7 @@ export default function App() {
         </nav>
         <SimBar state={state} connected={connected} run={run} />
       </div>
-      <Header state={state} />
+      <Header state={state} run={run} />
       {route.tab === "hmi" && <HmiShell state={state} page={route.page} onPage={(p) => go("hmi", p)} run={run} />}
       {route.tab === "console" && <ConsolePage state={state} run={run} />}
       {route.tab === "3d" && (

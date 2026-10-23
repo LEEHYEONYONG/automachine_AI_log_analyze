@@ -63,6 +63,17 @@ CYCLE STOP은 라인에 있는 제품을 다 처리한 뒤 서고, STOP은 즉�
 
 **원점 복귀**: 전원 투입(서버 시작, 새 실행) 후와 MANUAL에서 장치를 움직인 뒤에는 하단의 [원점 복귀]를 해야 START할 수 있습니다. 안전 확인 → 진공 해제 → 푸셔 후진·픽커 상승 → 리프트 하강 → 스토퍼 상승 → Z축 → X/Y축 → 보조축 원점 → 재공품 확인 순서로 진행되고 단계마다 로그가 남습니다. 라인에 제품이 있으면 재공품 유지(작업 중이던 스테이션은 다시 시작, 도포가 시작된 제품은 INIT_INCOMPLETE로 NG) 또는 재공품 제거(SCRAP_INIT)를 고릅니다. 자동 작업자는 필요하면 원점 복귀 후 START합니다. API: `POST /api/initialize {clear_parts}`
 
+**로그인과 권한**: 오른쪽 위에서 로그인합니다(사용자와 PIN은 `config/hmi_users.json`, 10분 동안 조작이 없으면 자동 로그아웃). 권한은 서버가 검사하고, 거부되면 `Access denied`가 로그에 남습니다. 로그의 `by=`에는 로그인한 사용자 ID가 기록됩니다.
+
+| 권한 | 할 수 있는 것 |
+|---|---|
+| 게스트 (로그인 전) | 화면 보기, STOP, CYCLE STOP (정지는 항상 허용) |
+| 오퍼레이터 (OP01 / 1111) | START, RESET, 원점 복귀, 일반 유지보수 |
+| 엔지니어 (ENG01 / 2222) | MANUAL 모드와 수동 조작, I/O 강제 출력, 니들 캘리브레이션, 진공 패드 교체 |
+| 메이커 (MAKER / 9999) | 레시피 값 편집 (예정) |
+
+SIM 바, 엔지니어 콘솔, 자동 작업자는 시뮬레이터 도구라서 권한과 무관합니다.
+
 **AUTO / MANUAL**: 하단 왼쪽 스위치로 바꿉니다.
 
 - MANUAL로는 운전 중이 아닐 때만 바꿀 수 있고, MANUAL에서는 START가 막힙니다.
@@ -103,6 +114,7 @@ CYCLE STOP은 라인에 있는 제품을 다 처리한 뒤 서고, STOP은 즉�
 | `GET /api/state`, `WS /ws` | 장비 상태 (WebSocket은 0.1초마다 전송) |
 | `POST /api/machine/{start\|cycle_stop\|stop\|reset}` | 운전 명령 |
 | `GET /api/logs?kind=event&level=INFO&unit=&q=` | 최근 로그 조회 (event / alarm / production, 최신순) |
+| `POST /api/login` `{user, pin}`, `POST /api/logout` | HMI 로그인 / 로그아웃 |
 | `POST /api/opmode` `{mode}` | AUTO / MANUAL 전환 (불가하면 409와 이유) |
 | `POST /api/manual/device` `{device, on}` | 실린더·진공·벨트 조작 (인터록에 걸리면 409와 이유) |
 | `POST /api/manual/axis` `{axis, jog \| preset \| move_to}` | 서보축 조그, 프리셋, 절대 위치 이동 |

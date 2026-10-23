@@ -1,9 +1,10 @@
 import { MODE_LABEL, OPERATOR_PHASE_LABEL } from "../labels";
 import type { MachineState } from "../types";
 import { INIT_STEP_LABEL } from "./hmiLabels";
+import { LoginControl } from "./LoginControl";
 
 /** Machine status line shown at the top of every screen. */
-export function Header({ state }: { state: MachineState }) {
+export function Header({ state, run }: { state: MachineState; run: (action: () => Promise<void>) => void }) {
   return (
     <header className="header">
       <div className="header-id">
@@ -22,6 +23,7 @@ export function Header({ state }: { state: MachineState }) {
 
       <div className="header-status">
         <span className="mono">{state.time}</span>
+        <LoginControl state={state} run={run} />
         {state.sim.auto_operator && (
           <span className="muted">
             작업자 {state.operator.crew.join("·")} · {OPERATOR_PHASE_LABEL[state.operator.phase] ?? state.operator.phase}

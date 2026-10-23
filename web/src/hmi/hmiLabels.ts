@@ -54,6 +54,15 @@ export const WAIT_LABEL: Record<string, string> = {
   WAIT_DOWNSTREAM: "다음 공정 대기",
 };
 
+export const LEVEL_LABEL: Record<string, string> = {
+  GUEST: "게스트",
+  OPERATOR: "오퍼레이터",
+  ENGINEER: "엔지니어",
+  MAKER: "메이커",
+};
+const LEVEL_ORDER = ["GUEST", "OPERATOR", "ENGINEER", "MAKER"];
+export const atLeast = (level: string, need: string) => LEVEL_ORDER.indexOf(level) >= LEVEL_ORDER.indexOf(need);
+
 export const INIT_STEP_LABEL: Record<string, string> = {
   SAFETY_CHECK: "안전 확인",
   VACUUM_OFF: "진공 해제",

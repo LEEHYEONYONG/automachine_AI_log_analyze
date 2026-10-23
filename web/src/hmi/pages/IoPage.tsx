@@ -64,7 +64,7 @@ export function IoPage({ state, run }: Props) {
   const visible = (s: IoSignal) =>
     (!unit || s.unit === unit) &&
     (!needle || `${s.address} ${s.id} ${s.label}`.toLowerCase().includes(needle));
-  const manual = state.op_mode === "MANUAL";
+  const manual = state.op_mode === "MANUAL" && state.hmi.permissions.io_force;
 
   return (
     <div className="page">
@@ -82,7 +82,7 @@ export function IoPage({ state, run }: Props) {
         <p className="hint">
           {manual
             ? "MANUAL 모드: 이름 옆에 ⇄ 표시가 있는 출력은 눌러서 강제로 켜고 끌 수 있습니다. 인터록은 그대로 적용됩니다."
-            : "출력 강제는 MANUAL 모드에서만 할 수 있습니다. 신호 변화는 io_trace.csv에 기록됩니다."}
+            : "출력 강제는 MANUAL 모드에서 엔지니어 이상 권한으로 할 수 있습니다. 신호 변화는 io_trace.csv에 기록됩니다."}
         </p>
       </section>
 

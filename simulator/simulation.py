@@ -142,7 +142,9 @@ class Simulation:
         rng = self._fault_rng
         natural = self.cfg["natural"]
         mistakes = self.cfg["operator"]
-        by_simulated_operator = by != "HMI"  # a person at the HMI makes their own mistakes
+        # Only the simulated crew rolls for mistakes; a person at the HMI makes their own.
+        crew = {name for shift in self.cfg["plant"]["shifts"] for name in shift["operators"]} | {"ENG-01"}
+        by_simulated_operator = by in crew
 
         if action == "replace_syringe" and rng.random() < natural["air_bubble_on_syringe_change"]:
             self.inject_fault("air_bubble", {"bubbles": rng.randint(5, 20),

@@ -15,13 +15,17 @@ export function OperationBar({ state, run }: Props) {
   const initializing = state.init.state === "RUNNING";
   const canInit = auto && state.mode === "STOPPED" && !initializing;
   const wip = state.stations.filter((s) => s.wp).length;
+  const can = state.hmi.permissions;
+  const needLogin = "권한이 없습니다. 로그인하세요";
 
   const initialize = (clearParts: boolean) => {
     setAskWip(false);
     run(() => api.initialize(clearParts));
   };
 
-  const startBlocked = !auto
+  const startBlocked = !can.start
+    ? needLogin
+    : !auto
     ? "MANUAL 모드에서는 START할 수 없습니다"
     : state.init.state !== "DONE"
       ? "원점 복귀를 먼저 하세요"
@@ -36,7 +40,8 @@ export function OperationBar({ state, run }: Props) {
             role="radio"
             aria-checked={state.op_mode === m}
             className={state.op_mode === m ? `active mode-${m}` : ""}
-            disabled={(running && m === "MANUAL") || initializing}
+            disabled={(running && m === "MANUAL") || initializing || !can.op_mode}
+            title={can.op_mode ? "" : "엔지니어 이상 권한이 필요합니다"}
             onClick={() => run(() => api.setOpMode(m))}
           >
             {m}
@@ -45,8 +50,8 @@ export function OperationBar({ state, run }: Props) {
       </div>
       <button
         className={`op op-init ${state.init.state === "REQUIRED" ? "attention" : ""}`}
-        disabled={!canInit}
-        title="실린더와 축을 원점으로 보내고 재공품을 확인합니다"
+        disabled={!canInit || !can.initialize}
+        title={can.initialize ? "실린더와 축을 원점으로 보내고 재공품을 확인합니다" : needLogin}
         onClick={() => (wip ? setAskWip(true) : initialize(false))}
       >
         {initializing ? `원점 복귀 중 ${Math.round(state.init.progress * 100)}%` : "원점 복귀"}
@@ -70,7 +75,11 @@ export function OperationBar({ state, run }: Props) {
       <button className="op op-stop" disabled={!running} title="즉시 정지합니다" onClick={() => run(() => api.command("stop"))}>
         STOP
       </button>
-      <button className="op op-reset" disabled={state.mode !== "ALARM"} onClick={() => run(() => api.command("reset"))}>
+      <button
+        className="op op-reset"
+        disabled={state.mode !== "ALARM" || !can.reset}
+        title={can.reset ? "" : needLogin}
+        onClick={() => run(() => api.command("reset"))}>
         RESET
       </button>
 
