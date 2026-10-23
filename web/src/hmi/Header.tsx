@@ -1,17 +1,8 @@
-import { api } from "../api";
 import { MODE_LABEL, OPERATOR_PHASE_LABEL } from "../labels";
 import type { MachineState } from "../types";
 
-const SPEEDS = [1, 10, 60, 300];
-
-interface Props {
-  state: MachineState;
-  connected: boolean;
-  run: (action: () => Promise<void>) => void;
-}
-
-export function Header({ state, connected, run }: Props) {
-  const { sim } = state;
+/** Machine status line shown at the top of every screen. */
+export function Header({ state }: { state: MachineState }) {
   return (
     <header className="header">
       <div className="header-id">
@@ -21,47 +12,15 @@ export function Header({ state, connected, run }: Props) {
       </div>
 
       <div className={`mode-badge mode-${state.mode}`}>{MODE_LABEL[state.mode]}</div>
-
-      <div className="header-time">
-        <span className={`conn ${connected ? "on" : "off"}`} title={connected ? "서버 연결됨" : "서버 연결 끊김"} />
-        <span className="mono">{state.time}</span>
-      </div>
+      {state.cycle_stop && <span className="tag warn">사이클 정지 중</span>}
 
       <div className="header-status">
-        {state.cycle_stop && <span className="tag warn">사이클 정지 중</span>}
-        {sim.auto_operator && (
+        <span className="mono">{state.time}</span>
+        {state.sim.auto_operator && (
           <span className="muted">
             작업자 {state.operator.crew.join("·")} · {OPERATOR_PHASE_LABEL[state.operator.phase] ?? state.operator.phase}
           </span>
         )}
-      </div>
-
-      <div className="header-controls">
-        <div className="segmented" role="group" aria-label="시뮬레이션 배속">
-          {SPEEDS.map((s) => (
-            <button
-              key={s}
-              className={sim.speed === s ? "active" : ""}
-              onClick={() => run(() => api.setSim({ speed: s }))}
-            >
-              ×{s}
-            </button>
-          ))}
-          <button
-            className={sim.paused ? "active" : ""}
-            onClick={() => run(() => api.setSim({ paused: !sim.paused }))}
-          >
-            {sim.paused ? "재개" : "일시정지"}
-          </button>
-        </div>
-        <label className="toggle" title="켜면 가상 작업자가 알람에 자동으로 대응합니다">
-          <input
-            type="checkbox"
-            checked={sim.auto_operator}
-            onChange={(e) => run(() => api.setAutoOperator(e.target.checked))}
-          />
-          자동 작업자
-        </label>
       </div>
     </header>
   );

@@ -7,6 +7,12 @@ class Infeed(Station):
 
     name = "INFEED"
     transfer_s = 0.0  # the transfer from upstream is part of the sequence below
+    SEQUENCE = [
+        ("WAIT_UPSTREAM", None, "upstream_late"),
+        ("TRANSFER_IN", 1.0, ""),
+        ("STOPPER", 0.15, ""),
+        ("ID_READ", 0.3, ""),
+    ]
 
     def process(self):
         rng = self.m.rng

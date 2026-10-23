@@ -12,6 +12,8 @@ class ServerTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.client = TestClient(create_app(ROOT, Path(self._tmp.name)))
         self.client.__enter__()  # runs the lifespan, which starts a live run
+        # Live runs start at the real clock time; without this a planned break could land mid-test.
+        self.client.post("/api/operator", json={"auto": False})
 
     def tearDown(self):
         self.client.__exit__(None, None, None)
@@ -59,6 +61,27 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(all(0.6 < v < 1.0 for _, v in widths))
         self.assertGreaterEqual(len(trends["weight_check_mg"]["points"]), 3)
         self.assertEqual(trends["fixture_vac_kpa"]["limits"], {"hi": -60.0})
+
+    def test_cycle_stop_and_log_api(self):
+        runner = self.client.app.state.runner
+        self.client.post("/api/machine/start")
+        for _ in range(round(120 / runner.sim.clock.dt)):
+            runner.sim.step()
+        state = self.client.post("/api/machine/cycle_stop").json()
+        self.assertTrue(state["cycle_stop"])
+        self.assertTrue(state["live_log"])
+        self.assertNotIn("DEBUG", {e["level"] for e in state["live_log"]})
+        for _ in range(round(60 / runner.sim.clock.dt)):
+            runner.sim.step()
+        self.assertEqual(self.client.get("/api/state").json()["mode"], "STOPPED")
+
+        events = self.client.get("/api/logs", params={"level": "DEBUG", "unit": "DISPENSER", "q": "step"}).json()
+        self.assertTrue(events["items"])
+        self.assertTrue(all(e["unit"] == "DISPENSER" for e in events["items"]))
+        production = self.client.get("/api/logs", params={"kind": "production"}).json()["items"]
+        self.assertIn("bead_width_mm", production[0])
+        meta = self.client.get("/api/meta").json()
+        self.assertEqual(meta["sequences"]["VISION"][2]["step"], "PUSH_ALIGN")
 
     def test_websocket_pushes_state(self):
         with self.client.websocket_connect("/ws") as ws:

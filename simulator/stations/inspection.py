@@ -8,6 +8,11 @@ class Inspection(Station):
     """Line-scan camera that measures bead width and position and looks for defects."""
 
     name = "INSPECTION"
+    SEQUENCE = [
+        ("TRANSFER_IN", 1.0, ""),
+        ("SCAN", 1.2, ""),
+        ("SCAN_RETURN", 0.5, ""),
+    ]
 
     def __init__(self, machine, cfg):
         super().__init__(machine, cfg)

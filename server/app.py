@@ -86,6 +86,10 @@ def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
             "maintenance_actions": MAINTENANCE_ACTIONS,
             "scenarios": runner.scenarios(),
             "recipes": list(runner.machine_cfg["recipes"]),
+            "sequences": {
+                s.name: [{"step": step, "std_s": std, "condition": cond} for step, std, cond in s.SEQUENCE]
+                for s in runner.sim.machine.stations
+            },
             "fault_types": {
                 name: {
                     "unit": cls.unit,
@@ -99,9 +103,28 @@ def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
         }
 
     @app.post("/api/machine/{command}")
-    async def machine_command(command: Literal["start", "stop", "reset"]):
-        getattr(runner.sim.machine, command)(by="HMI")
+    async def machine_command(command: Literal["start", "stop", "cycle_stop", "reset"]):
+        machine = runner.sim.machine
+        if command == "cycle_stop":
+            machine.cycle_stop(by="HMI", reason="operator")
+        else:
+            getattr(machine, command)(by="HMI")
         return runner.state()
+
+    @app.get("/api/logs")
+    async def logs(kind: Literal["event", "alarm", "production"] = "event", level: str = "INFO",
+                   unit: str = "", q: str = "", limit: int = 200):
+        """Recent log entries, newest first (the full history is in the log files)."""
+        log = runner.sim.log
+        limit = max(1, min(limit, 2000))
+        if kind == "event":
+            items = log.query_events(level, unit, q, limit)
+        else:
+            source = log.recent_alarms if kind == "alarm" else log.recent_production
+            needle = q.lower()
+            items = [r for r in reversed(source)
+                     if (not unit or r.get("unit") == unit) and (not needle or needle in str(r).lower())][:limit]
+        return {"kind": kind, "items": items, "log_dir": str(log.dir)}
 
     @app.post("/api/maintenance")
     async def maintenance(req: MaintenanceRequest):

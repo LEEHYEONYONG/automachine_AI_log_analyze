@@ -6,6 +6,18 @@ class Outfeed(Station):
     """Hands OK parts to the downstream machine; a small vacuum picker moves NG parts into the NG buffer."""
 
     name = "OUTFEED"
+    SEQUENCE = [
+        ("TRANSFER_IN", 1.0, ""),
+        ("WAIT_DOWNSTREAM", None, "ok"),
+        ("STOPPER_DOWN", 0.15, "ok"),
+        ("TRANSFER_OUT", 1.0, "ok"),
+        ("PICK_DOWN", 0.3, "ng"),
+        ("VACUUM_ON", 0.2, "ng"),
+        ("PICK_UP", 0.3, "ng"),
+        ("MOVE_TO_NG", 0.8, "ng"),
+        ("PLACE", 0.3, "ng"),
+        ("RETURN", 0.8, "ng"),
+    ]
 
     def __init__(self, machine, cfg):
         super().__init__(machine, cfg)

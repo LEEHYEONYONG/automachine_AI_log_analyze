@@ -71,8 +71,10 @@ class Machine:
         self.maintenance_listeners: list[Callable[[str, str], None]] = []
         self.counts: Counter[str] = Counter()
         self.alarm_counts: Counter[str] = Counter()
-        self.alarm_history: deque[dict] = deque(maxlen=50)  # newest first
+        self.alarm_history: deque[dict] = deque(maxlen=200)  # newest first
         self.trends = TrendStore()
+        self.mode_seconds: Counter[str] = Counter()  # RUNNING / STOPPED / ALARM, plus STARVED and BLOCKED
+        self._finished_at: deque[float] = deque(maxlen=2000)
         self._cycle_stop = False
 
         self._lot_id: str | None = None
@@ -219,8 +221,13 @@ class Machine:
         p.dispenser.temp_setpoint_c = self.setpoints["syringe_temp_c"]
         p.dispenser.syringe_age_h = (self.clock.now - self.dispenser.syringe_installed_at).total_seconds() / 3600.0
         p.dispenser.update(dt, self.sensors["disp_temp"].offset)
+        self.mode_seconds[self.mode.value] += dt
         if self.mode is not MachineMode.RUNNING:
             return
+        if self.infeed.step == "WAIT_UPSTREAM":
+            self.mode_seconds["STARVED"] += dt
+        if self.outfeed.step == "WAIT_DOWNSTREAM":
+            self.mode_seconds["BLOCKED"] += dt
 
         switch = self.cfg["air_pressure_switch_kpa"]
         if p.air.supply_kpa < switch:
@@ -272,6 +279,20 @@ class Machine:
             "fixture_vacuum_on": self.dispenser.vacuum_on,
             "ng_picker_vacuum_on": self.outfeed.picker_vacuum,
             "dispenser_valve_open": self.dispenser.valve_open,
+            "metrics": self.metrics(),
+        }
+
+    def metrics(self) -> dict:
+        """Production KPIs an operator expects on the HMI."""
+        now = self.clock.now
+        hour_ago = now.timestamp() - 3600.0
+        uph = sum(1 for t in self._finished_at if t >= hour_ago)
+        recent = list(self._finished_at)[-21:]
+        tact = (recent[-1] - recent[0]) / (len(recent) - 1) if len(recent) > 1 else None
+        return {
+            "uph": uph,
+            "tact_s": round(tact, 2) if tact else None,
+            "seconds": {k: round(v) for k, v in self.mode_seconds.items()},
         }
 
     def _load_recipe(self, name: str) -> dict:
@@ -284,6 +305,7 @@ class Machine:
 
     def _record(self, wp: Workpiece) -> None:
         now = self.clock.now
+        self._finished_at.append(now.timestamp())
         self.log.production(wp.production_row(now))
         for name in PART_TRENDS:
             if name in wp.data:

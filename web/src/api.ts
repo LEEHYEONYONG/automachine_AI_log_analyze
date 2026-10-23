@@ -14,7 +14,7 @@ async function post(path: string, body?: unknown): Promise<void> {
 }
 
 export const api = {
-  command: (cmd: "start" | "stop" | "reset") => post(`/api/machine/${cmd}`),
+  command: (cmd: "start" | "stop" | "cycle_stop" | "reset") => post(`/api/machine/${cmd}`),
   maintenance: (action: string) => post("/api/maintenance", { action }),
   setAutoOperator: (auto: boolean) => post("/api/operator", { auto }),
   setSim: (opts: { speed?: number; paused?: boolean }) => post("/api/sim", opts),

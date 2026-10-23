@@ -9,6 +9,16 @@ class Vision(Station):
     """
 
     name = "VISION"
+    SEQUENCE = [
+        ("TRANSFER_IN", 1.0, ""),
+        ("LIFT_UP", 0.4, ""),
+        ("PUSH_ALIGN", 0.4, ""),
+        ("SETTLE", 0.2, ""),
+        ("CAPTURE", 0.3, ""),
+        ("PROCESS", 0.2, ""),
+        ("RELEASE", 0.3, ""),
+        ("LIFT_DOWN", 0.4, ""),
+    ]
 
     def process(self):
         rng = self.m.rng

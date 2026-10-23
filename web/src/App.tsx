@@ -1,32 +1,44 @@
-import { Suspense, lazy, useCallback, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { useMachineState } from "./api";
 import { ConsolePage } from "./console/ConsolePage";
 import { Header } from "./hmi/Header";
-import { HmiPage } from "./hmi/HmiPage";
+import { HmiShell, isHmiPage, type HmiPage } from "./hmi/HmiShell";
+import { SimBar } from "./SimBar";
 
 // three.js is large, so the viewer is only downloaded when its tab is opened.
 const ViewerPage = lazy(() => import("./viewer/ViewerPage"));
 
 type Tab = "hmi" | "console" | "3d";
 
-const TABS: { id: Tab; label: string; ready: boolean }[] = [
-  { id: "hmi", label: "HMI", ready: true },
-  { id: "console", label: "엔지니어 콘솔", ready: true },
-  { id: "3d", label: "3D 뷰어", ready: true },
+const TABS: { id: Tab; label: string }[] = [
+  { id: "hmi", label: "HMI" },
+  { id: "console", label: "엔지니어 콘솔" },
+  { id: "3d", label: "3D 뷰어" },
 ];
+
+// The location hash holds the screen (#hmi/sequence, #console, #3d) so reloads and links keep it.
+function readHash(): { tab: Tab; page: HmiPage } {
+  const [tab, page] = location.hash.slice(1).split("/");
+  return {
+    tab: TABS.some((t) => t.id === tab) ? (tab as Tab) : "hmi",
+    page: isHmiPage(page) ? page : "main",
+  };
+}
 
 export default function App() {
   const { state, connected } = useMachineState();
-  // The tab lives in the URL hash (#console, #3d) so a reload or a shared link opens the same screen.
-  const [tab, setTabState] = useState<Tab>(() => {
-    const hash = location.hash.slice(1);
-    return TABS.some((t) => t.id === hash) ? (hash as Tab) : "hmi";
-  });
-  const setTab = (t: Tab) => {
-    setTabState(t);
-    history.replaceState(null, "", `#${t}`);
-  };
+  const [route, setRoute] = useState(readHash);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onHash = () => setRoute(readHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const go = (tab: Tab, page: HmiPage = route.page) => {
+    location.hash = tab === "hmi" ? `hmi/${page}` : tab;
+  };
 
   const run = useCallback((action: () => Promise<void>) => {
     action().catch((e: Error) => {
@@ -41,23 +53,20 @@ export default function App() {
 
   return (
     <div className="app">
-      <nav className="tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={tab === t.id ? "active" : ""}
-            disabled={!t.ready}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-            {!t.ready && <span className="soon">준비 중</span>}
-          </button>
-        ))}
-      </nav>
-      <Header state={state} connected={connected} run={run} />
-      {tab === "hmi" && <HmiPage state={state} run={run} />}
-      {tab === "console" && <ConsolePage state={state} run={run} />}
-      {tab === "3d" && (
+      <div className="topbar">
+        <nav className="tabs">
+          {TABS.map((t) => (
+            <button key={t.id} className={route.tab === t.id ? "active" : ""} onClick={() => go(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </nav>
+        <SimBar state={state} connected={connected} run={run} />
+      </div>
+      <Header state={state} />
+      {route.tab === "hmi" && <HmiShell state={state} page={route.page} onPage={(p) => go("hmi", p)} run={run} />}
+      {route.tab === "console" && <ConsolePage state={state} run={run} />}
+      {route.tab === "3d" && (
         <Suspense fallback={<div className="loading">3D 뷰어 불러오는 중…</div>}>
           <ViewerPage state={state} />
         </Suspense>

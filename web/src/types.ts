@@ -20,6 +20,27 @@ export interface StationView {
   progress: number; // 0..1 through the current step when the state was sent
   wp: string | null;
   judge: "" | "OK" | "NG" | null;
+  wait: string; // why the station is not working ("" when it is)
+  history: { end: string; step: string; t: number }[]; // newest first
+}
+
+export interface LogEntry {
+  ts: string;
+  level: "DEBUG" | "INFO" | "WARN" | "ALARM";
+  unit: string;
+  text: string;
+}
+
+export interface SequenceStep {
+  step: string;
+  std_s: number | null;
+  condition: string;
+}
+
+export interface Metrics {
+  uph: number;
+  tact_s: number | null;
+  seconds: Partial<Record<"RUNNING" | "STOPPED" | "ALARM" | "STARVED" | "BLOCKED", number>>;
 }
 
 export interface Sensors {
@@ -59,6 +80,7 @@ export interface Meta {
   maintenance_actions: string[];
   scenarios: string[];
   recipes: string[];
+  sequences: Record<string, SequenceStep[]>;
   fault_types: Record<string, FaultTypeInfo>;
 }
 
@@ -110,6 +132,9 @@ export interface MachineState {
   fixture_vacuum_on: boolean;
   ng_picker_vacuum_on: boolean;
   dispenser_valve_open: boolean;
+  metrics: Metrics;
+  live_log: LogEntry[]; // INFO and above, newest first
+  setpoints: Record<string, number>;
   sensors: Sensors;
   sim: {
     run_id: string;

@@ -66,6 +66,8 @@ class SimRunner:
         return {
             **sim.machine.snapshot(),
             "sensors": sim.latest_sensors,
+            "live_log": sim.log.query_events("INFO", limit=40),
+            "setpoints": sim.machine.setpoints,
             "sim": {
                 "run_id": sim.run_id,
                 "scenario": self.scenario_name,

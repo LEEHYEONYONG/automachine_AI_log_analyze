@@ -16,6 +16,23 @@ class Dispenser(Station):
     """Air-pulse dispenser on a gantry that draws an adhesive bead along the housing."""
 
     name = "DISPENSER"
+    SEQUENCE = [
+        ("TRANSFER_IN", 1.0, ""),
+        ("MOVE_TO_SCALE", 1.5, "weight_check"),
+        ("TEST_SHOT", None, "weight_check"),
+        ("WEIGH", 3.0, "weight_check"),
+        ("MOVE_FROM_SCALE", 1.5, "weight_check"),
+        ("LIFT_UP", 0.4, ""),
+        ("VACUUM_ON", 0.3, ""),
+        ("RESEAT", 0.6, "retry"),
+        ("APPROACH", 0.8, ""),
+        ("HEIGHT_MEASURE", 0.5, ""),
+        ("DISPENSE", None, ""),
+        ("DWELL", None, ""),
+        ("RETRACT", 0.5, ""),
+        ("VACUUM_OFF", 0.2, ""),
+        ("LIFT_DOWN", 0.4, ""),
+    ]
 
     def __init__(self, machine, cfg):
         super().__init__(machine, cfg)

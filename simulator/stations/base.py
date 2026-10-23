@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from enum import Enum
 from typing import TYPE_CHECKING, Iterator
 
@@ -26,6 +27,9 @@ class Station:
 
     name = "STATION"
     transfer_s = 1.0  # conveyor time to receive a workpiece from the previous station
+    # The standard sequence shown on the HMI: (step, standard seconds or None if recipe-driven, condition).
+    # condition is "" for every cycle, or a tag such as "weight_check", "retry", "ok", "ng".
+    SEQUENCE: list[tuple[str, float | None, str]] = []
 
     def __init__(self, machine: Machine, cfg: dict):
         self.m = machine
@@ -36,6 +40,7 @@ class Station:
         self._step_s = 0.0
         self._proc: Iterator[float] | None = None
         self._wait = 0.0
+        self.history: deque[dict] = deque(maxlen=12)  # last completed steps, newest first
 
     def view(self) -> dict:
         """What the HMI and 3D viewer need to draw this station."""
@@ -48,7 +53,23 @@ class Station:
             "progress": round(progress, 3),
             "wp": self.wp.wp_id if self.wp else None,
             "judge": self.wp.judge if self.wp else None,
+            "wait": self.wait_reason(),
+            "history": list(self.history)[:8],
         }
+
+    def wait_reason(self) -> str:
+        """Why the station is not moving a part right now ("" when it is working)."""
+        if self.state is StationState.ALARM:
+            return "ALARM"
+        if self.m.mode.value != "RUNNING":
+            return "MACHINE_STOPPED"
+        if self.state is StationState.DONE:
+            return "WAIT_NEXT_STATION"
+        if self.state is StationState.IDLE:
+            return "WAIT_PART"
+        if self.step in ("WAIT_UPSTREAM", "WAIT_DOWNSTREAM"):
+            return self.step
+        return ""
 
     def can_accept(self) -> bool:
         return self.state is StationState.IDLE and self.wp is None
@@ -65,7 +86,6 @@ class Station:
     def abort_if_empty(self) -> None:
         """Drop a sequence that has not taken a part yet (e.g. still waiting for upstream)."""
         if self.state is StationState.BUSY and self.wp is None:
-            self._end_step()
             self._proc = None
             self.state = StationState.IDLE
             self.step = ""
@@ -124,6 +144,8 @@ class Station:
         yield from self.process()
 
     def _end_step(self) -> None:
-        if self.step and self.m.log_steps:
-            self.log("DEBUG", f"Step {self.step} done", t=f"{self._step_s:.3f}s")
+        if self.step:
+            self.history.appendleft({"end": self.m.log.timestamp(), "step": self.step, "t": round(self._step_s, 3)})
+            if self.m.log_steps:
+                self.log("DEBUG", f"Step {self.step} done", t=f"{self._step_s:.3f}s")
         self.step = ""

@@ -25,33 +25,36 @@ function Gauge({ label, value, max, unit, warnBelow }: {
   );
 }
 
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "ok" | "ng" }) {
+  return (
+    <div className="stat">
+      <span className="stat-label">{label}</span>
+      <span className={`stat-value ${tone ?? ""}`}>{value}</span>
+    </div>
+  );
+}
+
 export function ProductionPanel({ state }: { state: MachineState }) {
   const { OK, NG } = state.counts;
   const total = OK + NG;
-  const yieldPct = total ? ((100 * OK) / total).toFixed(2) : "-";
+  const { uph, tact_s } = state.metrics;
   return (
     <section className="panel">
       <h2>생산 현황</h2>
-      <div className="stats">
-        <div className="stat">
-          <span className="stat-label">생산</span>
-          <span className="stat-value">{total.toLocaleString()}</span>
-        </div>
-        <div className="stat">
-          <span className="stat-label">OK</span>
-          <span className="stat-value ok">{OK.toLocaleString()}</span>
-        </div>
-        <div className="stat">
-          <span className="stat-label">NG</span>
-          <span className="stat-value ng">{NG.toLocaleString()}</span>
-        </div>
-        <div className="stat">
-          <span className="stat-label">수율</span>
-          <span className="stat-value">{yieldPct}%</span>
-        </div>
+      <div className="stats stats-3">
+        <Stat label="생산" value={total.toLocaleString()} />
+        <Stat label="OK" value={OK.toLocaleString()} tone="ok" />
+        <Stat label="NG" value={NG.toLocaleString()} tone="ng" />
+        <Stat label="수율" value={total ? `${((100 * OK) / total).toFixed(2)}%` : "-"} />
+        <Stat label="UPH (최근 1시간)" value={uph.toLocaleString()} />
+        <Stat label="택트 타임" value={tact_s ? `${tact_s.toFixed(1)}초` : "-"} />
       </div>
 
       <h3>자재 / 버퍼</h3>
+      <Gauge label="시린지 잔량" value={state.syringe_level_pct} max={100} unit="%" warnBelow={15} />
+      <p className="hint">
+        시린지 장착 후 {Math.floor(state.syringe_age_min / 60)}시간 {state.syringe_age_min % 60}분 (가사시간 6시간)
+      </p>
       <Gauge
         label="NG 버퍼 여유"
         value={state.ng_buffer_capacity - state.ng_buffer}
@@ -59,10 +62,6 @@ export function ProductionPanel({ state }: { state: MachineState }) {
         unit={`/${state.ng_buffer_capacity}`}
         warnBelow={20}
       />
-      <Gauge label="시린지 잔량" value={state.syringe_level_pct} max={100} unit="%" warnBelow={15} />
-      <p className="hint">
-        시린지 장착 후 {Math.floor(state.syringe_age_min / 60)}시간 {state.syringe_age_min % 60}분 (가사시간 6시간)
-      </p>
     </section>
   );
 }
