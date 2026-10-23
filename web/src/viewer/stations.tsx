@@ -31,6 +31,17 @@ export interface StationProps {
   speed: number;
 }
 
+export const MM = 1 / 200; // scene units per millimetre (a 140 mm housing is 0.7 units long)
+
+/** In MANUAL mode the HMI moves devices directly; these read their positions (null in AUTO). */
+export function manualDevice(m: MachineState, id: string): number | null {
+  return m.op_mode === "MANUAL" ? m.manual?.devices.find((d) => d.id === id)?.position ?? null : null;
+}
+
+function manualAxis(m: MachineState, id: string): number | null {
+  return m.op_mode === "MANUAL" ? m.manual?.axes.find((a) => a.id === id)?.position ?? null : null;
+}
+
 /** Steps during which a lift-up unit holds the part up, plus how it moves in and out. */
 function liftLevel(step: string, t: number, upSteps: string[]): number {
   if (step === "LIFT_UP") return t;
@@ -128,7 +139,7 @@ export function Infeed3D({ station, running, speed }: StationProps) {
   );
 }
 
-export function Vision3D({ station, running, speed }: StationProps) {
+export function Vision3D({ station, m, running, speed }: StationProps) {
   const p = useStepClock(station, running, speed);
   const part = useRef<Group>(null);
   const pusherX = useRef<Group>(null);
@@ -136,7 +147,7 @@ export function Vision3D({ station, running, speed }: StationProps) {
   const skew = skewOf(station.wp);
 
   const upSteps = ["PUSH_ALIGN", "SETTLE", "CAPTURE", "PROCESS", "RELEASE"];
-  const level = () => liftLevel(station.step, p(), upSteps);
+  const level = () => manualDevice(m, "VISION_LIFT") ?? liftLevel(station.step, p(), upSteps);
   const push = () => {
     const t = p();
     if (station.step === "PUSH_ALIGN") return t;
@@ -147,16 +158,18 @@ export function Vision3D({ station, running, speed }: StationProps) {
   const aligned = ["SETTLE", "CAPTURE", "PROCESS", "RELEASE", "LIFT_DOWN"].includes(station.step) || station.state === "DONE";
 
   useFrame((_, dt) => {
-    const k = push();
+    const kx = manualDevice(m, "VISION_PUSH_X") ?? push();
+    const kz = manualDevice(m, "VISION_PUSH_Y") ?? push();
     if (part.current) {
-      const left = aligned ? 0 : 1 - (station.step === "PUSH_ALIGN" ? k : 0);
+      const manual = m.op_mode === "MANUAL";
+      const left = manual ? 1 - Math.min(kx, kz) : aligned ? 0 : 1 - (station.step === "PUSH_ALIGN" ? kx : 0);
       const x = station.step === "TRANSFER_IN" ? lerp(-STATION_SPACING, 0, p()) : 0;
       part.current.position.set(x + skew[0] * left, liftedPartY(level()), skew[1] * left);
       part.current.rotation.y = skew[2] * left;
     }
     // pusher pads travel from parked to touching the part's edge
-    if (pusherX.current) pusherX.current.position.x = MathUtils.damp(pusherX.current.position.x, lerp(-0.62, -PART.w / 2 - 0.015, k), 20, dt);
-    if (pusherZ.current) pusherZ.current.position.z = MathUtils.damp(pusherZ.current.position.z, lerp(0.5, PART.d / 2 + 0.015, k), 20, dt);
+    if (pusherX.current) pusherX.current.position.x = MathUtils.damp(pusherX.current.position.x, lerp(-0.62, -PART.w / 2 - 0.015, kx), 20, dt);
+    if (pusherZ.current) pusherZ.current.position.z = MathUtils.damp(pusherZ.current.position.z, lerp(0.5, PART.d / 2 + 0.015, kz), 20, dt);
   });
 
   const capture = station.step === "CAPTURE";
@@ -231,10 +244,14 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
   const [sx, sz] = beadPoint(0);
 
   const upSteps = ["VACUUM_ON", "APPROACH", "HEIGHT_MEASURE", "DISPENSE", "DWELL", "RETRACT", "VACUUM_OFF"];
-  const level = () => liftLevel(station.step, p(), upSteps);
+  const level = () => manualDevice(m, "DISP_LIFT") ?? liftLevel(station.step, p(), upSteps);
 
   // [x, z, y] of the needle tip relative to the station
   const target = (): [number, number, number] => {
+    const mx = manualAxis(m, "DISP_X");
+    if (mx !== null) {
+      return [mx * MM, (manualAxis(m, "DISP_Y") ?? 0) * MM, WORK_Y + (manualAxis(m, "DISP_Z") ?? 88) * MM];
+    }
     const t = p();
     switch (station.step) {
       case "APPROACH":
@@ -288,7 +305,7 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
   return (
     <group position={[STATION_X.DISPENSER, 0, 0]}>
       <StationBase station={station} x={0} />
-      <LiftUnit level={level} cups vacuum={m.fixture_vacuum_on} />
+      <LiftUnit level={level} cups vacuum={(manualDevice(m, "DISP_FIXTURE_VAC") ?? 0) >= 1 || m.fixture_vacuum_on} />
 
       {/* dispensing controller with its air line */}
       <group position={[-0.8, 0, -2.2]}>
@@ -363,7 +380,7 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
   );
 }
 
-export function Inspection3D({ station, running, speed }: StationProps) {
+export function Inspection3D({ station, m, running, speed }: StationProps) {
   const p = useStepClock(station, running, speed);
   const part = useRef<Group>(null);
   const scanner = useRef<Group>(null);
@@ -377,8 +394,15 @@ export function Inspection3D({ station, running, speed }: StationProps) {
       part.current.position.set(x, PART_Y, 0);
     }
     if (scanner.current) {
+      const manual = manualAxis(m, "SCAN_X");
       const goal =
-        station.step === "SCAN" ? lerp(SCAN_FROM, SCAN_TO, t) : station.step === "SCAN_RETURN" ? lerp(SCAN_TO, SCAN_FROM, t) : SCAN_FROM;
+        manual !== null
+          ? manual * MM
+          : station.step === "SCAN"
+            ? lerp(SCAN_FROM, SCAN_TO, t)
+            : station.step === "SCAN_RETURN"
+              ? lerp(SCAN_TO, SCAN_FROM, t)
+              : SCAN_FROM;
       scanner.current.position.x = MathUtils.damp(scanner.current.position.x, goal, 25, dt);
     }
   });
@@ -427,6 +451,11 @@ export function Outfeed3D({ station, m, running, speed }: StationProps) {
   const placed = station.step === "RETURN";
 
   const target = (): [number, number] => {
+    const my = manualAxis(m, "NG_PICK_Y");
+    if (my !== null) {
+      const low = my > 200 ? bufferTop + PART.h : PART_TOP;
+      return [-my * MM, lerp(HEAD_HIGH, low, manualDevice(m, "NG_PICK_Z") ?? 0)];
+    }
     const t = p();
     switch (station.step) {
       case "PICK_DOWN":
@@ -463,7 +492,7 @@ export function Outfeed3D({ station, m, running, speed }: StationProps) {
         <Box size={[1.06, 0.06, 0.7]} position={[0, -0.0, 0]} mat="white" color="#b9262d" />
         <Box size={[0.3, 0.03, 0.03]} position={[0, 0.03, 0.37]} mat="steel" />
       </group>
-      <PickGantry target={target} vacuum={m.ng_picker_vacuum_on}>
+      <PickGantry target={target} vacuum={(manualDevice(m, "NG_PICK_VAC") ?? 0) >= 1 || m.ng_picker_vacuum_on}>
         {carrying && <Part position={[0, -PART.h / 2, 0]} bead={1} ng />}
       </PickGantry>
       {station.wp && !carrying && !placed && <Part ref={beltPart} bead={1} ng={station.judge === "NG"} />}

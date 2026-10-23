@@ -5,12 +5,14 @@ import { AlarmPage } from "./pages/AlarmPage";
 import { LogPage } from "./pages/LogPage";
 import { MainPage } from "./pages/MainPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
+import { ManualPage } from "./pages/ManualPage";
 import { ProductionPage } from "./pages/ProductionPage";
 import { SequencePage } from "./pages/SequencePage";
 
 const PAGES = [
   { id: "main", label: "메인" },
   { id: "sequence", label: "시퀀스" },
+  { id: "manual", label: "수동" },
   { id: "alarm", label: "알람" },
   { id: "log", label: "로그" },
   { id: "production", label: "생산" },
@@ -44,6 +46,7 @@ export function HmiShell({ state, page, onPage, run }: Props) {
         <AlarmBanner alarm={state.alarm} onClick={() => onPage("alarm")} />
         {page === "main" && <MainPage state={state} onPage={onPage} />}
         {page === "sequence" && <SequencePage state={state} />}
+        {page === "manual" && <ManualPage state={state} run={run} />}
         {page === "alarm" && <AlarmPage state={state} />}
         {page === "log" && <LogPage />}
         {page === "production" && <ProductionPage state={state} />}

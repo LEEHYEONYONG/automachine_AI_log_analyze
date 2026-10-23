@@ -8,6 +8,7 @@ from typing import Callable
 from simulator.alarms import ALARMS, MachineAlarm
 from simulator.clock import VirtualClock
 from simulator.logger import MachineLogger
+from simulator.manual import InterlockError, ManualDevices
 from simulator.physics import DispenserPhysics, FixturePhysics, Physics, PlantAir
 from simulator.sensors import Sensor
 from simulator.stations import Dispenser, Infeed, Inspection, Outfeed, Station, StationState, Vision
@@ -75,6 +76,8 @@ class Machine:
         self.trends = TrendStore()
         self.mode_seconds: Counter[str] = Counter()  # RUNNING / STOPPED / ALARM, plus STARVED and BLOCKED
         self._finished_at: deque[float] = deque(maxlen=2000)
+        self.op_mode = "AUTO"  # AUTO: sequences run on START. MANUAL: devices are moved one by one.
+        self.manual = ManualDevices(self)
         self._cycle_stop = False
 
         self._lot_id: str | None = None
@@ -88,6 +91,9 @@ class Machine:
         if self.mode is MachineMode.ALARM:
             self.log.event("WARN", "MACHINE", "Start rejected: alarm active", by=by)
             return
+        if self.op_mode != "AUTO":
+            self.log.event("WARN", "MACHINE", "Start rejected: not in AUTO mode", by=by)
+            return
         self._cycle_stop = False
         self.mode = MachineMode.RUNNING
         self.log.event("INFO", "MACHINE", "Mode change", mode=self.mode.value, by=by)
@@ -97,6 +103,33 @@ class Machine:
             self._cycle_stop = False
             self.mode = MachineMode.STOPPED
             self.log.event("INFO", "MACHINE", "Mode change", mode=self.mode.value, by=by)
+
+    def set_op_mode(self, op_mode: str, by: str) -> None:
+        """Switch AUTO/MANUAL. Raises InterlockError with the reason when the switch is not allowed."""
+        if op_mode == self.op_mode:
+            return
+        if op_mode == "MANUAL":
+            if self.mode is MachineMode.RUNNING:
+                raise InterlockError("운전 중에는 MANUAL로 바꿀 수 없습니다. 먼저 정지하세요")
+            self.manual.sync_from_auto()
+        elif op_mode == "AUTO":
+            not_ready = self.manual.not_ready_for_auto()
+            if not_ready:
+                raise InterlockError("자동 운전 원위치가 아닌 장치가 있습니다: " + ", ".join(not_ready))
+        else:
+            raise InterlockError(f"알 수 없는 모드: {op_mode}")
+        self.op_mode = op_mode
+        self.log.event("INFO", "MACHINE", "Operation mode change", op_mode=op_mode, by=by)
+
+    def manual_command(self, action, *args, by: str) -> None:
+        """Run a manual-mode command, logging interlock refusals like a real HMI would."""
+        if self.op_mode != "MANUAL":
+            raise InterlockError("MANUAL 모드에서만 수동 조작을 할 수 있습니다")
+        try:
+            action(*args, by=by)
+        except InterlockError as e:
+            self.log.event("WARN", "MACHINE", "Interlock", reason=f"[{e}]", by=by)
+            raise
 
     def cycle_stop(self, by: str, reason: str) -> None:
         """Stop feeding new parts and stop once the line is empty (used for breaks and changeovers)."""
@@ -222,6 +255,8 @@ class Machine:
         p.dispenser.syringe_age_h = (self.clock.now - self.dispenser.syringe_installed_at).total_seconds() / 3600.0
         p.dispenser.update(dt, self.sensors["disp_temp"].offset)
         self.mode_seconds[self.mode.value] += dt
+        if self.op_mode == "MANUAL":
+            self.manual.update(dt)
         if self.mode is not MachineMode.RUNNING:
             return
         if self.infeed.step == "WAIT_UPSTREAM":
@@ -266,6 +301,8 @@ class Machine:
             "machine_id": self.machine_id,
             "recipe": self.recipe["name"],
             "mode": self.mode.value,
+            "op_mode": self.op_mode,
+            "manual": self.manual.view() if self.op_mode == "MANUAL" else None,
             "cycle_stop": self._cycle_stop,
             "alarm": self.alarm_history[0] if self.active_alarm else None,
             "alarm_history": list(self.alarm_history)[:20],

@@ -2,7 +2,7 @@ import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { CanvasTexture, MathUtils, RepeatWrapping, type Mesh } from "three";
-import type { StationView } from "../types";
+import type { MachineState } from "../types";
 import { Box, Cyl, Housing, ServoMotor } from "./details";
 import {
   BELT_TOP,
@@ -19,6 +19,7 @@ import {
   UPSTREAM_X,
   ZONE_LEN,
 } from "./layout";
+import { manualDevice } from "./stations";
 
 const STRIPE = 0.25; // texture repeat length along the belt
 const TRANSFER_S = 1.0; // matches the transfer step time on the server
@@ -149,7 +150,8 @@ function NeighbourConveyor({ x, label, moving, speed, partWaiting }: {
 }
 
 /** All conveyor zones. Each zone runs only while a part is moving onto or off it. */
-export function ConveyorLine({ stations, running, speed }: { stations: StationView[]; running: boolean; speed: number }) {
+export function ConveyorLine({ m, running, speed }: { m: MachineState; running: boolean; speed: number }) {
+  const stations = m.stations;
   const byName = Object.fromEntries(stations.map((s) => [s.name, s]));
   const receiving = (name?: string) => !!name && byName[name]?.step === "TRANSFER_IN";
   const outfeed = byName.OUTFEED;
@@ -162,8 +164,15 @@ export function ConveyorLine({ stations, running, speed }: { stations: StationVi
         const s = byName[name];
         const next = STATION_ORDER[i + 1];
         const isOutfeed = name === "OUTFEED";
-        const moving = running && (receiving(name) || receiving(next) || (isOutfeed && sendingOut));
-        const stopperUp = isOutfeed ? !["STOPPER_DOWN", "TRANSFER_OUT"].includes(s?.step ?? "") : !receiving(next);
+        const belt = manualDevice(m, `${name}_BELT`);
+        const stopper = manualDevice(m, `${name}_STOPPER`);
+        const moving = belt !== null ? belt >= 1 : running && (receiving(name) || receiving(next) || (isOutfeed && sendingOut));
+        const stopperUp =
+          stopper !== null
+            ? stopper >= 0.5
+            : isOutfeed
+              ? !["STOPPER_DOWN", "TRANSFER_OUT"].includes(s?.step ?? "")
+              : !receiving(next);
         return (
           <ConveyorZone
             key={name}

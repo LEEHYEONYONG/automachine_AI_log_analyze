@@ -49,7 +49,7 @@ export function Scene({ state, covers, view }: { state: MachineState; covers: bo
       <Floor />
       <BaseCabinet />
       <Enclosure covers={covers} />
-      <ConveyorLine stations={state.stations} running={running} speed={speed} />
+      <ConveyorLine m={state} running={running} speed={speed} />
       {state.stations.map((s) => {
         const Comp = STATION_COMPONENTS[s.name];
         return Comp ? <Comp key={s.name} station={s} m={state} running={running} speed={speed} /> : null;

@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from faults import FAULT_TYPES
 from server.runner import SimRunner
 from simulator.alarms import ALARMS
+from simulator.manual import InterlockError
 from simulator.operator import ACTION_MINUTES
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,6 +37,22 @@ class RunRequest(BaseModel):
     scenario: str | None = None
 
 
+class OpModeRequest(BaseModel):
+    mode: Literal["AUTO", "MANUAL"]
+
+
+class DeviceRequest(BaseModel):
+    device: str
+    on: bool
+
+
+class AxisRequest(BaseModel):
+    axis: str
+    move_to: float | None = None
+    jog: float | None = None
+    preset: str | None = None
+
+
 class RecipeRequest(BaseModel):
     recipe: str
 
@@ -46,8 +63,8 @@ class FaultRequest(BaseModel):
     delay_min: float = 0.0
 
 
-def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
-    runner = SimRunner(root, out_root)
+def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None = None) -> FastAPI:
+    runner = SimRunner(root, out_root, seed)
     clients: set[WebSocket] = set()
 
     async def broadcast(state: dict) -> None:
@@ -110,6 +127,43 @@ def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
         else:
             getattr(machine, command)(by="HMI")
         return runner.state()
+
+    def interlocked(fn, *args):
+        """Run a machine command and turn an interlock refusal into a 409 the HMI can show."""
+        try:
+            fn(*args)
+        except InterlockError as e:
+            raise HTTPException(409, str(e)) from None
+        return runner.state()
+
+    @app.post("/api/opmode")
+    async def op_mode(req: OpModeRequest):
+        return interlocked(lambda: runner.sim.machine.set_op_mode(req.mode, by="HMI"))
+
+    @app.post("/api/manual/device")
+    async def manual_device(req: DeviceRequest):
+        m = runner.sim.machine
+        return interlocked(lambda: m.manual_command(m.manual.set_device, req.device, req.on, by="HMI"))
+
+    @app.post("/api/manual/axis")
+    async def manual_axis(req: AxisRequest):
+        m = runner.sim.machine
+        if req.jog is not None:
+            return interlocked(lambda: m.manual_command(m.manual.jog_axis, req.axis, req.jog, by="HMI"))
+        target = req.move_to
+        if req.preset is not None:
+            axis = m.manual.axes.get(req.axis)
+            if axis is None or req.preset not in axis.presets:
+                raise HTTPException(400, f"unknown preset: {req.preset}")
+            target = axis.presets[req.preset]
+        if target is None:
+            raise HTTPException(400, "give move_to, jog or preset")
+        return interlocked(lambda: m.manual_command(m.manual.move_axis, req.axis, target, by="HMI"))
+
+    @app.post("/api/manual/home_all")
+    async def manual_home_all():
+        m = runner.sim.machine
+        return interlocked(lambda: m.manual_command(m.manual.home_all, by="HMI"))
 
     @app.get("/api/logs")
     async def logs(kind: Literal["event", "alarm", "production"] = "event", level: str = "INFO",

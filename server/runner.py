@@ -17,9 +17,10 @@ MAX_SPEED = 1000.0
 class SimRunner:
     """Advances a Simulation in step with wall-clock time, scaled by `speed`."""
 
-    def __init__(self, root: Path, out_root: Path | None = None):
+    def __init__(self, root: Path, out_root: Path | None = None, seed: int | None = None):
         self.root = root
         self.out_root = out_root or root
+        self.seed = seed  # fixed seed for reproducible live runs (tests); None = new seed per run
         self.machine_cfg = json.loads((root / "config" / "machine.json").read_text(encoding="utf-8"))
         self.sim: Simulation | None = None
         self.scenario_name = "live"
@@ -42,7 +43,7 @@ class SimRunner:
             scenario = {"name": "live", "description": "Live run started from the server.", "faults": []}
         # Live runs start "now" with a fresh seed; fault timings stay relative to the start.
         scenario["start_time"] = datetime.now().replace(microsecond=0).isoformat()
-        scenario["seed"] = int(time.time()) % 1_000_000
+        scenario["seed"] = self.seed if self.seed is not None else int(time.time()) % 1_000_000
         self.scenario_name = scenario["name"]
         self.sim = Simulation(self.machine_cfg, scenario, self.out_root)
         self.sim.operator.enabled = auto

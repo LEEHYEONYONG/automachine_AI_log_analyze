@@ -94,6 +94,8 @@ class Operator:
 
     def update(self, now: datetime) -> None:
         self._check_shift(now)
+        if self.m.op_mode == "MANUAL":
+            return  # someone is working on the machine by hand
         if self.phase in ("ack", "work"):
             if now >= self._due:
                 self._advance_task(now)

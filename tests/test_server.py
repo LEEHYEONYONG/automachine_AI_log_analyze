@@ -10,7 +10,7 @@ from server.app import ROOT, create_app
 class ServerTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self.client = TestClient(create_app(ROOT, Path(self._tmp.name)))
+        self.client = TestClient(create_app(ROOT, Path(self._tmp.name), seed=7))
         self.client.__enter__()  # runs the lifespan, which starts a live run
         # Live runs start at the real clock time; without this a planned break could land mid-test.
         self.client.post("/api/operator", json={"auto": False})
@@ -51,6 +51,9 @@ class ServerTest(unittest.TestCase):
 
     def test_trends_collect_part_values_and_downsample(self):
         runner = self.client.app.state.runner
+        # Let the simulated operator clear random alarms, but without wall-clock-dependent breaks.
+        runner.sim.operator.enabled = True
+        runner.sim.operator.breaks = []
         runner.sim.machine.start(by="test")
         for _ in range(round(3600 / runner.sim.clock.dt)):
             runner.sim.step()
@@ -82,6 +85,48 @@ class ServerTest(unittest.TestCase):
         self.assertIn("bead_width_mm", production[0])
         meta = self.client.get("/api/meta").json()
         self.assertEqual(meta["sequences"]["VISION"][2]["step"], "PUSH_ALIGN")
+
+    def _steps(self, seconds):
+        runner = self.client.app.state.runner
+        for _ in range(round(seconds / runner.sim.clock.dt)):
+            runner.sim.step()
+
+    def test_manual_mode_interlocks_and_return_to_auto(self):
+        c = self.client
+        c.post("/api/machine/start")
+        self.assertEqual(c.post("/api/opmode", json={"mode": "MANUAL"}).status_code, 409)  # running
+        c.post("/api/machine/stop")
+        self.assertEqual(c.post("/api/opmode", json={"mode": "MANUAL"}).json()["op_mode"], "MANUAL")
+        self.assertEqual(c.post("/api/machine/start").json()["mode"], "STOPPED")  # START refused in MANUAL
+
+        # pushers need the lift up first
+        bad = c.post("/api/manual/device", json={"device": "VISION_PUSH_X", "on": True})
+        self.assertEqual(bad.status_code, 409)
+        self.assertIn("Interlock", c.get("/api/logs", params={"level": "WARN"}).json()["items"][0]["text"])
+        c.post("/api/manual/device", json={"device": "VISION_LIFT", "on": True})
+        self._steps(1)
+        lift = next(d for d in c.get("/api/state").json()["manual"]["devices"] if d["id"] == "VISION_LIFT")
+        self.assertTrue(lift["work_sensor"])
+        self.assertEqual(c.post("/api/manual/device", json={"device": "VISION_PUSH_X", "on": True}).status_code, 200)
+
+        # the needle may only go down over a lifted part, and X/Y only move with Z at a safe height
+        self.assertEqual(c.post("/api/manual/axis", json={"axis": "DISP_Z", "preset": "WORK"}).status_code, 409)
+        c.post("/api/manual/device", json={"device": "DISP_LIFT", "on": True})
+        self._steps(1)
+        self.assertEqual(c.post("/api/manual/axis", json={"axis": "DISP_Z", "preset": "WORK"}).status_code, 200)
+        self._steps(3)
+        self.assertEqual(c.post("/api/manual/axis", json={"axis": "DISP_X", "jog": 1}).status_code, 409)
+
+        # a vacuum without a part on the fixture does not build up
+        c.post("/api/manual/device", json={"device": "DISP_FIXTURE_VAC", "on": True})
+        self._steps(1)
+        vac = next(d for d in c.get("/api/state").json()["manual"]["devices"] if d["id"] == "DISP_FIXTURE_VAC")
+        self.assertGreater(vac["kpa"], -10)
+
+        self.assertEqual(c.post("/api/opmode", json={"mode": "AUTO"}).status_code, 409)  # not at auto position
+        c.post("/api/manual/home_all")
+        self._steps(10)
+        self.assertEqual(c.post("/api/opmode", json={"mode": "AUTO"}).json()["op_mode"], "AUTO")
 
     def test_websocket_pushes_state(self):
         with self.client.websocket_connect("/ws") as ws:

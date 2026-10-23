@@ -12,6 +12,7 @@ export function Header({ state }: { state: MachineState }) {
       </div>
 
       <div className={`mode-badge mode-${state.mode}`}>{MODE_LABEL[state.mode]}</div>
+      <span className={`opmode-badge opmode-${state.op_mode}`}>{state.op_mode}</span>
       {state.cycle_stop && <span className="tag warn">사이클 정지 중</span>}
 
       <div className="header-status">

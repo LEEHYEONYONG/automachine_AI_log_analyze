@@ -37,6 +37,29 @@ export interface SequenceStep {
   condition: string;
 }
 
+export interface ManualDevice {
+  id: string;
+  unit: string;
+  kind: "cylinder" | "vacuum" | "belt";
+  position: number; // 0 = home/off, 1 = extended/on
+  target: number;
+  home_sensor: boolean;
+  work_sensor: boolean;
+  kpa?: number; // vacuum devices only
+}
+
+export interface ManualAxis {
+  id: string;
+  unit: string;
+  position: number; // mm
+  target: number;
+  min: number;
+  max: number;
+  home: number;
+  presets: Record<string, number>;
+  moving: boolean;
+}
+
 export interface Metrics {
   uph: number;
   tact_s: number | null;
@@ -119,6 +142,8 @@ export interface MachineState {
   machine_id: string;
   recipe: string;
   mode: MachineMode;
+  op_mode: "AUTO" | "MANUAL";
+  manual: { devices: ManualDevice[]; axes: ManualAxis[] } | null; // only in MANUAL
   alarm: AlarmEntry | null;
   alarm_history: AlarmEntry[];
   lot: string | null;

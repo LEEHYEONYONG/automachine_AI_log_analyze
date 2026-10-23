@@ -54,6 +54,46 @@ export const WAIT_LABEL: Record<string, string> = {
   WAIT_DOWNSTREAM: "다음 공정 대기",
 };
 
+/** Manual-mode device names and what OFF (home) / ON (extended) mean for each. */
+export const DEVICE_LABEL: Record<string, { name: string; off: string; on: string }> = {
+  INFEED_STOPPER: { name: "투입 스토퍼", off: "하강", on: "상승" },
+  VISION_STOPPER: { name: "비전 스토퍼", off: "하강", on: "상승" },
+  DISPENSER_STOPPER: { name: "디스펜서 스토퍼", off: "하강", on: "상승" },
+  INSPECTION_STOPPER: { name: "검사 스토퍼", off: "하강", on: "상승" },
+  OUTFEED_STOPPER: { name: "배출 스토퍼", off: "하강", on: "상승" },
+  VISION_LIFT: { name: "비전 리프트", off: "하강", on: "상승" },
+  VISION_PUSH_X: { name: "푸셔 X (길이 방향)", off: "후진", on: "전진" },
+  VISION_PUSH_Y: { name: "푸셔 Y (폭 방향)", off: "후진", on: "전진" },
+  DISP_LIFT: { name: "디스펜서 리프트", off: "하강", on: "상승" },
+  DISP_FIXTURE_VAC: { name: "지그 진공", off: "OFF", on: "ON" },
+  NG_PICK_Z: { name: "NG 픽커 Z", off: "상승", on: "하강" },
+  NG_PICK_VAC: { name: "NG 픽커 진공", off: "OFF", on: "ON" },
+  INFEED_BELT: { name: "투입 컨베이어", off: "정지", on: "구동" },
+  VISION_BELT: { name: "비전 컨베이어", off: "정지", on: "구동" },
+  DISPENSER_BELT: { name: "디스펜서 컨베이어", off: "정지", on: "구동" },
+  INSPECTION_BELT: { name: "검사 컨베이어", off: "정지", on: "구동" },
+  OUTFEED_BELT: { name: "배출 컨베이어", off: "정지", on: "구동" },
+};
+
+export const AXIS_LABEL: Record<string, string> = {
+  DISP_X: "디스펜서 X축",
+  DISP_Y: "디스펜서 Y축",
+  DISP_Z: "디스펜서 Z축",
+  SCAN_X: "검사 스캔 축",
+  NG_PICK_Y: "NG 픽커 Y축",
+};
+
+export const PRESET_LABEL: Record<string, string> = {
+  HOME: "원점",
+  SAFE: "안전 높이",
+  WORK: "도포 높이",
+  WORK_START: "도포 시작점",
+  SCALE: "저울",
+  SCALE_SHOT: "저울 토출 높이",
+  END: "끝",
+  NG_BUFFER: "NG 버퍼",
+};
+
 /** Recipe-driven standard times for steps whose `std_s` is null. */
 export function standardTime(step: string, std: number | null, setpoints: Record<string, number>): number | null {
   if (std !== null) return std;

@@ -379,7 +379,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
   position: sticky;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: 170px repeat(4, 1fr);
   gap: 8px;
   padding: 10px;
   background: var(--panel);
@@ -388,6 +388,36 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
   box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.35);
 }
 .op-cycle { background: #c98a2b; color: #1d1404; }
+.mode-switch { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.mode-switch button { border: none; background: var(--panel-2); font-weight: 800; letter-spacing: 1px; color: var(--muted); }
+.mode-switch button.active.mode-AUTO { background: var(--ok); color: #04130b; }
+.mode-switch button.active.mode-MANUAL { background: var(--engineer); color: #fff; }
+.opmode-badge { padding: 4px 12px; border-radius: 999px; font-weight: 800; font-size: 12px; letter-spacing: 1px; border: 1px solid var(--line); }
+.opmode-AUTO { color: var(--ok); }
+.opmode-MANUAL { background: var(--engineer); color: #fff; border-color: var(--engineer); }
+
+/* manual screen */
+.manual-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.manual-head h2 { margin-bottom: 4px; }
+.manual-head .hint { margin: 0; }
+.manual-ready { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.manual-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; align-items: start; }
+.lamp { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--line); }
+.lamp-ok { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.lamp-warn { background: var(--warn); border-color: var(--warn); box-shadow: 0 0 6px var(--warn); }
+.sensor { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.device-row { display: grid; grid-template-columns: 130px auto 1fr; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.device-row .segmented button { padding: 6px 14px; }
+.device-name { font-size: 13px; }
+.device-sensors { display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap; font-size: 12px; }
+.axis-card { margin-top: 10px; padding: 10px; border-radius: var(--radius); background: var(--panel-2); }
+.axis-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.axis-pos { font-size: 18px; font-weight: 700; margin-left: auto; font-variant-numeric: tabular-nums; }
+.axis-track { position: relative; height: 6px; background: var(--panel); border-radius: 3px; margin: 10px 0 2px; }
+.axis-marker { position: absolute; top: -4px; width: 4px; height: 14px; margin-left: -2px; background: var(--accent); border-radius: 2px; }
+.axis-range { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.axis-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 6px; margin-top: 8px; }
+@media (max-width: 900px) { .op-bar { grid-template-columns: 1fr 1fr; } .manual-grid { grid-template-columns: 1fr; } }
 
 .panel-head { display: flex; justify-content: space-between; align-items: baseline; }
 .panel-head h2 { margin-bottom: 8px; }
