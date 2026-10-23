@@ -19,8 +19,9 @@ SENSOR_FIELDS = [
     "disp_temp_c", "syringe_level_pct",
 ]
 HIDDEN_FIELDS = [
-    "timestamp", "nozzle_open_ratio", "pick_leak_ratio", "achievable_vac_kpa",
-    "temp_true_c", "temp_sensor_offset_c", "material_viscosity", "active_faults",
+    "timestamp", "plant_air_kpa", "regulator_out_kpa", "nozzle_open_ratio", "pick_leak_ratio",
+    "achievable_vac_kpa", "temp_true_c", "temp_sensor_offset_c", "material_viscosity", "syringe_age_h",
+    "needle_z_offset_mm", "needle_xy_offset_mm", "tip_buildup", "bubbles", "active_faults",
 ]
 
 
@@ -48,24 +49,26 @@ class Simulation:
         self.log = MachineLogger(self.log_dir, self.clock, SENSOR_FIELDS)
         # Separate random streams so adding a fault does not reshuffle unrelated randomness.
         self.machine = Machine(machine_cfg, self.clock, self.log, Random(f"{self.seed}-machine"))
-        self.operator = Operator(self.machine, Random(f"{self.seed}-operator"))
+        self.operator = Operator(self.machine, Random(f"{self.seed}-operator"), machine_cfg["plant"],
+                                 machine_cfg["operator"], scenario.get("schedule"))
         self.faults = FaultEngine([
             FAULT_TYPES[spec["type"]](f"F{i + 1:03d}", start + timedelta(minutes=spec["start_after_min"]),
                                       spec.get("params", {}))
             for i, spec in enumerate(scenario.get("faults", []))
         ])
-        self.machine.maintenance_listeners.append(lambda action: self.faults.on_maintenance(action, self.clock.now))
+        self._fault_rng = Random(f"{self.seed}-faults")
+        self.machine.maintenance_listeners.append(self._on_maintenance)
         self._hidden = CsvSink(self.truth_dir / "hidden_state.csv", HIDDEN_FIELDS)
         self._sensor_rng = Random(f"{self.seed}-sensor")
         self.latest_sensors: dict = {}
         self._closed = False
 
-    def inject_fault(self, fault_type: str, params: dict | None = None, delay_min: float = 0.0):
-        """Schedule a fault during a live run (used by the engineer console)."""
-        fault_id = f"F{len(self.faults.faults) + 1:03d}"
+    def inject_fault(self, fault_type: str, params: dict | None = None, delay_min: float = 0.0,
+                     origin: str = "injected"):
+        """Schedule a fault (engineer console, or a natural event / operator mistake)."""
         start = self.clock.now + timedelta(minutes=delay_min)
-        fault = FAULT_TYPES[fault_type](fault_id, start, params or {})
-        self.faults.faults.append(fault)
+        fault = FAULT_TYPES[fault_type](self.faults.next_id(), start, params or {}, origin)
+        self.faults.add(fault)
         return fault
 
     def run(self, hours: float | None = None) -> dict:
@@ -94,8 +97,8 @@ class Simulation:
 
     def engineer_view(self) -> dict:
         """Hidden state for the engineer console. Never shown on the HMI."""
-        p = self.machine.physics
         now = self.clock.now
+        changed = {k: v for k, v in self.machine.setpoints.items() if self.machine.recipe.get(k) != v}
         return {
             "truth_file": str(self.truth_dir / "faults.json"),
             "faults": [
@@ -103,14 +106,8 @@ class Simulation:
                  if f.injected_at else 0.0}
                 for f in self.faults.faults
             ],
-            "hidden": {
-                "nozzle_open_ratio": round(p.dispenser.nozzle_open_ratio, 4),
-                "pick_leak_ratio": round(p.loader.leak_ratio, 4),
-                "achievable_vac_kpa": round(p.loader.achievable_vacuum_kpa, 2),
-                "temp_true_c": round(p.dispenser.temp_true_c, 3),
-                "temp_sensor_offset_c": round(self.machine.sensors["disp_temp"].offset, 3),
-                "material_viscosity": round(p.dispenser.material_viscosity, 4),
-            },
+            "hidden": self._hidden_values(),
+            "setpoint_errors": changed,
         }
 
     def close(self) -> None:
@@ -132,9 +129,44 @@ class Simulation:
             "ng": self.machine.counts["NG"],
             "yield_pct": round(100.0 * self.machine.counts["OK"] / total, 2) if total else 0.0,
             "alarms": dict(sorted(self.machine.alarm_counts.items())),
+            "faults": [f"{f.fault_id} {f.type} ({f.origin})" for f in self.faults.faults],
             "log_dir": str(self.log_dir),
             "ground_truth_dir": str(self.truth_dir),
         }
+
+    # ---- natural events and operator mistakes ------------------------------------
+
+    def _on_maintenance(self, action: str, by: str) -> None:
+        """Resolve faults fixed by this action, then roll for side effects of doing it."""
+        self.faults.on_maintenance(action, self.clock.now)
+        rng = self._fault_rng
+        natural = self.cfg["natural"]
+        mistakes = self.cfg["operator"]
+        by_simulated_operator = by != "HMI"  # a person at the HMI makes their own mistakes
+
+        if action == "replace_syringe" and rng.random() < natural["air_bubble_on_syringe_change"]:
+            self.inject_fault("air_bubble", {"bubbles": rng.randint(5, 20),
+                                             "void_probability": round(rng.uniform(0.08, 0.2), 3)},
+                              origin="natural: air trapped while changing the syringe")
+        if (action == "nozzle_clean" and by_simulated_operator
+                and rng.random() < mistakes["skip_calibration_probability"]):
+            self.inject_fault("needle_offset", {"dz_mm": round(rng.uniform(0.03, 0.08), 3),
+                                                "dxy_mm": round(rng.uniform(0.0, 0.05), 3)},
+                              origin=f"operator_error: {by} re-mounted the needle without calibration")
+        if action == "model_change":
+            if rng.random() < natural["setup_offset_on_model_change"]:
+                self.inject_fault("needle_offset", {"dz_mm": 0.0, "dxy_mm": round(rng.uniform(0.06, 0.14), 3)},
+                                  origin="natural: dispense position not re-taught after model change")
+            if by_simulated_operator and rng.random() < mistakes["recipe_typo_probability"]:
+                if rng.random() < 0.5:
+                    wrong = round(self.machine.setpoints["dispense_pressure_kpa"] * 0.82)
+                    self.inject_fault("recipe_pressure_error", {"wrong_pressure_kpa": float(wrong)},
+                                      origin=f"operator_error: {by} mistyped the pressure during model change")
+                else:
+                    self.inject_fault("recipe_retract_error", {"wrong_retract_delay_s": 0.0},
+                                      origin=f"operator_error: {by} cleared the retract delay during model change")
+
+    # ---- outputs ----------------------------------------------------------------
 
     def _sample_sensors(self) -> None:
         m = self.machine
@@ -142,7 +174,7 @@ class Simulation:
         rng = self._sensor_rng
         vac_true = p.loader.achievable_vacuum_kpa if m.loader.vacuum_on else 0.0
         pressure_true = (m.dispenser.dispensing_pressure_kpa() if m.dispenser.valve_open
-                         else m.recipe["dispense_pressure_kpa"])
+                         else p.dispenser.regulator_out_kpa)
         self.latest_sensors = {
             "timestamp": m.log.timestamp(),
             "mode": m.mode.value,
@@ -154,26 +186,40 @@ class Simulation:
         }
         m.log.sensor(self.latest_sensors)
 
-    def _sample_hidden(self) -> None:
+    def _hidden_values(self) -> dict:
         p = self.machine.physics
-        self._hidden.write({
-            "timestamp": self.log.timestamp(),
-            "nozzle_open_ratio": round(p.dispenser.nozzle_open_ratio, 4),
+        d = p.dispenser
+        return {
+            "plant_air_kpa": round(p.air.supply_kpa, 1),
+            "regulator_out_kpa": round(d.regulator_out_kpa, 1),
+            "nozzle_open_ratio": round(d.nozzle_open_ratio, 4),
             "pick_leak_ratio": round(p.loader.leak_ratio, 4),
             "achievable_vac_kpa": round(p.loader.achievable_vacuum_kpa, 2),
-            "temp_true_c": round(p.dispenser.temp_true_c, 3),
+            "temp_true_c": round(d.temp_true_c, 3),
             "temp_sensor_offset_c": round(self.machine.sensors["disp_temp"].offset, 3),
-            "material_viscosity": round(p.dispenser.material_viscosity, 4),
+            "material_viscosity": round(d.material_viscosity, 4),
+            "syringe_age_h": round(d.syringe_age_h, 3),
+            "needle_z_offset_mm": round(d.needle_z_offset_mm, 3),
+            "needle_xy_offset_mm": round(d.needle_xy_offset_mm, 3),
+            "tip_buildup": round(d.tip_buildup, 3),
+            "bubbles": d.bubbles,
+        }
+
+    def _sample_hidden(self) -> None:
+        self._hidden.write({
+            "timestamp": self.log.timestamp(),
+            **self._hidden_values(),
             "active_faults": ";".join(f.fault_id for f in self.faults.active()),
         })
 
     def _write_machine_info(self) -> None:
-        """Equipment facts an engineer would know anyway: recipe and alarm code list. No fault info."""
+        """Equipment facts an engineer would know anyway: recipes, alarm codes, breaks. No fault info."""
         info = {
             "machine_id": self.machine.machine_id,
             "start_time": self.clock.start.isoformat(),
             "end_time": self.clock.now.isoformat(timespec="milliseconds"),
-            "recipe": self.cfg["recipe"],
+            "recipes": self.cfg["recipes"],
+            "planned_breaks": self.cfg["plant"]["breaks"],
             "alarm_codes": [dataclasses.asdict(a) for a in ALARMS.values()],
         }
         (self.log_dir / "machine_info.json").write_text(json.dumps(info, indent=2), encoding="utf-8")

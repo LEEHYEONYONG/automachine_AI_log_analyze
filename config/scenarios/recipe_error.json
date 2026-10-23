@@ -1,0 +1,16 @@
+{
+  "name": "recipe_error",
+  "description": "A wrong dispensing pressure is typed into the recipe.",
+  "start_time": "2026-10-29T08:00:00",
+  "duration_hours": 8,
+  "seed": 108,
+  "faults": [
+    {
+      "type": "recipe_pressure_error",
+      "start_after_min": 200,
+      "params": {
+        "wrong_pressure_kpa": 205
+      }
+    }
+  ]
+}

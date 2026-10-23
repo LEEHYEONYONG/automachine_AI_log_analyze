@@ -6,7 +6,7 @@ PRODUCTION_FIELDS = [
     "pick_vac_kpa", "pick_retries",
     "align_dx_mm", "align_dy_mm", "align_score",
     "disp_pressure_kpa", "disp_temp_c", "nozzle_height_mm",
-    "bead_width_mm", "judge", "ng_reason",
+    "bead_width_mm", "bead_offset_mm", "judge", "ng_reason",
 ]
 
 

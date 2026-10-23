@@ -171,6 +171,8 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
         const [x, z] = beadPoint(t);
         return [x, z, WORK_Y];
       }
+      case "DWELL":
+        return [sx, sz, WORK_Y];
       case "RETRACT":
         return [sx, sz, lerp(WORK_Y, HOME_Y, t)];
       case "MOVE_TO_SCALE":
@@ -198,7 +200,11 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
   });
 
   const bead = () =>
-    station.step === "DISPENSE" ? p() : station.step === "RETRACT" || station.state === "DONE" ? 1 : 0;
+    station.step === "DISPENSE"
+      ? p()
+      : station.step === "DWELL" || station.step === "RETRACT" || station.state === "DONE"
+        ? 1
+        : 0;
   const level = Math.max(0, m.syringe_level_pct) / 100;
   const valveOpen = m.dispenser_valve_open;
 

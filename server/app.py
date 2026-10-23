@@ -16,7 +16,7 @@ from simulator.alarms import ALARMS
 from simulator.operator import ACTION_MINUTES
 
 ROOT = Path(__file__).resolve().parent.parent
-MAINTENANCE_ACTIONS = [a for a in ACTION_MINUTES if a != "check"]
+MAINTENANCE_ACTIONS = [a for a in ACTION_MINUTES if a not in ("check", "none", "model_change")]
 
 
 class MaintenanceRequest(BaseModel):
@@ -34,6 +34,10 @@ class SimRequest(BaseModel):
 
 class RunRequest(BaseModel):
     scenario: str | None = None
+
+
+class RecipeRequest(BaseModel):
+    recipe: str
 
 
 class FaultRequest(BaseModel):
@@ -81,6 +85,7 @@ def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
         return {
             "maintenance_actions": MAINTENANCE_ACTIONS,
             "scenarios": runner.scenarios(),
+            "recipes": list(runner.machine_cfg["recipes"]),
             "fault_types": {
                 name: {
                     "unit": cls.unit,
@@ -107,6 +112,20 @@ def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
             raise HTTPException(409, "stop the machine before maintenance")
         machine.maintenance(req.action, by="HMI")
         machine.log.event("INFO", "MAINT", "Maintenance done", action=req.action, by="HMI")
+        return runner.state()
+
+    @app.post("/api/recipe")
+    async def model_change(req: RecipeRequest):
+        """With the auto operator the change is queued like a planned changeover; otherwise it is immediate."""
+        if req.recipe not in runner.machine_cfg["recipes"]:
+            raise HTTPException(400, f"unknown recipe: {req.recipe}")
+        sim = runner.sim
+        if sim.operator.enabled:
+            sim.operator.request_model_change(req.recipe)
+        elif sim.machine.mode.value == "STOPPED":
+            sim.machine.change_recipe(req.recipe, by="HMI")
+        else:
+            raise HTTPException(409, "stop the machine before a model change")
         return runner.state()
 
     @app.post("/api/operator")

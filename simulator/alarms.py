@@ -17,13 +17,16 @@ ALARMS = {a.code: a for a in [
     AlarmDef("E3002", "DISPENSER", "Syringe temperature out of range", "retry"),
     AlarmDef("E3003", "DISPENSER", "Syringe level low", "retry"),
     AlarmDef("E3005", "DISPENSER", "Weight check out of spec", "retry"),
+    AlarmDef("E3006", "DISPENSER", "Material pot life expired", "retry"),
     AlarmDef("E4001", "INSPECTION", "Consecutive bead NG", "continue"),
     AlarmDef("E5001", "UNLOADER", "Output tray full", "retry"),
+    AlarmDef("E9001", "MACHINE", "Main air pressure low", "retry"),
 ]}
 
 
 class MachineAlarm(Exception):
-    def __init__(self, code: str, detail: str = ""):
+    def __init__(self, code: str, detail: str = "", reason: str = ""):
         super().__init__(f"{code} {detail}".strip())
         self.code = code
         self.detail = detail
+        self.reason = reason  # e.g. the NG type behind E4001, which the operator looks at

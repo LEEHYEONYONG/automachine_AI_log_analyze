@@ -5,16 +5,31 @@
   "hidden_sample_s": 10.0,
   "log_steps": true,
   "lot_size": 500,
-  "recipe": {
-    "name": "REAR_HOUSING_ADH_A",
-    "dispense_pressure_kpa": 250.0,
-    "dispense_time_s": 2.0,
-    "syringe_temp_c": 35.0,
-    "nozzle_height_mm": 0.15,
-    "target_bead_weight_mg": 12.0,
-    "weight_tolerance_pct": 10.0,
-    "nominal_bead_width_mm": 0.80,
-    "bead_width_spec_mm": [0.68, 0.92]
+  "air_pressure_switch_kpa": 300.0,
+  "default_recipe": "REAR_HOUSING_ADH_A",
+  "recipes": {
+    "REAR_HOUSING_ADH_A": {
+      "dispense_pressure_kpa": 250.0,
+      "dispense_time_s": 2.0,
+      "retract_delay_s": 0.3,
+      "syringe_temp_c": 35.0,
+      "nozzle_height_mm": 0.15,
+      "target_bead_weight_mg": 12.0,
+      "weight_tolerance_pct": 10.0,
+      "nominal_bead_width_mm": 0.80,
+      "bead_width_spec_mm": [0.68, 0.92]
+    },
+    "REAR_HOUSING_ADH_B": {
+      "dispense_pressure_kpa": 220.0,
+      "dispense_time_s": 1.6,
+      "retract_delay_s": 0.3,
+      "syringe_temp_c": 35.0,
+      "nozzle_height_mm": 0.12,
+      "target_bead_weight_mg": 8.5,
+      "weight_tolerance_pct": 10.0,
+      "nominal_bead_width_mm": 0.65,
+      "bead_width_spec_mm": [0.55, 0.75]
+    }
   },
   "loader": {
     "magazine_capacity": 600,
@@ -32,13 +47,34 @@
     "syringe_low_pct": 5.0,
     "material_density_g_per_ml": 1.2,
     "weight_check_interval": 100,
-    "temp_alarm_band_c": 3.0
+    "temp_alarm_band_c": 3.0,
+    "pot_life_h": 6.0,
+    "thickening_per_h": 0.01
   },
   "inspection": {
     "max_consecutive_ng": 3,
+    "max_bead_offset_mm": 0.10,
     "random_defect_probability": 0.002
   },
   "unloader": {
     "tray_capacity": 600
+  },
+  "plant": {
+    "nominal_air_kpa": 550.0,
+    "breaks": [["10:00", "10:10"], ["12:00", "13:00"], ["15:00", "15:10"],
+               ["22:00", "22:10"], ["00:00", "01:00"], ["03:00", "03:10"]],
+    "shifts": [
+      {"start": "08:00", "operators": ["OP-A", "OP-B"]},
+      {"start": "20:00", "operators": ["OP-C", "OP-D"]}
+    ]
+  },
+  "operator": {
+    "reset_only_probability": 0.12,
+    "skip_calibration_probability": 0.12,
+    "recipe_typo_probability": 0.15
+  },
+  "natural": {
+    "air_bubble_on_syringe_change": 0.2,
+    "setup_offset_on_model_change": 0.5
   }
 }

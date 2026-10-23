@@ -1,5 +1,15 @@
+from dataclasses import dataclass
+
 from simulator.alarms import MachineAlarm
 from simulator.stations.base import Station
+
+
+@dataclass
+class Shot:
+    weight_mg: float
+    broken: bool     # bead broken because the nozzle is partly clogged
+    void: bool       # an air pocket left a gap in the bead
+    stringing: bool  # adhesive tail dragged across the part when the needle lifted
 
 
 class Dispenser(Station):
@@ -12,6 +22,7 @@ class Dispenser(Station):
         self.valve_open = False
         self.need_weight_check = True  # the first shot of a shift is always verified
         self.pieces_since_check = 0
+        self.syringe_installed_at = machine.clock.now
 
     @property
     def level_pct(self) -> float:
@@ -19,51 +30,70 @@ class Dispenser(Station):
         return 100.0 * p.syringe_level_ml / p.syringe_capacity_ml
 
     def process(self):
-        r = self.m.recipe
+        sp = self.m.setpoints
         p = self.m.physics.dispenser
         rng = self.m.rng
 
         if self.level_pct < self.cfg["syringe_low_pct"]:
             raise MachineAlarm("E3003", f"level={self.level_pct:.1f}%")
+        if p.syringe_age_h > self.cfg["pot_life_h"]:
+            raise MachineAlarm("E3006", f"age={p.syringe_age_h:.1f}h limit={self.cfg['pot_life_h']:.1f}h")
         temp = self.m.sensors["disp_temp"].read(p.temp_true_c, rng)
-        if abs(temp - r["syringe_temp_c"]) > self.cfg["temp_alarm_band_c"]:
-            raise MachineAlarm("E3002", f"temp={temp:.2f}C setpoint={r['syringe_temp_c']:.1f}C")
+        if abs(temp - sp["syringe_temp_c"]) > self.cfg["temp_alarm_band_c"]:
+            raise MachineAlarm("E3002", f"temp={temp:.2f}C setpoint={sp['syringe_temp_c']:.1f}C")
         if self.need_weight_check or self.pieces_since_check >= self.cfg["weight_check_interval"]:
             yield from self._weight_check()
 
         yield self.motion("APPROACH", 0.8)
         yield self.motion("HEIGHT_MEASURE", 0.5)
-        height = self.m.sensors["nozzle_height"].read(r["nozzle_height_mm"], rng)
+        # The laser measures the part surface, so it cannot see a shifted needle tip.
+        height = self.m.sensors["nozzle_height"].read(sp["nozzle_height_mm"], rng)
         self.valve_open = True
-        duration = self.motion("DISPENSE", r["dispense_time_s"], jitter=0.005)
+        duration = self.motion("DISPENSE", sp["dispense_time_s"], jitter=0.005)
         yield duration
         self.valve_open = False
-        weight, broken = self._shot(duration)
+        shot = self._shot(duration)
         pressure = self.m.sensors["disp_pressure"].read(self.dispensing_pressure_kpa(), rng)
 
-        self.wp.hidden.update(bead_weight_mg=weight, bead_break=broken)
+        self.wp.hidden.update(
+            bead_weight_mg=shot.weight_mg, bead_break=shot.broken, bead_void=shot.void, stringing=shot.stringing,
+            gap_error_mm=p.needle_z_offset_mm, xy_offset_mm=p.needle_xy_offset_mm,
+        )
         self.wp.data.update(disp_pressure_kpa=pressure, disp_temp_c=temp, nozzle_height_mm=height)
         self.log("INFO", "Dispense done", pressure=f"{pressure:.1f}kPa", temp=f"{temp:.2f}C",
                  height=f"{height:.3f}mm", t=f"{duration:.3f}s", syringe=f"{self.level_pct:.1f}%")
         self.pieces_since_check += 1
+        if sp["retract_delay_s"] > 0:
+            yield self.motion("DWELL", sp["retract_delay_s"])
         yield self.motion("RETRACT", 0.5)
 
     def dispensing_pressure_kpa(self) -> float:
         # Line pressure sags while the valve is open; a narrower nozzle draws less flow and sags less.
         p = self.m.physics.dispenser
-        return self.m.recipe["dispense_pressure_kpa"] * (1.0 - 0.03 * p.nozzle_open_ratio)
+        return p.regulator_out_kpa * (1.0 - 0.03 * p.nozzle_open_ratio)
 
-    def _shot(self, duration: float) -> tuple[float, bool]:
-        """Dispense for `duration` seconds and return the true bead weight and whether the bead broke."""
+    def _shot(self, duration: float) -> Shot:
+        """Dispense for `duration` seconds and work out what actually came out."""
         r = self.m.recipe
         p = self.m.physics.dispenser
         rng = self.m.rng
-        nominal_flow = r["target_bead_weight_mg"] / r["dispense_time_s"]
-        flow = nominal_flow * p.nozzle_open_ratio / p.viscosity()
+        # Flow constant chosen so the validated recipe gives exactly its target weight.
+        k = r["target_bead_weight_mg"] / (r["dispense_time_s"] * r["dispense_pressure_kpa"])
+        flow = k * p.regulator_out_kpa * p.nozzle_open_ratio / p.viscosity()
         weight = max(0.0, flow * duration * rng.gauss(1.0, 0.015))
+
+        void = False
+        if p.bubbles > 0 and rng.random() < p.bubble_void_probability:
+            void = True
+            p.bubbles -= 1
+            weight *= 0.85
+
         p.syringe_level_ml = max(0.0, p.syringe_level_ml - weight / 1000.0 / self.cfg["material_density_g_per_ml"])
         broken = rng.random() < max(0.0, (0.8 - p.nozzle_open_ratio) * 0.5)
-        return weight, broken
+        stringing_p = (0.002 + 0.3 * p.tip_buildup
+                       + (0.25 if self.m.setpoints["retract_delay_s"] < 0.1 else 0.0)
+                       + 0.1 * max(0.0, 1.0 / p.viscosity() - 1.0))  # runny adhesive strings more
+        return Shot(weight, broken, void, rng.random() < stringing_p)
 
     def _weight_check(self):
         r = self.m.recipe
@@ -73,12 +103,12 @@ class Dispenser(Station):
 
         yield self.motion("MOVE_TO_SCALE", 1.5)
         self.valve_open = True
-        duration = self.motion("TEST_SHOT", r["dispense_time_s"], jitter=0.005)
+        duration = self.motion("TEST_SHOT", self.m.setpoints["dispense_time_s"], jitter=0.005)
         yield duration
         self.valve_open = False
-        weight, _ = self._shot(duration)
+        shot = self._shot(duration)
         yield self.motion("WEIGH", 3.0)
-        measured = round(weight + self.m.rng.gauss(0.0, 0.03), 2)
+        measured = round(shot.weight_mg + self.m.rng.gauss(0.0, 0.03), 2)
         self.m.trends.add("weight_check_mg", self.m.clock.now, measured)
         yield self.motion("MOVE_FROM_SCALE", 1.5)
 

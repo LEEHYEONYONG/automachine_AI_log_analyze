@@ -36,6 +36,7 @@ export interface FaultTruth {
   fault_id: string;
   type: string;
   unit: string;
+  origin: string;
   description: string;
   params: Record<string, number>;
   scheduled_at: string;
@@ -57,6 +58,7 @@ export interface FaultTypeInfo {
 export interface Meta {
   maintenance_actions: string[];
   scenarios: string[];
+  recipes: string[];
   fault_types: Record<string, FaultTypeInfo>;
 }
 
@@ -75,12 +77,19 @@ export interface Trends {
 }
 
 export interface HiddenState {
+  plant_air_kpa: number;
+  regulator_out_kpa: number;
   nozzle_open_ratio: number;
   pick_leak_ratio: number;
   achievable_vac_kpa: number;
   temp_true_c: number;
   temp_sensor_offset_c: number;
   material_viscosity: number;
+  syringe_age_h: number;
+  needle_z_offset_mm: number;
+  needle_xy_offset_mm: number;
+  tip_buildup: number;
+  bubbles: number;
 }
 
 export interface MachineState {
@@ -97,6 +106,8 @@ export interface MachineState {
   tray_count: number;
   tray_capacity: number;
   syringe_level_pct: number;
+  syringe_age_min: number;
+  cycle_stop: boolean;
   stations: StationView[];
   loader_vacuum_on: boolean;
   dispenser_valve_open: boolean;
@@ -108,9 +119,14 @@ export interface MachineState {
     paused: boolean;
     auto_operator: boolean;
   };
+  operator: {
+    phase: string;
+    crew: string[];
+  };
   engineer: {
     truth_file: string;
     faults: FaultTruth[];
     hidden: HiddenState;
+    setpoint_errors: Record<string, number>;
   };
 }

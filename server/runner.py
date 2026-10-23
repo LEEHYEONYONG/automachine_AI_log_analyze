@@ -73,6 +73,10 @@ class SimRunner:
                 "paused": self.paused,
                 "auto_operator": sim.operator.enabled,
             },
+            "operator": {
+                "phase": sim.operator.phase,
+                "crew": list(sim.operator.names),
+            },
             "engineer": sim.engineer_view(),
         }
 
@@ -89,6 +93,7 @@ class SimRunner:
             "bead_width_mm": {"lo": r["bead_width_spec_mm"][0], "hi": r["bead_width_spec_mm"][1]},
             "disp_temp_c": {"lo": r["syringe_temp_c"] - band, "hi": r["syringe_temp_c"] + band},
             "disp_pressure_kpa": {},
+            "bead_offset_mm": {"hi": cfg["inspection"]["max_bead_offset_mm"]},
         }
         now_ms = m.clock.now.timestamp() * 1000.0
         since_ms = now_ms - minutes * 60_000.0

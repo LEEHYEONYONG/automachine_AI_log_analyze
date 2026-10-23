@@ -6,13 +6,17 @@ import type { MachineState } from "../types";
 interface Props {
   state: MachineState;
   scenarios: string[];
+  recipes: string[];
   run: (action: () => Promise<void>) => void;
 }
 
 const LIVE = "";
 
-export function RunPanel({ state, scenarios, run }: Props) {
+export function RunPanel({ state, scenarios, recipes, run }: Props) {
   const [scenario, setScenario] = useState(LIVE);
+  const others = recipes.filter((r) => r !== state.recipe);
+  const [recipe, setRecipe] = useState("");
+  const target = others.includes(recipe) ? recipe : others[0] ?? "";
 
   const startNewRun = () => {
     const name = scenario ? SCENARIO_LABEL[scenario] ?? scenario : "고장 없는 실시간 실행";
@@ -48,6 +52,25 @@ export function RunPanel({ state, scenarios, run }: Props) {
         </button>
       </div>
       <p className="hint">시나리오의 고장은 실행 시작 시점 기준으로 예약됩니다. 새 실행은 정지 상태로 시작합니다.</p>
+
+      <h3>모델 체인지</h3>
+      <div className="form-row">
+        <select value={target} onChange={(e) => setRecipe(e.target.value)} disabled={others.length === 0}>
+          {others.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </select>
+        <button className="btn" disabled={!target} onClick={() => run(() => api.changeRecipe(target))}>
+          모델 체인지
+        </button>
+      </div>
+      <p className="hint">
+        {state.sim.auto_operator
+          ? "자동 작업자가 사이클 정지 후 15~25분 동안 셋업합니다. 레시피 오입력이나 위치 오차가 생길 수 있습니다."
+          : "장비가 정지 상태일 때 바로 바뀝니다."}
+      </p>
     </section>
   );
 }

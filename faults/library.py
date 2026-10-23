@@ -51,4 +51,134 @@ class TempSensorDrift(Fault):
         machine.sensors["disp_temp"].offset = self.params["max_offset_c"] * self.progress(elapsed_s)
 
 
-FAULT_TYPES = {cls.type: cls for cls in [NozzleClog, VacuumLeak, TempSensorDrift]}
+class AirBubble(Fault):
+    type = "air_bubble"
+    unit = "DISPENSER"
+    description = "Air pockets trapped in the syringe (often when it is changed) leave gaps in the bead."
+    expected_symptoms = [
+        "scattered BEAD_VOID NG, usually soon after a syringe change",
+        "weight check values become noisier and may dip",
+        "clears after purge, a new syringe, or once the bubbles have been dispensed out",
+    ]
+    resolved_by = frozenset({"purge", "replace_syringe"})
+    defaults = {"bubbles": 12, "void_probability": 0.15}
+
+    def on_start(self, machine):
+        d = machine.physics.dispenser
+        d.bubbles += int(self.params["bubbles"])
+        d.bubble_void_probability = self.params["void_probability"]
+
+    def self_resolution(self, machine, elapsed_s):
+        return "self: bubbles dispensed out" if machine.physics.dispenser.bubbles <= 0 else None
+
+
+class NeedleTipBuildup(Fault):
+    type = "needle_tip_buildup"
+    unit = "DISPENSER"
+    description = "Adhesive collects on the outside of the needle tip and drags a string when the needle lifts."
+    expected_symptoms = [
+        "STRINGING NG rate rises over time",
+        "E4001 with last=STRINGING",
+        "weight and width stay normal",
+    ]
+    resolved_by = frozenset({"nozzle_clean", "call_engineer"})
+    defaults = {"ramp_min": 120, "max_buildup": 0.8}
+
+    def apply(self, machine, elapsed_s):
+        machine.physics.dispenser.tip_buildup = self.params["max_buildup"] * self.progress(elapsed_s)
+
+
+class NeedleOffset(Fault):
+    type = "needle_offset"
+    unit = "DISPENSER"
+    description = ("The needle tip no longer sits where it was taught (re-mounted without calibration, "
+                   "a bump, or a changeover). The height laser measures the part, so it cannot see this.")
+    expected_symptoms = [
+        "step change in bead width (needle high: narrower, needle low: wider)",
+        "step change in bead offset, BEAD_OFFSET NG when beyond spec",
+        "starts right after a nozzle clean or model change",
+    ]
+    resolved_by = frozenset({"needle_calibration", "call_engineer"})
+    defaults = {"dz_mm": 0.06, "dxy_mm": 0.0}
+
+    def on_start(self, machine):
+        d = machine.physics.dispenser
+        d.needle_z_offset_mm += self.params["dz_mm"]
+        d.needle_xy_offset_mm += self.params["dxy_mm"]
+
+
+class AirSupplyDrop(Fault):
+    type = "air_supply_drop"
+    unit = "PLANT"
+    description = ("Factory compressed air sags for a while. The dispensing regulator and the loader's "
+                   "vacuum ejector share it, so two units suffer at once. It recovers on its own.")
+    expected_symptoms = [
+        "dispensing pressure reading drops below the setpoint",
+        "pick vacuum weakens at the same time, pick retries / E1001",
+        "weight check low / E3005, then everything recovers without a real fix",
+        "E9001 only if the supply falls below the pressure switch",
+    ]
+    defaults = {"min_supply_kpa": 330.0, "ramp_min": 5.0, "hold_min": 30.0}
+
+    def _shape(self, elapsed_s):
+        ramp = self.params["ramp_min"] * 60.0
+        hold = self.params["hold_min"] * 60.0
+        if elapsed_s < ramp:
+            return elapsed_s / ramp
+        if elapsed_s < ramp + hold:
+            return 1.0
+        return max(0.0, 1.0 - (elapsed_s - ramp - hold) / ramp)
+
+    def apply(self, machine, elapsed_s):
+        air = machine.physics.air
+        air.drop_kpa = (air.nominal_kpa - self.params["min_supply_kpa"]) * self._shape(elapsed_s)
+
+    def self_resolution(self, machine, elapsed_s):
+        total = (2 * self.params["ramp_min"] + self.params["hold_min"]) * 60.0
+        if elapsed_s >= total:
+            machine.physics.air.drop_kpa = 0.0
+            return "self: plant air recovered"
+        return None
+
+    def progress(self, elapsed_s):
+        total = (2 * self.params["ramp_min"] + self.params["hold_min"]) * 60.0
+        return min(1.0, elapsed_s / total)
+
+
+class RecipePressureError(Fault):
+    type = "recipe_pressure_error"
+    unit = "DISPENSER"
+    description = "A wrong dispensing pressure was typed into the recipe."
+    expected_symptoms = [
+        "a 'Recipe parameter changed' line in event.log right before the change",
+        "dispensing pressure reading steps to the new value",
+        "weight check and bead width step down (or up)",
+    ]
+    resolved_by = frozenset({"call_engineer", "model_change"})
+    defaults = {"wrong_pressure_kpa": 205.0}
+
+    def on_start(self, machine):
+        machine.set_param("dispense_pressure_kpa", self.params["wrong_pressure_kpa"], by=machine.current_operator)
+
+
+class RecipeRetractError(Fault):
+    type = "recipe_retract_error"
+    unit = "DISPENSER"
+    description = "The dwell before the needle lifts was set to 0, so the adhesive strings."
+    expected_symptoms = [
+        "a 'Recipe parameter changed' line for retract_delay_s",
+        "the DWELL step disappears from the dispenser sequence",
+        "STRINGING NG jumps right after the change",
+    ]
+    resolved_by = frozenset({"call_engineer", "model_change"})
+    defaults = {"wrong_retract_delay_s": 0.0}
+
+    def on_start(self, machine):
+        machine.set_param("retract_delay_s", self.params["wrong_retract_delay_s"], by=machine.current_operator)
+
+
+FAULT_TYPES = {cls.type: cls for cls in [
+    NozzleClog, VacuumLeak, TempSensorDrift,
+    AirBubble, NeedleTipBuildup, NeedleOffset, AirSupplyDrop,
+    RecipePressureError, RecipeRetractError,
+]}

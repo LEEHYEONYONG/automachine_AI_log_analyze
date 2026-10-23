@@ -312,6 +312,10 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .btn-danger { background: var(--engineer); width: 100%; margin-top: 4px; }
 
 .tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--panel-2); color: var(--muted); }
+.tag.warn { background: var(--warn); color: #1d1404; }
+.tag.origin-natural { color: var(--text); border: 1px solid var(--line); }
+.tag.origin-operator_error { color: var(--warn); border: 1px solid var(--warn); }
+.header-status { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 
 .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }

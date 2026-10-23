@@ -1,0 +1,17 @@
+{
+  "name": "stringing",
+  "description": "Adhesive builds up on the needle tip and strings onto the part.",
+  "start_time": "2026-10-26T08:00:00",
+  "duration_hours": 8,
+  "seed": 105,
+  "faults": [
+    {
+      "type": "needle_tip_buildup",
+      "start_after_min": 60,
+      "params": {
+        "ramp_min": 120,
+        "max_buildup": 0.8
+      }
+    }
+  ]
+}

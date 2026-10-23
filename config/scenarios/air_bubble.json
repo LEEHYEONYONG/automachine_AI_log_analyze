@@ -1,0 +1,17 @@
+{
+  "name": "air_bubble",
+  "description": "Air pockets in the syringe leave scattered gaps in the bead.",
+  "start_time": "2026-10-23T08:00:00",
+  "duration_hours": 8,
+  "seed": 104,
+  "faults": [
+    {
+      "type": "air_bubble",
+      "start_after_min": 70,
+      "params": {
+        "bubbles": 15,
+        "void_probability": 0.15
+      }
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { api } from "../api";
-import { MODE_LABEL } from "../labels";
+import { MODE_LABEL, OPERATOR_PHASE_LABEL } from "../labels";
 import type { MachineState } from "../types";
 
 const SPEEDS = [1, 10, 60, 300];
@@ -25,6 +25,15 @@ export function Header({ state, connected, run }: Props) {
       <div className="header-time">
         <span className={`conn ${connected ? "on" : "off"}`} title={connected ? "서버 연결됨" : "서버 연결 끊김"} />
         <span className="mono">{state.time}</span>
+      </div>
+
+      <div className="header-status">
+        {state.cycle_stop && <span className="tag warn">사이클 정지 중</span>}
+        {sim.auto_operator && (
+          <span className="muted">
+            작업자 {state.operator.crew.join("·")} · {OPERATOR_PHASE_LABEL[state.operator.phase] ?? state.operator.phase}
+          </span>
+        )}
       </div>
 
       <div className="header-controls">

@@ -1,0 +1,33 @@
+{
+  "name": "realistic_day",
+  "description": "A 12-hour day: breaks, a model change to recipe B, a plant air dip, needle tip buildup, plus whatever natural events and operator mistakes happen.",
+  "start_time": "2026-10-30T08:00:00",
+  "duration_hours": 12,
+  "seed": 109,
+  "faults": [
+    {
+      "type": "air_supply_drop",
+      "start_after_min": 140,
+      "params": {
+        "min_supply_kpa": 340,
+        "ramp_min": 4,
+        "hold_min": 25
+      }
+    },
+    {
+      "type": "needle_tip_buildup",
+      "start_after_min": 430,
+      "params": {
+        "ramp_min": 150,
+        "max_buildup": 0.7
+      }
+    }
+  ],
+  "schedule": [
+    {
+      "type": "model_change",
+      "at_min": 330,
+      "recipe": "REAR_HOUSING_ADH_B"
+    }
+  ]
+}

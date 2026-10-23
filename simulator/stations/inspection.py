@@ -5,7 +5,7 @@ from simulator.stations.base import Station
 
 
 class Inspection(Station):
-    """Line-scan camera that measures bead width and looks for breaks."""
+    """Line-scan camera that measures bead width and position and looks for defects."""
 
     name = "INSPECTION"
 
@@ -16,35 +16,46 @@ class Inspection(Station):
     def process(self):
         r = self.m.recipe
         rng = self.m.rng
+        hidden = self.wp.hidden
         lo, hi = r["bead_width_spec_mm"]
+        max_offset = self.cfg["max_bead_offset_mm"]
 
         yield self.motion("SCAN", 1.2)
-        weight = self.wp.hidden["bead_weight_mg"]
-        width = r["nominal_bead_width_mm"] * math.sqrt(weight / r["target_bead_weight_mg"]) * rng.gauss(1.0, 0.01)
+        # A needle sitting too high lays a thinner bead; too low squashes it wider.
+        gap_factor = max(0.5, 1.0 - 2.5 * hidden["gap_error_mm"])
+        width = (r["nominal_bead_width_mm"] * math.sqrt(hidden["bead_weight_mg"] / r["target_bead_weight_mg"])
+                 * gap_factor * rng.gauss(1.0, 0.01))
         width = round(width, 3)
+        offset = round(abs(hidden["xy_offset_mm"] + rng.gauss(0.0, 0.015)), 3)
 
-        if self.wp.hidden["bead_break"]:
+        if hidden["bead_break"]:
             reason = "BEAD_BREAK"
+        elif hidden["bead_void"]:
+            reason = "BEAD_VOID"
+        elif hidden["stringing"]:
+            reason = "STRINGING"
         elif width < lo:
             reason = "WIDTH_LOW"
         elif width > hi:
             reason = "WIDTH_HIGH"
+        elif offset > max_offset:
+            reason = "BEAD_OFFSET"
         elif rng.random() < self.cfg["random_defect_probability"]:
-            reason = "BUBBLE"
+            reason = "PARTICLE"
         else:
             reason = ""
 
-        self.wp.data["bead_width_mm"] = width
+        self.wp.data.update(bead_width_mm=width, bead_offset_mm=offset)
         self.wp.judge = "NG" if reason else "OK"
         self.wp.ng_reason = reason
         if reason:
             self.consecutive_ng += 1
-            self.log("WARN", "Bead NG", reason=reason, width=f"{width:.3f}mm", spec=f"{lo:.2f}-{hi:.2f}mm")
+            self.log("WARN", "Bead NG", reason=reason, width=f"{width:.3f}mm", offset=f"{offset:.3f}mm")
         else:
             self.consecutive_ng = 0
-            self.log("INFO", "Bead OK", width=f"{width:.3f}mm")
+            self.log("INFO", "Bead OK", width=f"{width:.3f}mm", offset=f"{offset:.3f}mm")
 
         limit = self.cfg["max_consecutive_ng"]
         if self.consecutive_ng >= limit:
             self.consecutive_ng = 0
-            raise MachineAlarm("E4001", f"consecutive_ng={limit} last={reason}")
+            raise MachineAlarm("E4001", f"consecutive_ng={limit} last={reason}", reason=reason)

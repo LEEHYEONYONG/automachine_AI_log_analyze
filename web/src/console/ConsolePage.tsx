@@ -19,11 +19,15 @@ export function ConsolePage({ state, run }: Props) {
       </div>
       <div className="console-grid">
         <div className="col">
-          <RunPanel state={state} scenarios={meta?.scenarios ?? []} run={run} />
+          <RunPanel state={state} scenarios={meta?.scenarios ?? []} recipes={meta?.recipes ?? []} run={run} />
           {meta && <FaultInjectPanel faultTypes={meta.fault_types} run={run} />}
         </div>
         <div className="col">
-          <HiddenStatePanel hidden={state.engineer.hidden} sensors={state.sensors} />
+          <HiddenStatePanel
+            hidden={state.engineer.hidden}
+            sensors={state.sensors}
+            setpointErrors={state.engineer.setpoint_errors}
+          />
           <FaultList faults={state.engineer.faults} />
         </div>
       </div>

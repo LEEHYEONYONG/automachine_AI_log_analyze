@@ -19,6 +19,7 @@ export const api = {
   setAutoOperator: (auto: boolean) => post("/api/operator", { auto }),
   setSim: (opts: { speed?: number; paused?: boolean }) => post("/api/sim", opts),
   newRun: (scenario: string | null) => post("/api/runs", { scenario }),
+  changeRecipe: (recipe: string) => post("/api/recipe", { recipe }),
   injectFault: (type: string, params: Record<string, number>, delayMin: number) =>
     post("/api/faults", { type, params, delay_min: delayMin }),
 };

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
-import { ACTION_LABEL, FAULT_LABEL, FAULT_PARAM_LABEL } from "../labels";
+import { ACTION_LABEL, FAULT_LABEL, FAULT_PARAM_LABEL, OPERATOR_ONLY_ACTION_LABEL } from "../labels";
 import type { FaultTypeInfo } from "../types";
 
 interface Props {
@@ -42,7 +42,10 @@ export function FaultInjectPanel({ faultTypes, run }: Props) {
       </div>
       <p className="hint">{info.description}</p>
       <p className="hint">
-        해결 조치: {info.resolved_by.map((a) => ACTION_LABEL[a] ?? a).join(", ")}
+        해결 조치:{" "}
+        {info.resolved_by.length
+          ? info.resolved_by.map((a) => ACTION_LABEL[a] ?? OPERATOR_ONLY_ACTION_LABEL[a] ?? a).join(", ")
+          : "없음 (시간이 지나면 저절로 회복)"}
       </p>
 
       <div className="fields">

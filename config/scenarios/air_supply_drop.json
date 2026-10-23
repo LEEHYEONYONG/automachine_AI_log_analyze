@@ -1,0 +1,18 @@
+{
+  "name": "air_supply_drop",
+  "description": "Plant air sags for half an hour, hitting the dispenser and the loader at once.",
+  "start_time": "2026-10-28T08:00:00",
+  "duration_hours": 8,
+  "seed": 107,
+  "faults": [
+    {
+      "type": "air_supply_drop",
+      "start_after_min": 150,
+      "params": {
+        "min_supply_kpa": 330,
+        "ramp_min": 5,
+        "hold_min": 30
+      }
+    }
+  ]
+}

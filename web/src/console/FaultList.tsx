@@ -1,7 +1,14 @@
-import { ACTION_LABEL, FAULT_LABEL, FAULT_PARAM_LABEL, FAULT_STATE_LABEL } from "../labels";
+import { ACTION_LABEL, FAULT_LABEL, FAULT_PARAM_LABEL, FAULT_STATE_LABEL, OPERATOR_ONLY_ACTION_LABEL } from "../labels";
 import type { FaultTruth } from "../types";
 
 const time = (t: string | null) => (t ? t.slice(11, 19) : "-");
+const actionLabel = (a: string) => ACTION_LABEL[a] ?? OPERATOR_ONLY_ACTION_LABEL[a] ?? a;
+
+function originLabel(origin: string): { tag: string; text: string } {
+  if (origin === "injected") return { tag: "주입", text: "" };
+  const [kind, ...rest] = origin.split(": ");
+  return { tag: kind === "operator_error" ? "작업자 실수" : "자연 발생", text: rest.join(": ") };
+}
 
 export function FaultList({ faults }: { faults: FaultTruth[] }) {
   return (
@@ -15,8 +22,10 @@ export function FaultList({ faults }: { faults: FaultTruth[] }) {
               <span className="mono">{f.fault_id}</span>
               <strong>{FAULT_LABEL[f.type] ?? f.type}</strong>
               <span className="tag">{f.unit}</span>
+              <span className={`tag origin-${f.origin.split(":")[0]}`}>{originLabel(f.origin).tag}</span>
               <span className={`fault-state fs-${f.state_at_end}`}>{FAULT_STATE_LABEL[f.state_at_end]}</span>
             </div>
+            {originLabel(f.origin).text && <p className="hint">{originLabel(f.origin).text}</p>}
 
             <dl className="kv small">
               <dt>예약</dt>
@@ -26,7 +35,7 @@ export function FaultList({ faults }: { faults: FaultTruth[] }) {
               <dt>해결</dt>
               <dd className="mono">
                 {time(f.resolved_at)}
-                {f.resolved_by && ` · ${ACTION_LABEL[f.resolved_by] ?? f.resolved_by}`}
+                {f.resolved_by && ` · ${actionLabel(f.resolved_by)}`}
               </dd>
               {Object.entries(f.params).map(([k, v]) => (
                 <ParamRow key={k} label={FAULT_PARAM_LABEL[k] ?? k} value={v} />

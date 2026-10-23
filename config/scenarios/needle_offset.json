@@ -1,0 +1,17 @@
+{
+  "name": "needle_offset",
+  "description": "The needle tip shifts after a bump; the height laser cannot see it.",
+  "start_time": "2026-10-27T08:00:00",
+  "duration_hours": 8,
+  "seed": 106,
+  "faults": [
+    {
+      "type": "needle_offset",
+      "start_after_min": 140,
+      "params": {
+        "dz_mm": 0.06,
+        "dxy_mm": 0.08
+      }
+    }
+  ]
+}
