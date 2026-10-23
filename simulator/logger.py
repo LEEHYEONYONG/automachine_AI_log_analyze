@@ -47,6 +47,7 @@ class MachineLogger:
         self._alarm = open(log_dir / "alarm.log", "w", encoding="utf-8", newline="\n")
         self._sensor = CsvSink(log_dir / "sensor_trend.csv", sensor_fields)
         self._production = CsvSink(log_dir / "production.csv", PRODUCTION_FIELDS)
+        self._io = CsvSink(log_dir / "io_trace.csv", ["timestamp", "address", "signal", "value"])
         self.recent_events: deque[dict] = deque(maxlen=20000)
         self.recent_alarms: deque[dict] = deque(maxlen=1000)
         self.recent_production: deque[dict] = deque(maxlen=2000)
@@ -68,6 +69,9 @@ class MachineLogger:
 
     def sensor(self, row: dict) -> None:
         self._sensor.write(row)
+
+    def io(self, ts: str, address: str, signal: str, value: bool) -> None:
+        self._io.write({"timestamp": ts, "address": address, "signal": signal, "value": int(value)})
 
     def production(self, row: dict) -> None:
         self._production.write(row)
@@ -94,9 +98,11 @@ class MachineLogger:
         self._alarm.flush()
         self._sensor.flush()
         self._production.flush()
+        self._io.flush()
 
     def close(self) -> None:
         self._event.close()
         self._alarm.close()
         self._sensor.close()
         self._production.close()
+        self._io.close()

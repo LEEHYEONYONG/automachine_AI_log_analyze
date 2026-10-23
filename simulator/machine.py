@@ -8,6 +8,7 @@ from typing import Callable
 from simulator.alarms import ALARMS, MachineAlarm
 from simulator.clock import VirtualClock
 from simulator.logger import MachineLogger
+from simulator.io import IoMonitor
 from simulator.manual import InterlockError, ManualDevices
 from simulator.physics import DispenserPhysics, FixturePhysics, Physics, PlantAir
 from simulator.sensors import Sensor
@@ -78,6 +79,8 @@ class Machine:
         self._finished_at: deque[float] = deque(maxlen=2000)
         self.op_mode = "AUTO"  # AUTO: sequences run on START. MANUAL: devices are moved one by one.
         self.manual = ManualDevices(self)
+        self.io = IoMonitor(self)
+        self.io.update(force=True)  # initial read so the I/O screen is filled before the first tick
         self._cycle_stop = False
 
         self._lot_id: str | None = None
@@ -247,6 +250,14 @@ class Machine:
     # ---- simulation -----------------------------------------------------------
 
     def step(self) -> None:
+        modes = (self.mode, self.op_mode)
+        self._step()
+        # I/O is only re-read when something may have changed (plus once a second for slow inputs like air).
+        if (self.mode, self.op_mode) != modes:
+            self.io.dirty = True
+        self.io.update(force=self.clock.every(1.0))
+
+    def _step(self) -> None:
         dt = self.clock.dt
         p = self.physics
         p.air.update(dt, self.rng)

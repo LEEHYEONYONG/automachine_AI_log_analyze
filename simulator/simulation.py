@@ -220,6 +220,7 @@ class Simulation:
             "end_time": self.clock.now.isoformat(timespec="milliseconds"),
             "recipes": self.cfg["recipes"],
             "planned_breaks": self.cfg["plant"]["breaks"],
+            "io_map": self.machine.io.io_map(),
             "alarm_codes": [dataclasses.asdict(a) for a in ALARMS.values()],
         }
         (self.log_dir / "machine_info.json").write_text(json.dumps(info, indent=2), encoding="utf-8")

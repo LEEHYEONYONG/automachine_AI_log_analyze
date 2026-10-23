@@ -2,6 +2,7 @@ import type { MachineState } from "../types";
 import { AlarmBanner } from "./AlarmPanel";
 import { OperationBar } from "./OperationBar";
 import { AlarmPage } from "./pages/AlarmPage";
+import { IoPage } from "./pages/IoPage";
 import { LogPage } from "./pages/LogPage";
 import { MainPage } from "./pages/MainPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
@@ -13,6 +14,7 @@ const PAGES = [
   { id: "main", label: "메인" },
   { id: "sequence", label: "시퀀스" },
   { id: "manual", label: "수동" },
+  { id: "io", label: "I/O" },
   { id: "alarm", label: "알람" },
   { id: "log", label: "로그" },
   { id: "production", label: "생산" },
@@ -47,6 +49,7 @@ export function HmiShell({ state, page, onPage, run }: Props) {
         {page === "main" && <MainPage state={state} onPage={onPage} />}
         {page === "sequence" && <SequencePage state={state} />}
         {page === "manual" && <ManualPage state={state} run={run} />}
+        {page === "io" && <IoPage state={state} run={run} />}
         {page === "alarm" && <AlarmPage state={state} />}
         {page === "log" && <LogPage />}
         {page === "production" && <ProductionPage state={state} />}

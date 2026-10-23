@@ -189,6 +189,8 @@ class ManualDevices:
     # ---- simulation -------------------------------------------------------------
 
     def update(self, dt: float) -> None:
+        if any(d.moving for d in self.devices.values()) or any(a.moving for a in self.axes.values()):
+            self.m.io.dirty = True
         slowdown = self.m.physics.cylinder_slowdown()
         for d in self.devices.values():
             arrived = d.update(dt, slowdown)

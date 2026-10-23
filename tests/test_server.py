@@ -10,7 +10,8 @@ from server.app import ROOT, create_app
 class ServerTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self.client = TestClient(create_app(ROOT, Path(self._tmp.name), seed=7))
+        # No real-time loop: the tests step the simulation themselves, from this thread only.
+        self.client = TestClient(create_app(ROOT, Path(self._tmp.name), seed=7, live=False))
         self.client.__enter__()  # runs the lifespan, which starts a live run
         # Live runs start at the real clock time; without this a planned break could land mid-test.
         self.client.post("/api/operator", json={"auto": False})
@@ -127,6 +128,40 @@ class ServerTest(unittest.TestCase):
         c.post("/api/manual/home_all")
         self._steps(10)
         self.assertEqual(c.post("/api/opmode", json={"mode": "AUTO"}).json()["op_mode"], "AUTO")
+
+    def test_io_follows_sequence_and_can_be_forced_in_manual(self):
+        c = self.client
+        io = c.get("/api/io").json()
+        by_id = {s["id"]: s for s in io["inputs"] + io["outputs"]}
+        self.assertTrue(by_id["ESTOP_OK"]["value"])
+        self.assertTrue(by_id["VISION_LIFT_DOWN_SNS"]["value"])
+        self.assertTrue(by_id["TOWER_YELLOW"]["value"])
+        self.assertRegex(by_id["VISION_LIFT_UP_SOL"]["address"], r"^Y[0-7]{3}$")
+
+        # in AUTO the lift solenoid comes on during the vision sequence
+        c.post("/api/machine/start")
+        seen_up = False
+        runner = c.app.state.runner
+        for _ in range(round(30 / runner.sim.clock.dt)):
+            runner.sim.step()
+            seen_up |= runner.sim.machine.io.values[by_id["VISION_LIFT_UP_SNS"]["address"]]
+        self.assertTrue(seen_up)
+        c.post("/api/machine/stop")
+
+        # forcing is refused in AUTO and drives the device in MANUAL (interlocks still apply)
+        addr = by_id["VISION_PUSH_X_SOL"]["address"]
+        self.assertEqual(c.post("/api/io/force", json={"address": addr, "value": True}).status_code, 409)
+        c.post("/api/manual/home_all")  # not allowed in AUTO either
+        c.post("/api/opmode", json={"mode": "MANUAL"})
+        c.post("/api/manual/home_all")
+        self._steps(5)
+        self.assertEqual(c.post("/api/io/force", json={"address": addr, "value": True}).status_code, 409)  # lift down
+        lift = by_id["VISION_LIFT_UP_SOL"]["address"]
+        self.assertEqual(c.post("/api/io/force", json={"address": lift, "value": True}).status_code, 200)
+        self._steps(1)
+        io = {s["id"]: s["value"] for s in c.get("/api/io").json()["inputs"]}
+        self.assertTrue(io["VISION_LIFT_UP_SNS"])
+        self.assertFalse(io["VISION_LIFT_DOWN_SNS"])
 
     def test_websocket_pushes_state(self):
         with self.client.websocket_connect("/ws") as ws:

@@ -77,10 +77,12 @@ class Station:
     def accept(self, wp: Workpiece | None) -> None:
         self.wp = wp
         self._begin(transfer=True)
+        self.m.io.dirty = True
 
     def release(self) -> Workpiece | None:
         wp, self.wp = self.wp, None
         self.state = StationState.IDLE
+        self.m.io.dirty = True
         return wp
 
     def abort_if_empty(self) -> None:
@@ -124,6 +126,7 @@ class Station:
         if pneumatic:
             nominal_s *= self.m.physics.cylinder_slowdown()
         self.step = step
+        self.m.io.dirty = True
         self._step_s = max(0.0, self.m.rng.gauss(nominal_s, nominal_s * jitter))
         return self._step_s
 
@@ -148,4 +151,5 @@ class Station:
             self.history.appendleft({"end": self.m.log.timestamp(), "step": self.step, "t": round(self._step_s, 3)})
             if self.m.log_steps:
                 self.log("DEBUG", f"Step {self.step} done", t=f"{self._step_s:.3f}s")
+            self.m.io.dirty = True
         self.step = ""

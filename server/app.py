@@ -53,6 +53,11 @@ class AxisRequest(BaseModel):
     preset: str | None = None
 
 
+class ForceRequest(BaseModel):
+    address: str
+    value: bool
+
+
 class RecipeRequest(BaseModel):
     recipe: str
 
@@ -63,7 +68,9 @@ class FaultRequest(BaseModel):
     delay_min: float = 0.0
 
 
-def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None = None) -> FastAPI:
+def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None = None,
+               live: bool = True) -> FastAPI:
+    """live=False skips the real-time loop, so tests can step the simulation from their own thread."""
     runner = SimRunner(root, out_root, seed)
     clients: set[WebSocket] = set()
 
@@ -77,11 +84,12 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         runner.new_run()
-        task = asyncio.create_task(runner.run_forever(broadcast))
+        task = asyncio.create_task(runner.run_forever(broadcast)) if live else None
         yield
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        if task:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
         runner.close()
 
     app = FastAPI(title="automachine", lifespan=lifespan)
@@ -159,6 +167,22 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
         if target is None:
             raise HTTPException(400, "give move_to, jog or preset")
         return interlocked(lambda: m.manual_command(m.manual.move_axis, req.axis, target, by="HMI"))
+
+    @app.get("/api/io")
+    async def io():
+        m = runner.sim.machine
+        return {"op_mode": m.op_mode, **m.io.view()}
+
+    @app.post("/api/io/force")
+    async def io_force(req: ForceRequest):
+        """Force an output from the I/O screen (MANUAL only). It drives the device behind the output."""
+        m = runner.sim.machine
+        signal = next((s for s in m.io.outputs if s.address == req.address), None)
+        if signal is None or signal.device is None:
+            raise HTTPException(400, f"{req.address} cannot be forced")
+        on = (not req.value) if signal.invert else req.value
+        interlocked(lambda: m.manual_command(m.manual.set_device, signal.device, on, by="HMI"))
+        return {"op_mode": m.op_mode, **m.io.view()}
 
     @app.post("/api/manual/home_all")
     async def manual_home_all():
