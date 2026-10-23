@@ -38,7 +38,8 @@ class RunRequest(BaseModel):
 
 class FaultRequest(BaseModel):
     type: str
-    params: dict = {}
+    params: dict[str, float] = {}
+    delay_min: float = 0.0
 
 
 def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
@@ -76,7 +77,15 @@ def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
         return {
             "maintenance_actions": MAINTENANCE_ACTIONS,
             "scenarios": runner.scenarios(),
-            "fault_types": {name: cls.defaults for name, cls in FAULT_TYPES.items()},
+            "fault_types": {
+                name: {
+                    "unit": cls.unit,
+                    "description": cls.description,
+                    "defaults": cls.defaults,
+                    "resolved_by": sorted(cls.resolved_by),
+                }
+                for name, cls in FAULT_TYPES.items()
+            },
             "alarm_codes": [vars(a) for a in ALARMS.values()],
         }
 
@@ -120,7 +129,10 @@ def create_app(root: Path = ROOT, out_root: Path | None = None) -> FastAPI:
     async def inject_fault(req: FaultRequest):
         if req.type not in FAULT_TYPES:
             raise HTTPException(400, f"unknown fault type: {req.type}")
-        runner.sim.inject_fault(req.type, req.params)
+        unknown = set(req.params) - set(FAULT_TYPES[req.type].defaults)
+        if unknown:
+            raise HTTPException(400, f"unknown params: {sorted(unknown)}")
+        runner.sim.inject_fault(req.type, req.params, max(0.0, req.delay_min))
         return runner.state()
 
     @app.websocket("/ws")

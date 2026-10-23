@@ -1,0 +1,32 @@
+import { useMeta } from "../api";
+import type { MachineState } from "../types";
+import { FaultInjectPanel } from "./FaultInjectPanel";
+import { FaultList } from "./FaultList";
+import { HiddenStatePanel } from "./HiddenStatePanel";
+import { RunPanel } from "./RunPanel";
+
+interface Props {
+  state: MachineState;
+  run: (action: () => Promise<void>) => void;
+}
+
+export function ConsolePage({ state, run }: Props) {
+  const meta = useMeta();
+  return (
+    <main className="console">
+      <div className="console-notice">
+        엔지니어 전용 화면입니다. 고장 정답과 실제 물리 상태가 보이므로, AI 분석 결과는 이 화면을 보기 전에 기록해 두세요.
+      </div>
+      <div className="console-grid">
+        <div className="col">
+          <RunPanel state={state} scenarios={meta?.scenarios ?? []} run={run} />
+          {meta && <FaultInjectPanel faultTypes={meta.fault_types} run={run} />}
+        </div>
+        <div className="col">
+          <HiddenStatePanel hidden={state.engineer.hidden} sensors={state.sensors} />
+          <FaultList faults={state.engineer.faults} />
+        </div>
+      </div>
+    </main>
+  );
+}

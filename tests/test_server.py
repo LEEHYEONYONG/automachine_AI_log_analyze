@@ -41,6 +41,12 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(state["engineer"]["faults"][0]["type"], "nozzle_clog")
         self.assertIsNone(state["alarm"])
 
+    def test_delayed_fault_waits_and_bad_params_are_rejected(self):
+        state = self.client.post("/api/faults", json={"type": "vacuum_leak", "delay_min": 30}).json()
+        self.assertIsNone(state["engineer"]["faults"][0]["injected_at"])
+        bad = self.client.post("/api/faults", json={"type": "vacuum_leak", "params": {"nope": 1}})
+        self.assertEqual(bad.status_code, 400)
+
     def test_websocket_pushes_state(self):
         with self.client.websocket_connect("/ws") as ws:
             self.assertIn("stations", ws.receive_json())

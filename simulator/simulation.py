@@ -60,10 +60,11 @@ class Simulation:
         self.latest_sensors: dict = {}
         self._closed = False
 
-    def inject_fault(self, fault_type: str, params: dict | None = None):
-        """Start a fault right now (used by the engineer console during a live run)."""
+    def inject_fault(self, fault_type: str, params: dict | None = None, delay_min: float = 0.0):
+        """Schedule a fault during a live run (used by the engineer console)."""
         fault_id = f"F{len(self.faults.faults) + 1:03d}"
-        fault = FAULT_TYPES[fault_type](fault_id, self.clock.now, params or {})
+        start = self.clock.now + timedelta(minutes=delay_min)
+        fault = FAULT_TYPES[fault_type](fault_id, start, params or {})
         self.faults.faults.append(fault)
         return fault
 
@@ -89,12 +90,19 @@ class Simulation:
     def flush(self) -> None:
         self.log.flush()
         self._hidden.flush()
+        self._write_ground_truth()
 
     def engineer_view(self) -> dict:
         """Hidden state for the engineer console. Never shown on the HMI."""
         p = self.machine.physics
+        now = self.clock.now
         return {
-            "faults": [f.truth() for f in self.faults.faults],
+            "truth_file": str(self.truth_dir / "faults.json"),
+            "faults": [
+                {**f.truth(), "progress": round(f.progress(((f.resolved_at or now) - f.injected_at).total_seconds()), 3)
+                 if f.injected_at else 0.0}
+                for f in self.faults.faults
+            ],
             "hidden": {
                 "nozzle_open_ratio": round(p.dispenser.nozzle_open_ratio, 4),
                 "pick_leak_ratio": round(p.loader.leak_ratio, 4),

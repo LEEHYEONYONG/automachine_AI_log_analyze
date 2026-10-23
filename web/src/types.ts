@@ -33,11 +33,37 @@ export interface FaultTruth {
   fault_id: string;
   type: string;
   unit: string;
+  description: string;
+  params: Record<string, number>;
+  scheduled_at: string;
   injected_at: string | null;
   resolved_at: string | null;
   resolved_by: string | null;
-  state_at_end: string;
-  params: Record<string, number>;
+  state_at_end: "pending" | "active" | "resolved";
+  expected_symptoms: string[];
+  progress: number;
+}
+
+export interface FaultTypeInfo {
+  unit: string;
+  description: string;
+  defaults: Record<string, number>;
+  resolved_by: string[];
+}
+
+export interface Meta {
+  maintenance_actions: string[];
+  scenarios: string[];
+  fault_types: Record<string, FaultTypeInfo>;
+}
+
+export interface HiddenState {
+  nozzle_open_ratio: number;
+  pick_leak_ratio: number;
+  achievable_vac_kpa: number;
+  temp_true_c: number;
+  temp_sensor_offset_c: number;
+  material_viscosity: number;
 }
 
 export interface MachineState {
@@ -64,7 +90,8 @@ export interface MachineState {
     auto_operator: boolean;
   };
   engineer: {
+    truth_file: string;
     faults: FaultTruth[];
-    hidden: Record<string, number>;
+    hidden: HiddenState;
   };
 }

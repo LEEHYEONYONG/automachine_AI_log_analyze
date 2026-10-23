@@ -43,6 +43,14 @@ API와 WebSocket 요청은 8000번 포트로 프록시됩니다.
 - **자동 작업자**를 끄면 알람에 직접 대응해야 합니다. STOP 상태에서 유지보수 조치를 한 뒤 RESET, START 순서로 재가동합니다.
 - 실시간 실행 로그도 `logs/<run_id>/`에 1초마다 기록됩니다.
 
+**엔지니어 콘솔** 탭에서는 다음을 할 수 있습니다. 고장 정답이 보이는 화면이므로, AI 분석 결과는 이 화면을 보기 전에 기록해 두세요.
+
+- 시나리오를 골라 새 실행 시작
+- 고장 종류와 파라미터를 정해 지금 또는 N분 뒤에 주입
+- 고장 상태(예약됨, 진행 중, 해결됨), 진행률, 해결 조치 확인
+- 센서에 보이지 않는 실제 물리 상태 확인 (노즐 개방률, 누설률, 실제 온도와 HMI 표시 온도 비교 등)
+- 정답 파일(`ground_truth/<run_id>/faults.json`)은 실행 중에도 1초마다 갱신됩니다.
+
 | API | 설명 |
 |---|---|
 | `GET /api/state`, `WS /ws` | 장비 상태 (WebSocket은 0.1초마다 전송) |
@@ -51,7 +59,8 @@ API와 WebSocket 요청은 8000번 포트로 프록시됩니다.
 | `POST /api/operator` `{auto}` | 자동 작업자 켜기/끄기 |
 | `POST /api/sim` `{speed, paused}` | 배속, 일시정지 |
 | `POST /api/runs` `{scenario}` | 새 실행 시작 (시나리오 생략 시 고장 없는 live 실행) |
-| `POST /api/faults` `{type, params}` | 지금 시점에 고장 주입 (엔지니어 콘솔용) |
+| `POST /api/faults` `{type, params, delay_min}` | 고장 주입 (엔지니어 콘솔용) |
+| `GET /api/meta` | 시나리오, 고장 종류와 기본 파라미터, 조치 목록, 알람 코드 |
 
 ## 장비 구성
 
@@ -99,7 +108,7 @@ config/          장비 설정, 시나리오
 simulator/       시뮬레이터 (clock, physics, sensors, stations, machine, operator, simulation)
 faults/          고장 엔진과 고장 라이브러리
 server/          FastAPI 실시간 서버 (시뮬레이터 구동, REST + WebSocket)
-web/             React + Vite 화면 (HMI, 이후 엔지니어 콘솔과 3D 뷰어)
+web/             React + Vite 화면 (HMI, 엔지니어 콘솔, 이후 3D 뷰어)
 analysis/        AI 로그 분석 (직접 구현)
 eval/            분석 결과 평가 (직접 구현)
 docs/references/ 참고 매뉴얼 보관 (git 제외)
@@ -110,5 +119,4 @@ tests/
 
 1. 실제 디스펜싱 경험과 매뉴얼을 바탕으로 파라미터, 알람, 고장 시나리오 보강
 2. HMI 센서 트렌드 그래프
-3. 2D 엔지니어 콘솔 (고장 주입, 시나리오 선택, 숨겨진 상태 확인)
-4. 3D 뷰어 (Three.js / React Three Fiber)
+3. 3D 뷰어 (Three.js / React Three Fiber)

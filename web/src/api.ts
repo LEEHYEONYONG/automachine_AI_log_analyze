@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { MachineState } from "./types";
+import type { MachineState, Meta } from "./types";
 
 async function post(path: string, body?: unknown): Promise<void> {
   const res = await fetch(path, {
@@ -18,7 +18,22 @@ export const api = {
   maintenance: (action: string) => post("/api/maintenance", { action }),
   setAutoOperator: (auto: boolean) => post("/api/operator", { auto }),
   setSim: (opts: { speed?: number; paused?: boolean }) => post("/api/sim", opts),
+  newRun: (scenario: string | null) => post("/api/runs", { scenario }),
+  injectFault: (type: string, params: Record<string, number>, delayMin: number) =>
+    post("/api/faults", { type, params, delay_min: delayMin }),
 };
+
+/** Static lists (scenarios, fault types, actions) fetched once. */
+export function useMeta() {
+  const [meta, setMeta] = useState<Meta | null>(null);
+  useEffect(() => {
+    fetch("/api/meta")
+      .then((r) => r.json())
+      .then(setMeta)
+      .catch(() => setMeta(null));
+  }, []);
+  return meta;
+}
 
 /** Live machine state from the server's WebSocket, reconnecting if the server restarts. */
 export function useMachineState() {

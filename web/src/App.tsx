@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useMachineState } from "./api";
+import { ConsolePage } from "./console/ConsolePage";
 import { Header } from "./hmi/Header";
 import { HmiPage } from "./hmi/HmiPage";
 
@@ -7,7 +8,7 @@ type Tab = "hmi" | "console" | "3d";
 
 const TABS: { id: Tab; label: string; ready: boolean }[] = [
   { id: "hmi", label: "HMI", ready: true },
-  { id: "console", label: "엔지니어 콘솔", ready: false },
+  { id: "console", label: "엔지니어 콘솔", ready: true },
   { id: "3d", label: "3D 뷰어", ready: false },
 ];
 
@@ -44,6 +45,7 @@ export default function App() {
       </nav>
       <Header state={state} connected={connected} run={run} />
       {tab === "hmi" && <HmiPage state={state} run={run} />}
+      {tab === "console" && <ConsolePage state={state} run={run} />}
       {error && <div className="toast">{error}</div>}
     </div>
   );
