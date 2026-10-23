@@ -15,11 +15,11 @@ from simulator.machine import Machine
 from simulator.operator import Operator
 
 SENSOR_FIELDS = [
-    "timestamp", "mode", "loader_vac_kpa", "disp_pressure_kpa", "disp_valve_open",
+    "timestamp", "mode", "fixture_vac_kpa", "disp_pressure_kpa", "disp_valve_open",
     "disp_temp_c", "syringe_level_pct",
 ]
 HIDDEN_FIELDS = [
-    "timestamp", "plant_air_kpa", "regulator_out_kpa", "nozzle_open_ratio", "pick_leak_ratio",
+    "timestamp", "plant_air_kpa", "regulator_out_kpa", "nozzle_open_ratio", "fixture_leak_ratio",
     "achievable_vac_kpa", "temp_true_c", "temp_sensor_offset_c", "material_viscosity", "syringe_age_h",
     "needle_z_offset_mm", "needle_xy_offset_mm", "tip_buildup", "bubbles", "active_faults",
 ]
@@ -172,13 +172,13 @@ class Simulation:
         m = self.machine
         p = m.physics
         rng = self._sensor_rng
-        vac_true = p.loader.achievable_vacuum_kpa if m.loader.vacuum_on else 0.0
+        vac_true = p.fixture.achievable_vacuum_kpa if m.dispenser.vacuum_on else 0.0
         pressure_true = (m.dispenser.dispensing_pressure_kpa() if m.dispenser.valve_open
                          else p.dispenser.regulator_out_kpa)
         self.latest_sensors = {
             "timestamp": m.log.timestamp(),
             "mode": m.mode.value,
-            "loader_vac_kpa": m.sensors["loader_vac"].read(vac_true, rng),
+            "fixture_vac_kpa": m.sensors["fixture_vac"].read(vac_true, rng),
             "disp_pressure_kpa": m.sensors["disp_pressure"].read(pressure_true, rng),
             "disp_valve_open": int(m.dispenser.valve_open),
             "disp_temp_c": m.sensors["disp_temp"].read(p.dispenser.temp_true_c, rng),
@@ -193,8 +193,8 @@ class Simulation:
             "plant_air_kpa": round(p.air.supply_kpa, 1),
             "regulator_out_kpa": round(d.regulator_out_kpa, 1),
             "nozzle_open_ratio": round(d.nozzle_open_ratio, 4),
-            "pick_leak_ratio": round(p.loader.leak_ratio, 4),
-            "achievable_vac_kpa": round(p.loader.achievable_vacuum_kpa, 2),
+            "fixture_leak_ratio": round(p.fixture.leak_ratio, 4),
+            "achievable_vac_kpa": round(p.fixture.achievable_vacuum_kpa, 2),
             "temp_true_c": round(d.temp_true_c, 3),
             "temp_sensor_offset_c": round(self.machine.sensors["disp_temp"].offset, 3),
             "material_viscosity": round(d.material_viscosity, 4),

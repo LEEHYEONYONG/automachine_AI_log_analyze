@@ -16,8 +16,11 @@
       "nozzle_height_mm": 0.15,
       "target_bead_weight_mg": 12.0,
       "weight_tolerance_pct": 10.0,
-      "nominal_bead_width_mm": 0.80,
-      "bead_width_spec_mm": [0.68, 0.92]
+      "nominal_bead_width_mm": 0.8,
+      "bead_width_spec_mm": [
+        0.68,
+        0.92
+      ]
     },
     "REAR_HOUSING_ADH_B": {
       "dispense_pressure_kpa": 220.0,
@@ -28,21 +31,34 @@
       "target_bead_weight_mg": 8.5,
       "weight_tolerance_pct": 10.0,
       "nominal_bead_width_mm": 0.65,
-      "bead_width_spec_mm": [0.55, 0.75]
+      "bead_width_spec_mm": [
+        0.55,
+        0.75
+      ]
     }
   },
-  "loader": {
-    "magazine_capacity": 600,
-    "vacuum_threshold_kpa": -60.0,
-    "max_pick_retries": 2
+  "infeed": {
+    "upstream_late_probability": 0.015,
+    "upstream_late_s": [
+      5,
+      60
+    ],
+    "upstream_stop_probability": 0.002,
+    "upstream_stop_min": [
+      2,
+      10
+    ],
+    "id_read_fail_probability": 0.003
   },
   "vision": {
-    "score_threshold": 0.70,
+    "score_threshold": 0.7,
     "max_offset_mm": 0.15,
     "glitch_probability": 0.003,
     "mark_defect_probability": 0.0008
   },
   "dispenser": {
+    "vacuum_threshold_kpa": -60.0,
+    "max_vacuum_retries": 2,
     "syringe_capacity_ml": 30.0,
     "syringe_low_pct": 5.0,
     "material_density_g_per_ml": 1.2,
@@ -53,19 +69,65 @@
   },
   "inspection": {
     "max_consecutive_ng": 3,
-    "max_bead_offset_mm": 0.10,
+    "max_bead_offset_mm": 0.1,
     "random_defect_probability": 0.002
   },
-  "unloader": {
-    "tray_capacity": 600
+  "outfeed": {
+    "ng_buffer_capacity": 24,
+    "downstream_busy_probability": 0.015,
+    "downstream_busy_s": [
+      3,
+      30
+    ],
+    "downstream_stop_probability": 0.0015,
+    "downstream_stop_min": [
+      2,
+      8
+    ]
   },
   "plant": {
     "nominal_air_kpa": 550.0,
-    "breaks": [["10:00", "10:10"], ["12:00", "13:00"], ["15:00", "15:10"],
-               ["22:00", "22:10"], ["00:00", "01:00"], ["03:00", "03:10"]],
+    "breaks": [
+      [
+        "10:00",
+        "10:10"
+      ],
+      [
+        "12:00",
+        "13:00"
+      ],
+      [
+        "15:00",
+        "15:10"
+      ],
+      [
+        "22:00",
+        "22:10"
+      ],
+      [
+        "00:00",
+        "01:00"
+      ],
+      [
+        "03:00",
+        "03:10"
+      ]
+    ],
     "shifts": [
-      {"start": "08:00", "operators": ["OP-A", "OP-B"]},
-      {"start": "20:00", "operators": ["OP-C", "OP-D"]}
+      {
+        "start": "08:00",
+        "operators": [
+          "OP-A",
+          "OP-B"
+        ]
+      },
+      {
+        "start": "20:00",
+        "operators": [
+          "OP-C",
+          "OP-D"
+        ]
+      }
     ]
   },
   "operator": {

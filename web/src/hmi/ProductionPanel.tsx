@@ -51,9 +51,14 @@ export function ProductionPanel({ state }: { state: MachineState }) {
         </div>
       </div>
 
-      <h3>자재</h3>
-      <Gauge label="투입 매거진" value={state.magazine} max={state.magazine_capacity} unit={`/${state.magazine_capacity}`} warnBelow={10} />
-      <Gauge label="배출 트레이 여유" value={state.tray_capacity - state.tray_count} max={state.tray_capacity} unit={`/${state.tray_capacity}`} warnBelow={10} />
+      <h3>자재 / 버퍼</h3>
+      <Gauge
+        label="NG 버퍼 여유"
+        value={state.ng_buffer_capacity - state.ng_buffer}
+        max={state.ng_buffer_capacity}
+        unit={`/${state.ng_buffer_capacity}`}
+        warnBelow={20}
+      />
       <Gauge label="시린지 잔량" value={state.syringe_level_pct} max={100} unit="%" warnBelow={15} />
       <p className="hint">
         시린지 장착 후 {Math.floor(state.syringe_age_min / 60)}시간 {state.syringe_age_min % 60}분 (가사시간 6시간)

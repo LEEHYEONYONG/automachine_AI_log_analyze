@@ -9,11 +9,12 @@ from random import Random
 
 EJECTOR_FULL_AIR_KPA = 450.0     # vacuum ejector reaches full vacuum at or above this supply
 REGULATOR_HEADROOM_KPA = 120.0   # dispensing regulator needs this much supply above its output
+CYLINDER_FULL_AIR_KPA = 450.0    # air cylinders move slower below this supply
 
 
 @dataclass
 class PlantAir:
-    """Factory compressed air that feeds the dispensing regulator and the loader's vacuum ejector."""
+    """Factory compressed air: dispensing regulator, the fixture's vacuum ejector and every air cylinder."""
 
     nominal_kpa: float = 550.0
     drop_kpa: float = 0.0   # set by air-supply faults
@@ -28,9 +29,11 @@ class PlantAir:
 
 
 @dataclass
-class LoaderPhysics:
+class FixturePhysics:
+    """Vacuum fixture on the dispenser's lift-up unit that holds the housing flat while dispensing."""
+
     vacuum_supply_kpa: float = -85.0
-    leak_ratio: float = 0.0     # 0 = sealed pick pad, 1 = no vacuum at all
+    leak_ratio: float = 0.0     # 0 = sealed vacuum pad, 1 = no vacuum at all
     ejector_ratio: float = 1.0  # drops when plant air is low
 
     @property
@@ -69,10 +72,14 @@ class DispenserPhysics:
 @dataclass
 class Physics:
     air: PlantAir
-    loader: LoaderPhysics
+    fixture: FixturePhysics
     dispenser: DispenserPhysics
 
     def update_air_users(self, dispense_setpoint_kpa: float) -> None:
         supply = self.air.supply_kpa
-        self.loader.ejector_ratio = min(1.0, max(0.0, supply / EJECTOR_FULL_AIR_KPA))
+        self.fixture.ejector_ratio = min(1.0, max(0.0, supply / EJECTOR_FULL_AIR_KPA))
         self.dispenser.regulator_out_kpa = max(0.0, min(dispense_setpoint_kpa, supply - REGULATOR_HEADROOM_KPA))
+
+    def cylinder_slowdown(self) -> float:
+        """Factor applied to air-cylinder stroke times (1.0 with healthy air)."""
+        return max(1.0, CYLINDER_FULL_AIR_KPA / max(self.air.supply_kpa, 100.0))

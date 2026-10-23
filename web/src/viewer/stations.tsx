@@ -5,8 +5,12 @@ import type { MachineState, StationView } from "../types";
 import { Box, CableChain, Cyl, Hose, LinearRail, ServoMotor, Syringe, TrayStack, trayStackTop } from "./details";
 import {
   BACK_Z,
+  BELT_TOP,
   COLORS,
   HEAD_HIGH,
+  LANE_W,
+  LANE_Z,
+  LIFT_H,
   PART,
   PART_TOP,
   PART_Y,
@@ -27,18 +31,45 @@ export interface StationProps {
   speed: number;
 }
 
-/** Parts slide in from the previous station during TRANSFER_IN and then sit at the station centre. */
-function usePartOnBelt(station: StationView, progress: () => number) {
-  const ref = useRef<Group>(null);
-  useFrame(() => {
-    if (!ref.current) return;
-    const x = station.step === "TRANSFER_IN" ? lerp(-STATION_SPACING, 0, progress()) : 0;
-    ref.current.position.set(x, PART_Y, 0);
-  });
-  return ref;
+/** Steps during which a lift-up unit holds the part up, plus how it moves in and out. */
+function liftLevel(step: string, t: number, upSteps: string[]): number {
+  if (step === "LIFT_UP") return t;
+  if (step === "LIFT_DOWN") return 1 - t;
+  if (step === "RESEAT") return 1 - 0.7 * Math.sin(Math.PI * t); // drop and re-seat on the vacuum pads
+  return upSteps.includes(step) ? 1 : 0;
 }
 
-/** Profile column behind the belt with an arm reaching over it, for overhead cameras. */
+const plateTop = (level: number) => lerp(BELT_TOP - 0.025, BELT_TOP + LIFT_H, level);
+const liftedPartY = (level: number) => Math.max(PART_Y, plateTop(level) + PART.h / 2);
+
+/** Air-cylinder lift-up unit between the two belts; optional vacuum cups on the plate. */
+function LiftUnit({ level, cups = false, vacuum = false }: { level: () => number; cups?: boolean; vacuum?: boolean }) {
+  const plate = useRef<Group>(null);
+  useFrame((_, dt) => {
+    if (plate.current) plate.current.position.y = MathUtils.damp(plate.current.position.y, plateTop(level()), 20, dt);
+  });
+  const glow = vacuum ? { emissive: COLORS.accent, emissiveIntensity: 1.2 } : {};
+  return (
+    <group>
+      <Cyl r={0.045} h={0.1} position={[0, 0.05, 0]} mat="alu" />
+      <group ref={plate} position={[0, plateTop(0), 0]}>
+        <Box size={[0.5, 0.02, 2 * LANE_Z - LANE_W - 0.03]} position={[0, -0.01, 0]} mat="aluDark" />
+        <Cyl r={0.015} h={0.12} position={[0, -0.08, 0]} mat="steel" />
+        {cups &&
+          [-0.15, 0.15].flatMap((x) =>
+            [-0.05, 0.05].map((z) => (
+              <mesh key={`${x}${z}`} position={[x, 0.002, z]}>
+                <cylinderGeometry args={[0.025, 0.02, 0.012, 14]} />
+                <meshStandardMaterial color="#14171b" roughness={0.8} {...glow} />
+              </mesh>
+            )),
+          )}
+      </group>
+    </group>
+  );
+}
+
+/** Overhead camera column with an arm reaching over the belt. */
 function CameraMount({ armY }: { armY: number }) {
   return (
     <group>
@@ -49,64 +80,120 @@ function CameraMount({ armY }: { armY: number }) {
   );
 }
 
+/** Same pseudo-random skew for a given part id, so a part arrives a little crooked and stays that way. */
+function skewOf(id: string | null): [number, number, number] {
+  let h = 0;
+  for (const c of id ?? "") h = (h * 31 + c.charCodeAt(0)) | 0;
+  const r = (k: number) => (((h >> k) & 0xff) / 255) * 2 - 1;
+  return [r(0) * 0.035, r(8) * 0.025, r(16) * 0.06];
+}
+
 // ---------------------------------------------------------------------------
 
-export function Loader3D({ station, m, running, speed }: StationProps) {
+export function Infeed3D({ station, running, speed }: StationProps) {
   const p = useStepClock(station, running, speed);
-  const fill = m.magazine / m.magazine_capacity;
-  const magTop = trayStackTop(fill);
-  const carrying = !!station.wp && ["PICK_UP", "MOVE_TO_PLACE", "PLACE"].includes(station.step);
+  const part = useRef<Group>(null);
+  const skew = skewOf(station.wp);
 
-  const target = (): [number, number] => {
-    const t = p();
-    switch (station.step) {
-      case "MOVE_TO_PICK":
-        return [lerp(0, BACK_Z, t), HEAD_HIGH];
-      case "PICK_DOWN":
-        return [BACK_Z, lerp(HEAD_HIGH, magTop, t)];
-      case "VACUUM_ON":
-        return [BACK_Z, magTop];
-      case "PICK_UP":
-        return [BACK_Z, lerp(magTop, HEAD_HIGH, t)];
-      case "MOVE_TO_PLACE":
-        return [lerp(BACK_Z, 0, t), HEAD_HIGH];
-      case "PLACE":
-        return [0, lerp(HEAD_HIGH, PART_TOP, t)];
-      default:
-        return [0, HEAD_HIGH];
-    }
-  };
+  useFrame(() => {
+    if (!part.current) return;
+    const x = station.step === "TRANSFER_IN" ? lerp(-STATION_SPACING, 0, p()) : 0;
+    part.current.position.set(x + skew[0], PART_Y, skew[1]);
+    part.current.rotation.y = skew[2];
+  });
 
+  const reading = station.step === "ID_READ";
   return (
-    <group position={[STATION_X.LOADER, 0, 0]}>
+    <group position={[STATION_X.INFEED, 0, 0]}>
       <StationBase station={station} x={0} />
-      <group position={[0, 0, BACK_Z]}>
-        <TrayStack fill={fill} />
+      {/* 2D code reader on a bracket behind the belt, looking down at the camera-bump corner */}
+      <Box size={[0.05, 0.6, 0.05]} position={[-0.2, 0.3, -0.5]} mat="aluDark" />
+      <group position={[-0.2, 0.62, -0.38]} rotation={[0.9, 0, 0]}>
+        <Box size={[0.12, 0.08, 0.16]} mat="black" />
+        <mesh position={[0, -0.04, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.06, 0.04]} />
+          <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={reading ? 2 : 0.3}
+            side={DoubleSide} />
+        </mesh>
       </group>
-      <PickGantry target={target} vacuum={m.loader_vacuum_on}>
-        {carrying && <Part position={[0, -PART.h / 2, 0]} />}
-      </PickGantry>
-      {station.wp && !carrying && <Part position={[0, PART_Y, 0]} />}
+      {reading && (
+        <mesh position={[-0.2, 0.42, -0.24]} rotation={[0.9, 0, 0]}>
+          <coneGeometry args={[0.06, 0.45, 16, 1, true]} />
+          <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={1.5} transparent opacity={0.25}
+            depthWrite={false} toneMapped={false} />
+        </mesh>
+      )}
+      {station.wp && <Part ref={part} />}
     </group>
   );
 }
 
 export function Vision3D({ station, running, speed }: StationProps) {
   const p = useStepClock(station, running, speed);
-  const part = usePartOnBelt(station, p);
+  const part = useRef<Group>(null);
+  const pusherX = useRef<Group>(null);
+  const pusherZ = useRef<Group>(null);
+  const skew = skewOf(station.wp);
+
+  const upSteps = ["PUSH_ALIGN", "SETTLE", "CAPTURE", "PROCESS", "RELEASE"];
+  const level = () => liftLevel(station.step, p(), upSteps);
+  const push = () => {
+    const t = p();
+    if (station.step === "PUSH_ALIGN") return t;
+    if (station.step === "RELEASE") return 1 - t;
+    return ["SETTLE", "CAPTURE", "PROCESS"].includes(station.step) ? 1 : 0;
+  };
+  // Once pushed against the datum pins the part stays aligned until it leaves.
+  const aligned = ["SETTLE", "CAPTURE", "PROCESS", "RELEASE", "LIFT_DOWN"].includes(station.step) || station.state === "DONE";
+
+  useFrame((_, dt) => {
+    const k = push();
+    if (part.current) {
+      const left = aligned ? 0 : 1 - (station.step === "PUSH_ALIGN" ? k : 0);
+      const x = station.step === "TRANSFER_IN" ? lerp(-STATION_SPACING, 0, p()) : 0;
+      part.current.position.set(x + skew[0] * left, liftedPartY(level()), skew[1] * left);
+      part.current.rotation.y = skew[2] * left;
+    }
+    // pusher pads travel from parked to touching the part's edge
+    if (pusherX.current) pusherX.current.position.x = MathUtils.damp(pusherX.current.position.x, lerp(-0.62, -PART.w / 2 - 0.015, k), 20, dt);
+    if (pusherZ.current) pusherZ.current.position.z = MathUtils.damp(pusherZ.current.position.z, lerp(0.5, PART.d / 2 + 0.015, k), 20, dt);
+  });
+
   const capture = station.step === "CAPTURE";
+  const padY = BELT_TOP + LIFT_H + PART.h / 2;
+  const pinsUp = level() > 0.5;
 
   return (
     <group position={[STATION_X.VISION, 0, 0]}>
       <StationBase station={station} x={0} />
+      <LiftUnit level={level} />
+      {/* datum pins (right end and back edge) rise with the lift */}
+      {[
+        [PART.w / 2 + 0.02, 0.08],
+        [PART.w / 2 + 0.02, -0.08],
+        [-0.15, -PART.d / 2 - 0.02],
+        [0.15, -PART.d / 2 - 0.02],
+      ].map(([x, z]) => (
+        <Cyl key={`${x}${z}`} r={0.012} h={0.08} position={[x, pinsUp ? padY : BELT_TOP - 0.03, z]} mat="steel" />
+      ))}
+      {/* end pusher (pushes +x) and side pusher (pushes -z) */}
+      <Box size={[0.18, 0.06, 0.06]} position={[-0.86, padY, 0]} mat="alu" />
+      <group ref={pusherX} position={[-0.62, padY, 0]}>
+        <Cyl r={0.01} h={0.25} position={[-0.125, 0, 0]} rotation={[0, 0, Math.PI / 2]} mat="steel" />
+        <Box size={[0.02, 0.04, 0.12]} mat="white" color="#e6c34a" />
+      </group>
+      <Box size={[0.06, 0.06, 0.18]} position={[0, padY, 0.74]} mat="alu" />
+      <group ref={pusherZ} position={[0, padY, 0.5]}>
+        <Cyl r={0.01} h={0.25} position={[0, 0, 0.125]} rotation={[Math.PI / 2, 0, 0]} mat="steel" />
+        <Box size={[0.2, 0.04, 0.02]} mat="white" color="#e6c34a" />
+      </group>
+
       <CameraMount armY={1.6} />
-      {/* area camera with lens */}
       <Box size={[0.16, 0.24, 0.16]} position={[0, 1.42, 0]} mat="black" />
       <Box size={[0.17, 0.02, 0.17]} position={[0, 1.55, 0]} mat="aluDark" />
       <Cyl r={0.055} h={0.14} position={[0, 1.23, 0]} mat="black" color="#0d1013" />
       <Cyl r={0.06} h={0.02} position={[0, 1.17, 0]} mat="steel" />
       <Hose points={[[0.06, 1.5, 0], [0.12, 1.62, -0.1], [0.08, 1.66, -0.5], [0.05, 1.5, -0.9]]} radius={0.012} />
-      {/* ring light: housing and LED ring */}
       <Box size={[0.04, 0.48, 0.04]} position={[0.32, 1.0, 0]} mat="aluDark" />
       <mesh position={[0, 0.78, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.3, 0.035, 12, 48]} />
@@ -129,7 +216,7 @@ export function Vision3D({ station, running, speed }: StationProps) {
 
 export function Dispenser3D({ station, m, running, speed }: StationProps) {
   const p = useStepClock(station, running, speed);
-  const part = usePartOnBelt(station, p);
+  const part = useRef<Group>(null);
   const bridge = useRef<Group>(null);
   const carriage = useRef<Group>(null);
   const head = useRef<Group>(null);
@@ -137,11 +224,14 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
 
   const BEAM_Y = 1.85;
   const HOME_Y = 0.75;
-  const WORK_Y = PART_TOP + 0.05;
+  const WORK_Y = PART_TOP + LIFT_H + 0.05; // the part is lifted onto the vacuum fixture
   const SCALE_TOP = 0.2;
   const SCALE_X = 0.75; // beside the belt so it does not hide the head from the default camera
   const SCALE_Z = -1.0;
   const [sx, sz] = beadPoint(0);
+
+  const upSteps = ["VACUUM_ON", "APPROACH", "HEIGHT_MEASURE", "DISPENSE", "DWELL", "RETRACT", "VACUUM_OFF"];
+  const level = () => liftLevel(station.step, p(), upSteps);
 
   // [x, z, y] of the needle tip relative to the station
   const target = (): [number, number, number] => {
@@ -173,6 +263,10 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
   };
 
   useFrame((_, dt) => {
+    if (part.current) {
+      const x = station.step === "TRANSFER_IN" ? lerp(-STATION_SPACING, 0, p()) : 0;
+      part.current.position.set(x, liftedPartY(level()), 0);
+    }
     if (!bridge.current || !carriage.current || !head.current || !rod.current) return;
     const [x, z, y] = target();
     bridge.current.position.x = MathUtils.damp(bridge.current.position.x, x, 16, dt);
@@ -187,13 +281,14 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
   const bead = () =>
     station.step === "DISPENSE"
       ? p()
-      : station.step === "DWELL" || station.step === "RETRACT" || station.state === "DONE"
+      : ["DWELL", "RETRACT", "VACUUM_OFF", "LIFT_DOWN"].includes(station.step) || station.state === "DONE"
         ? 1
         : 0;
 
   return (
     <group position={[STATION_X.DISPENSER, 0, 0]}>
       <StationBase station={station} x={0} />
+      <LiftUnit level={level} cups vacuum={m.fixture_vacuum_on} />
 
       {/* dispensing controller with its air line */}
       <group position={[-0.8, 0, -2.2]}>
@@ -248,7 +343,6 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
           <group ref={head} position={[0, HOME_Y, 0]}>
             <Box size={[0.08, 0.14, 0.12]} position={[0, 0.24, -0.1]} mat="aluDark" />
             <Syringe level={m.syringe_level_pct / 100} valveOpen={m.dispenser_valve_open} />
-            {/* laser height sensor */}
             <Box size={[0.07, 0.13, 0.08]} position={[0.14, 0.2, 0]} mat="black" />
             <mesh position={[0.14, 0.13, 0]} rotation={[Math.PI / 2, 0, 0]}>
               <planeGeometry args={[0.04, 0.04]} />
@@ -271,11 +365,22 @@ export function Dispenser3D({ station, m, running, speed }: StationProps) {
 
 export function Inspection3D({ station, running, speed }: StationProps) {
   const p = useStepClock(station, running, speed);
-  const part = usePartOnBelt(station, p);
-  const line = useRef<Mesh>(null);
+  const part = useRef<Group>(null);
+  const scanner = useRef<Group>(null);
+  const SCAN_FROM = -0.42;
+  const SCAN_TO = 0.42;
 
-  useFrame(() => {
-    if (line.current) line.current.position.x = lerp(-0.38, 0.38, p());
+  useFrame((_, dt) => {
+    const t = p();
+    if (part.current) {
+      const x = station.step === "TRANSFER_IN" ? lerp(-STATION_SPACING, 0, t) : 0;
+      part.current.position.set(x, PART_Y, 0);
+    }
+    if (scanner.current) {
+      const goal =
+        station.step === "SCAN" ? lerp(SCAN_FROM, SCAN_TO, t) : station.step === "SCAN_RETURN" ? lerp(SCAN_TO, SCAN_FROM, t) : SCAN_FROM;
+      scanner.current.position.x = MathUtils.damp(scanner.current.position.x, goal, 25, dt);
+    }
   });
 
   const scanning = station.step === "SCAN";
@@ -286,48 +391,56 @@ export function Inspection3D({ station, running, speed }: StationProps) {
     <group position={[STATION_X.INSPECTION, 0, 0]}>
       <StationBase station={station} x={0} />
       <CameraMount armY={1.55} />
-      {/* line-scan camera */}
-      <Box size={[0.2, 0.18, 0.18]} position={[0, 1.36, 0]} mat="black" />
-      <Box size={[0.22, 0.02, 0.2]} position={[0, 1.46, 0]} mat="aluDark" />
-      <Cyl r={0.05} h={0.12} position={[0, 1.21, 0]} mat="black" color="#0d1013" />
-      <Cyl r={0.055} h={0.02} position={[0, 1.15, 0]} mat="steel" />
-      <mesh position={[0.07, 1.36, 0.091]}>
-        <sphereGeometry args={[0.022, 16, 16]} />
-        <meshStandardMaterial color={lampColor} emissive={lampColor} emissiveIntensity={judged ? 2 : 0.2} />
-      </mesh>
-      {/* line laser, angled down onto the part */}
-      <group position={[0.42, 0.75, 0]} rotation={[0, 0, 0.6]}>
-        <Box size={[0.06, 0.2, 0.08]} mat="black" />
-        <Box size={[0.03, 0.04, 0.06]} position={[0, 0.12, 0]} mat="aluDark" />
-      </group>
-      <Box size={[0.04, 0.75, 0.04]} position={[0.5, 0.375, -0.2]} mat="aluDark" />
-      {scanning && (
-        <mesh ref={line} position={[0, PART_TOP + 0.02, 0]}>
-          <boxGeometry args={[0.012, 0.004, 0.5]} />
-          <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={4} toneMapped={false} />
+      {/* short scan axis across the part; camera and line laser ride on it */}
+      <Box size={[1.2, 0.08, 0.1]} position={[0, 1.47, 0]} mat="alu" />
+      <LinearRail length={1.1} position={[0, 1.42, 0.06]} axis="x" />
+      <ServoMotor position={[0.68, 1.47, 0]} rotation={[0, Math.PI / 2, 0]} />
+      <group ref={scanner} position={[SCAN_FROM, 0, 0]}>
+        <Box size={[0.2, 0.06, 0.18]} position={[0, 1.39, 0]} mat="aluDark" />
+        <Box size={[0.14, 0.18, 0.16]} position={[0, 1.27, 0]} mat="black" />
+        <Cyl r={0.045} h={0.1} position={[0, 1.13, 0]} mat="black" color="#0d1013" />
+        <mesh position={[0.05, 1.27, 0.081]}>
+          <sphereGeometry args={[0.018, 16, 16]} />
+          <meshStandardMaterial color={lampColor} emissive={lampColor} emissiveIntensity={judged ? 2 : 0.2} />
         </mesh>
-      )}
+        <group position={[0.16, 1.2, 0]} rotation={[0, 0, 0.35]}>
+          <Box size={[0.05, 0.16, 0.07]} mat="black" />
+        </group>
+        {scanning && (
+          <mesh position={[0, PART_TOP + 0.02, 0]}>
+            <boxGeometry args={[0.012, 0.004, 0.5]} />
+            <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={4} toneMapped={false} />
+          </mesh>
+        )}
+      </group>
       {station.wp && <Part ref={part} bead={1} ng={station.judge === "NG"} />}
     </group>
   );
 }
 
-export function Unloader3D({ station, m, running, speed }: StationProps) {
+export function Outfeed3D({ station, m, running, speed }: StationProps) {
   const p = useStepClock(station, running, speed);
   const beltPart = useRef<Group>(null);
-  const fill = m.tray_count / m.tray_capacity;
-  const trayTop = trayStackTop(fill);
-  const carrying = !!station.wp && ["MOVE_TO_TRAY", "PLACE"].includes(station.step);
+  const fill = m.ng_buffer / m.ng_buffer_capacity;
+  const bufferTop = trayStackTop(fill);
+  const carrying = !!station.wp && ["PICK_UP", "MOVE_TO_NG", "PLACE"].includes(station.step);
+  const placed = station.step === "RETURN";
 
   const target = (): [number, number] => {
     const t = p();
     switch (station.step) {
-      case "PICK":
+      case "PICK_DOWN":
         return [0, lerp(HEAD_HIGH, PART_TOP, t)];
-      case "MOVE_TO_TRAY":
+      case "VACUUM_ON":
+        return [0, PART_TOP];
+      case "PICK_UP":
+        return [0, lerp(PART_TOP, HEAD_HIGH, t)];
+      case "MOVE_TO_NG":
         return [lerp(0, BACK_Z, t), HEAD_HIGH];
       case "PLACE":
-        return [BACK_Z, lerp(HEAD_HIGH, trayTop + PART.h, t)];
+        return [BACK_Z, lerp(HEAD_HIGH, bufferTop + PART.h, t)];
+      case "RETURN":
+        return [lerp(BACK_Z, 0, t), HEAD_HIGH];
       default:
         return [0, HEAD_HIGH];
     }
@@ -336,38 +449,24 @@ export function Unloader3D({ station, m, running, speed }: StationProps) {
   useFrame(() => {
     if (!beltPart.current) return;
     const t = p();
-    if (station.step === "TRANSFER_IN") {
-      beltPart.current.position.set(lerp(-STATION_SPACING, 0, t), PART_Y, 0);
-      beltPart.current.rotation.x = 0;
-    } else if (station.step === "NG_CHUTE") {
-      // pushed off the front of the belt into the reject chute
-      beltPart.current.position.set(0, lerp(PART_Y, 0.08, t), lerp(0, 1.15, t));
-      beltPart.current.rotation.x = lerp(0, 0.35, t);
-    } else {
-      beltPart.current.position.set(0, PART_Y, 0);
-      beltPart.current.rotation.x = 0;
-    }
+    const x =
+      station.step === "TRANSFER_IN" ? lerp(-STATION_SPACING, 0, t) : station.step === "TRANSFER_OUT" ? lerp(0, STATION_SPACING, t) : 0;
+    beltPart.current.position.set(x, PART_Y, 0);
   });
 
   return (
-    <group position={[STATION_X.UNLOADER, 0, 0]}>
+    <group position={[STATION_X.OUTFEED, 0, 0]}>
       <StationBase station={station} x={0} />
+      {/* NG buffer drawer behind the belt */}
       <group position={[0, 0, BACK_Z]}>
         <TrayStack fill={fill} />
+        <Box size={[1.06, 0.06, 0.7]} position={[0, -0.0, 0]} mat="white" color="#b9262d" />
+        <Box size={[0.3, 0.03, 0.03]} position={[0, 0.03, 0.37]} mat="steel" />
       </group>
-      {/* reject chute with side walls, and the NG bin */}
-      <group position={[0, 0.12, 0.85]} rotation={[0.35, 0, 0]}>
-        <Box size={[0.8, 0.015, 0.55]} mat="steel" />
-        {[-0.4, 0.4].map((x) => (
-          <Box key={x} size={[0.015, 0.08, 0.55]} position={[x, 0.04, 0]} mat="steel" />
-        ))}
-      </group>
-      <Box size={[0.9, 0.2, 0.42]} position={[0, 0.1, 1.32]} mat="white" color="#b9262d" />
-      <Box size={[0.92, 0.03, 0.44]} position={[0, 0.205, 1.32]} mat="white" color="#e2b521" />
-      <PickGantry target={target} vacuum={carrying}>
-        {carrying && <Part position={[0, -PART.h / 2, 0]} bead={1} />}
+      <PickGantry target={target} vacuum={m.ng_picker_vacuum_on}>
+        {carrying && <Part position={[0, -PART.h / 2, 0]} bead={1} ng />}
       </PickGantry>
-      {station.wp && !carrying && <Part ref={beltPart} bead={1} ng={station.judge === "NG"} />}
+      {station.wp && !carrying && !placed && <Part ref={beltPart} bead={1} ng={station.judge === "NG"} />}
     </group>
   );
 }

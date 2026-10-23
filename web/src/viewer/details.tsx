@@ -114,7 +114,7 @@ export function Housing() {
   return (
     <group>
       <RoundedBox args={[PART.w, PART.h, PART.d]} radius={0.025} smoothness={3} castShadow>
-        <meshStandardMaterial color="#3d444c" metalness={0.75} roughness={0.28} />
+        <meshStandardMaterial color="#6b7580" metalness={0.75} roughness={0.28} />
       </RoundedBox>
       <RoundedBox args={[0.12, 0.014, 0.12]} radius={0.02} smoothness={2} position={[-0.21, PART.h / 2, -0.07]}>
         <meshStandardMaterial color="#22272d" metalness={0.6} roughness={0.25} />

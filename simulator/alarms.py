@@ -10,16 +10,16 @@ class AlarmDef:
 
 
 ALARMS = {a.code: a for a in [
-    AlarmDef("E1001", "LOADER", "Pick vacuum not reached (retry exceeded)", "retry"),
-    AlarmDef("E1002", "LOADER", "Input magazine empty", "retry"),
+    AlarmDef("E1001", "INFEED", "2D code read fail", "scrap"),
     AlarmDef("E2001", "VISION", "Align mark not found", "scrap"),
     AlarmDef("E2002", "VISION", "Align offset out of range", "scrap"),
+    AlarmDef("E3001", "DISPENSER", "Fixture vacuum not reached (retry exceeded)", "retry"),
     AlarmDef("E3002", "DISPENSER", "Syringe temperature out of range", "retry"),
     AlarmDef("E3003", "DISPENSER", "Syringe level low", "retry"),
     AlarmDef("E3005", "DISPENSER", "Weight check out of spec", "retry"),
     AlarmDef("E3006", "DISPENSER", "Material pot life expired", "retry"),
     AlarmDef("E4001", "INSPECTION", "Consecutive bead NG", "continue"),
-    AlarmDef("E5001", "UNLOADER", "Output tray full", "retry"),
+    AlarmDef("E5001", "OUTFEED", "NG buffer full", "retry"),
     AlarmDef("E9001", "MACHINE", "Main air pressure low", "retry"),
 ]}
 

@@ -9,10 +9,10 @@ from simulator.machine import Machine, MachineMode
 # If the same problem keeps coming back within the escalation window, they move one
 # step down the list, like a real line would.
 RESPONSE_LADDER = {
-    "E1001": ["vacuum_check", "vacuum_check", "replace_pick_pad"],
-    "E1002": ["supply_magazine"],
+    "E1001": ["remove_part"],
     "E2001": ["remove_part"],
     "E2002": ["remove_part", "vision_check"],
+    "E3001": ["vacuum_check", "vacuum_check", "replace_vacuum_pad"],
     "E3002": ["call_engineer"],
     "E3003": ["replace_syringe"],
     "E3005": ["nozzle_clean", "replace_syringe", "call_engineer"],
@@ -22,17 +22,16 @@ RESPONSE_LADDER = {
     "E4001:STRINGING": ["nozzle_clean", "call_engineer"],
     "E4001:BEAD_OFFSET": ["needle_calibration", "call_engineer"],
     "E4001:WIDTH_HIGH": ["needle_calibration", "call_engineer"],
-    "E5001": ["swap_output_tray"],
+    "E5001": ["empty_ng_buffer"],
     "E9001": ["air_check", "air_check", "call_engineer"],
 }
 
 ACTION_MINUTES = {
-    "supply_magazine": (2, 5),
-    "swap_output_tray": (2, 4),
+    "empty_ng_buffer": (2, 4),
     "remove_part": (1, 3),
     "vision_check": (3, 8),
     "vacuum_check": (3, 6),
-    "replace_pick_pad": (10, 20),
+    "replace_vacuum_pad": (10, 20),
     "nozzle_clean": (5, 10),
     "purge": (2, 4),
     "needle_calibration": (5, 10),

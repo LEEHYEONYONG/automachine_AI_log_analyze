@@ -20,7 +20,9 @@ class Inspection(Station):
         lo, hi = r["bead_width_spec_mm"]
         max_offset = self.cfg["max_bead_offset_mm"]
 
+        # The line-scan sensor rides an axis across the stopped part, then returns while the image is processed.
         yield self.motion("SCAN", 1.2)
+        yield self.motion("SCAN_RETURN", 0.5)
         # A needle sitting too high lays a thinner bead; too low squashes it wider.
         gap_factor = max(0.5, 1.0 - 2.5 * hidden["gap_error_mm"])
         width = (r["nominal_bead_width_mm"] * math.sqrt(hidden["bead_weight_mg"] / r["target_bead_weight_mg"])

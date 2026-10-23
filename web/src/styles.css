@@ -284,6 +284,7 @@ button:disabled { cursor: not-allowed; opacity: 0.4; }
   user-select: none;
 }
 .label3d span { color: var(--muted); font-size: 11px; }
+.label3d.neighbour { color: var(--muted); border-style: dashed; }
 .label3d.st-BUSY { border-bottom-color: var(--ok); }
 .label3d.st-DONE { border-bottom-color: var(--warn); }
 .label3d.st-ALARM { border-bottom-color: var(--ng); }

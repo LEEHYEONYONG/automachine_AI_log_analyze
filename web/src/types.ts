@@ -25,7 +25,7 @@ export interface StationView {
 export interface Sensors {
   timestamp?: string;
   mode?: MachineMode;
-  loader_vac_kpa?: number;
+  fixture_vac_kpa?: number;
   disp_pressure_kpa?: number;
   disp_valve_open?: number;
   disp_temp_c?: number;
@@ -80,7 +80,7 @@ export interface HiddenState {
   plant_air_kpa: number;
   regulator_out_kpa: number;
   nozzle_open_ratio: number;
-  pick_leak_ratio: number;
+  fixture_leak_ratio: number;
   achievable_vac_kpa: number;
   temp_true_c: number;
   temp_sensor_offset_c: number;
@@ -101,15 +101,14 @@ export interface MachineState {
   alarm_history: AlarmEntry[];
   lot: string | null;
   counts: { OK: number; NG: number };
-  magazine: number;
-  magazine_capacity: number;
-  tray_count: number;
-  tray_capacity: number;
+  ng_buffer: number;
+  ng_buffer_capacity: number;
   syringe_level_pct: number;
   syringe_age_min: number;
   cycle_stop: boolean;
   stations: StationView[];
-  loader_vacuum_on: boolean;
+  fixture_vacuum_on: boolean;
+  ng_picker_vacuum_on: boolean;
   dispenser_valve_open: boolean;
   sensors: Sensors;
   sim: {

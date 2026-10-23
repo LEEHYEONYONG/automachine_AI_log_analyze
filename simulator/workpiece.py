@@ -3,9 +3,8 @@ from datetime import datetime
 
 PRODUCTION_FIELDS = [
     "wp_id", "lot_id", "recipe", "start_time", "end_time", "cycle_s",
-    "pick_vac_kpa", "pick_retries",
     "align_dx_mm", "align_dy_mm", "align_score",
-    "disp_pressure_kpa", "disp_temp_c", "nozzle_height_mm",
+    "fixture_vac_kpa", "vac_retries", "disp_pressure_kpa", "disp_temp_c", "nozzle_height_mm",
     "bead_width_mm", "bead_offset_mm", "judge", "ng_reason",
 ]
 

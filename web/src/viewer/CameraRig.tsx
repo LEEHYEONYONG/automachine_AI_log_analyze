@@ -5,10 +5,11 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { STATION_X } from "./layout";
 
 export const VIEWS = {
-  overview: { label: "전체", position: [2.5, 5.8, 13.5], target: [0, 0.3, -0.3] },
-  loader: { label: "투입부", position: [STATION_X.LOADER + 1.6, 2.4, 3.6], target: [STATION_X.LOADER, 0.6, -0.7] },
+  overview: { label: "전체", position: [2.5, 5.8, 14.5], target: [0, 0.3, -0.3] },
+  infeed: { label: "투입부", position: [STATION_X.INFEED - 1.2, 1.6, 2.6], target: [STATION_X.INFEED - 0.6, 0.3, -0.2] },
+  vision: { label: "비전 정렬", position: [STATION_X.VISION + 0.9, 1.0, 1.6], target: [STATION_X.VISION, 0.2, 0] },
   dispenser: { label: "디스펜서", position: [1.4, 1.3, 2.2], target: [0, 0.35, -0.2] },
-  unloader: { label: "배출부", position: [STATION_X.UNLOADER - 1.6, 2.4, 3.6], target: [STATION_X.UNLOADER, 0.5, -0.4] },
+  outfeed: { label: "배출부", position: [STATION_X.OUTFEED + 0.6, 2.0, 3.2], target: [STATION_X.OUTFEED + 0.3, 0.4, -0.5] },
 } as const;
 export type ViewName = keyof typeof VIEWS;
 

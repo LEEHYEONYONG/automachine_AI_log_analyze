@@ -20,18 +20,18 @@ class NozzleClog(Fault):
 
 class VacuumLeak(Fault):
     type = "vacuum_leak"
-    unit = "LOADER"
-    description = "The loader pick pad wears and leaks, weakening pick vacuum."
+    unit = "DISPENSER"
+    description = "The vacuum pad on the dispenser's fixture wears and leaks, so the housing is held less firmly."
     expected_symptoms = [
-        "pick vacuum (Pick OK vac=) trends toward the threshold",
-        "intermittent 'Pick vacuum not reached' retries",
-        "E1001 that keeps coming back after vacuum_check",
+        "fixture vacuum (Dispense done vac=) trends toward the threshold",
+        "intermittent 'Fixture vacuum not reached' retries with RESEAT steps",
+        "E3001 that keeps coming back after vacuum_check",
     ]
-    resolved_by = frozenset({"replace_pick_pad"})
+    resolved_by = frozenset({"replace_vacuum_pad"})
     defaults = {"ramp_min": 240, "max_leak_ratio": 0.4}
 
     def apply(self, machine, elapsed_s):
-        machine.physics.loader.leak_ratio = self.params["max_leak_ratio"] * self.progress(elapsed_s)
+        machine.physics.fixture.leak_ratio = self.params["max_leak_ratio"] * self.progress(elapsed_s)
 
 
 class TempSensorDrift(Fault):
@@ -110,11 +110,13 @@ class NeedleOffset(Fault):
 class AirSupplyDrop(Fault):
     type = "air_supply_drop"
     unit = "PLANT"
-    description = ("Factory compressed air sags for a while. The dispensing regulator and the loader's "
-                   "vacuum ejector share it, so two units suffer at once. It recovers on its own.")
+    description = ("Factory compressed air sags for a while. The dispensing regulator, the fixture's vacuum "
+                   "ejector and every air cylinder share it, so several symptoms appear at once. "
+                   "It recovers on its own.")
     expected_symptoms = [
         "dispensing pressure reading drops below the setpoint",
-        "pick vacuum weakens at the same time, pick retries / E1001",
+        "fixture vacuum weakens at the same time, vacuum retries / E3001",
+        "air-cylinder steps (LIFT_UP, PUSH_ALIGN, STOPPER ...) take longer in event.log",
         "weight check low / E3005, then everything recovers without a real fix",
         "E9001 only if the supply falls below the pressure switch",
     ]

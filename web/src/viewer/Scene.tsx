@@ -1,16 +1,16 @@
 import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import type { MachineState } from "../types";
 import { CameraRig, VIEWS, type ViewName } from "./CameraRig";
-import { Conveyor } from "./Conveyor";
+import { ConveyorLine } from "./Conveyor";
 import { BaseCabinet, Enclosure, Floor, HmiPendant, SignalTower } from "./MachineFrame";
-import { Dispenser3D, Inspection3D, Loader3D, Unloader3D, Vision3D, type StationProps } from "./stations";
+import { Dispenser3D, Infeed3D, Inspection3D, Outfeed3D, Vision3D, type StationProps } from "./stations";
 
 const STATION_COMPONENTS: Record<string, (p: StationProps) => JSX.Element> = {
-  LOADER: Loader3D,
+  INFEED: Infeed3D,
   VISION: Vision3D,
   DISPENSER: Dispenser3D,
   INSPECTION: Inspection3D,
-  UNLOADER: Unloader3D,
+  OUTFEED: Outfeed3D,
 };
 
 /** Soft factory-style reflections generated in the scene, so nothing is downloaded. */
@@ -28,7 +28,6 @@ function FactoryLighting() {
 export function Scene({ state, covers, view }: { state: MachineState; covers: boolean; view: ViewName }) {
   const running = state.mode === "RUNNING" && !state.sim.paused;
   const speed = state.sim.speed;
-  const indexing = running && state.stations.some((s) => s.step === "TRANSFER_IN");
   return (
     <>
       <color attach="background" args={["#0f1419"]} />
@@ -50,7 +49,7 @@ export function Scene({ state, covers, view }: { state: MachineState; covers: bo
       <Floor />
       <BaseCabinet />
       <Enclosure covers={covers} />
-      <Conveyor moving={indexing} speed={speed} />
+      <ConveyorLine stations={state.stations} running={running} speed={speed} />
       {state.stations.map((s) => {
         const Comp = STATION_COMPONENTS[s.name];
         return Comp ? <Comp key={s.name} station={s} m={state} running={running} speed={speed} /> : null;

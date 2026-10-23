@@ -39,7 +39,7 @@ class SimulationTest(unittest.TestCase):
     def test_normal_run_produces_parts(self):
         tmp, sim, summary, truth = run(scenario(), hours=1)
         with tmp:
-            self.assertGreater(summary["parts"], 400)
+            self.assertGreater(summary["parts"], 300)
             self.assertGreater(summary["yield_pct"], 95)
             self.assertEqual(truth["faults"], [])
 
@@ -60,7 +60,7 @@ class SimulationTest(unittest.TestCase):
                 for word in ("clog", "bubble", "buildup", "needle_offset", "air_supply", "recipe_pressure_error"):
                     self.assertNotIn(word, text, f"{word} in {path.name}")
 
-    def test_air_supply_drop_hits_dispenser_and_loader_then_recovers(self):
+    def test_air_supply_drop_hits_pressure_vacuum_and_cylinders_then_recovers(self):
         drop = {"type": "air_supply_drop", "start_after_min": 2,
                 "params": {"min_supply_kpa": 330, "ramp_min": 1, "hold_min": 10}}
         tmp = tempfile.TemporaryDirectory()
@@ -73,7 +73,8 @@ class SimulationTest(unittest.TestCase):
                 p = sim.machine.physics
                 # 330 kPa supply -> ~210 kPa regulator output (plant air also wanders by ~±12 kPa)
                 self.assertLess(p.dispenser.regulator_out_kpa, 235)
-                self.assertGreater(p.loader.achievable_vacuum_kpa, -68)
+                self.assertGreater(p.fixture.achievable_vacuum_kpa, -68)
+                self.assertGreater(p.cylinder_slowdown(), 1.2)
                 for _ in range(round(10 * 60 / sim.clock.dt)):
                     sim.step()
                 fault = sim.faults.faults[0]
@@ -114,6 +115,21 @@ class SimulationTest(unittest.TestCase):
         with tmp:
             self.assertIn("E4001", summary["alarms"])
             self.assertIn(truth["faults"][0]["resolved_by"], ("needle_calibration", "call_engineer"))
+
+    def test_inline_handshake_and_ng_buffer(self):
+        cfg = json.loads(json.dumps(MACHINE_CFG))
+        cfg["outfeed"]["ng_buffer_capacity"] = 2
+        cfg["inspection"]["random_defect_probability"] = 0.05  # make NG parts common
+        tmp = tempfile.TemporaryDirectory()
+        with tmp:
+            sim = Simulation(cfg, scenario(), Path(tmp.name))
+            summary = sim.run(1)
+            events = (sim.log_dir / "event.log").read_text(encoding="utf-8")
+            self.assertIn("Part sent downstream", events)
+            self.assertIn("NG part to buffer", events)
+            self.assertIn("Waiting for upstream", events)
+            self.assertIn("E5001", summary["alarms"])
+            self.assertIn("action=empty_ng_buffer", events)
 
     def test_recipe_typo_is_visible_as_a_parameter_change(self):
         typo = {"type": "recipe_pressure_error", "start_after_min": 5, "params": {"wrong_pressure_kpa": 205}}

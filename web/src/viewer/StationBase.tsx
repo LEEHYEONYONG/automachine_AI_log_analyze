@@ -4,7 +4,7 @@ import { useRef } from "react";
 import type { MeshStandardMaterial } from "three";
 import { STATION_LABEL, STATION_STATE_LABEL } from "../labels";
 import type { StationView } from "../types";
-import { BELT_TOP, COLORS } from "./layout";
+import { BELT_TOP, COLORS, LANE_W, LANE_Z } from "./layout";
 
 const STATE_COLOR = {
   IDLE: COLORS.idle,
@@ -25,8 +25,8 @@ export function StationBase({ station, x }: { station: StationView; x: number })
 
   return (
     <group position={[x, 0, 0]}>
-      <mesh position={[0, BELT_TOP - 0.06, 0.505]}>
-        <boxGeometry args={[1.6, 0.05, 0.01]} />
+      <mesh position={[0, BELT_TOP - 0.06, LANE_Z + LANE_W / 2 + 0.017]}>
+        <boxGeometry args={[1.4, 0.04, 0.01]} />
         <meshStandardMaterial
           ref={mat}
           color={STATE_COLOR[station.state]}

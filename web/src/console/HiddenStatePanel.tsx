@@ -58,10 +58,11 @@ export function HiddenStatePanel({ hidden: h, sensors, setpointErrors }: Props) 
         note="재료 로트마다 다르고, 장착 후 시간이 지날수록 점도가 오름"
         abnormal={Math.abs(h.material_viscosity - 1) > 0.04 || h.syringe_age_h > 5} />
 
-      <h3>로더</h3>
-      <Row label="흡착 패드 누설률" value={h.pick_leak_ratio.toFixed(3)} note="정상 0.000" abnormal={h.pick_leak_ratio > 0.03} />
-      <Row label="도달 가능한 흡착 진공" value={`${h.achievable_vac_kpa.toFixed(1)} kPa`}
-        note="픽업 판정 기준 -60.0 kPa · 에어가 약해져도 낮아짐" abnormal={h.achievable_vac_kpa > -70} />
+      <h3>디스펜서 진공 지그</h3>
+      <Row label="진공 패드 누설률" value={h.fixture_leak_ratio.toFixed(3)} note="정상 0.000"
+        abnormal={h.fixture_leak_ratio > 0.03} />
+      <Row label="도달 가능한 지그 진공" value={`${h.achievable_vac_kpa.toFixed(1)} kPa`}
+        note="고정 판정 기준 -60.0 kPa · 에어가 약해져도 낮아짐" abnormal={h.achievable_vac_kpa > -70} />
 
       <h3>레시피</h3>
       {errors.length === 0 ? (

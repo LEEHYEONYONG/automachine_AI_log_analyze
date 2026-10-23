@@ -62,6 +62,14 @@ class Station:
         self.state = StationState.IDLE
         return wp
 
+    def abort_if_empty(self) -> None:
+        """Drop a sequence that has not taken a part yet (e.g. still waiting for upstream)."""
+        if self.state is StationState.BUSY and self.wp is None:
+            self._end_step()
+            self._proc = None
+            self.state = StationState.IDLE
+            self.step = ""
+
     def update(self, dt: float) -> None:
         if self.state is not StationState.BUSY:
             return
@@ -91,7 +99,10 @@ class Station:
     def process(self) -> Iterator[float]:
         raise NotImplementedError
 
-    def motion(self, step: str, nominal_s: float, jitter: float = 0.05) -> float:
+    def motion(self, step: str, nominal_s: float, jitter: float = 0.05, pneumatic: bool = False) -> float:
+        """Start a step and return its duration. Air-cylinder strokes slow down when plant air is low."""
+        if pneumatic:
+            nominal_s *= self.m.physics.cylinder_slowdown()
         self.step = step
         self._step_s = max(0.0, self.m.rng.gauss(nominal_s, nominal_s * jitter))
         return self._step_s

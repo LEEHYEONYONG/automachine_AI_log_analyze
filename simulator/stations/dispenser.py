@@ -20,6 +20,7 @@ class Dispenser(Station):
     def __init__(self, machine, cfg):
         super().__init__(machine, cfg)
         self.valve_open = False
+        self.vacuum_on = False
         self.need_weight_check = True  # the first shot of a shift is always verified
         self.pieces_since_check = 0
         self.syringe_installed_at = machine.clock.now
@@ -44,6 +45,24 @@ class Dispenser(Station):
         if self.need_weight_check or self.pieces_since_check >= self.cfg["weight_check_interval"]:
             yield from self._weight_check()
 
+        # Lift the housing onto the vacuum fixture so it cannot move while the bead is drawn.
+        yield self.motion("LIFT_UP", 0.4, pneumatic=True)
+        threshold = self.cfg["vacuum_threshold_kpa"]
+        retries = self.cfg["max_vacuum_retries"]
+        for attempt in range(retries + 1):
+            self.vacuum_on = True
+            yield self.motion("VACUUM_ON", 0.3)
+            vac = self.m.sensors["fixture_vac"].read(self.m.physics.fixture.achievable_vacuum_kpa, rng)
+            if vac <= threshold:
+                break
+            self.vacuum_on = False
+            self.log("WARN", "Fixture vacuum not reached", vac=f"{vac:.1f}kPa",
+                     threshold=f"{threshold:.1f}kPa", attempt=attempt + 1)
+            yield self.motion("RESEAT", 0.6, pneumatic=True)
+        else:
+            raise MachineAlarm("E3001", f"vac={vac:.1f}kPa threshold={threshold:.1f}kPa retries={retries}")
+        self.wp.data.update(fixture_vac_kpa=vac, vac_retries=attempt)
+
         yield self.motion("APPROACH", 0.8)
         yield self.motion("HEIGHT_MEASURE", 0.5)
         # The laser measures the part surface, so it cannot see a shifted needle tip.
@@ -60,12 +79,16 @@ class Dispenser(Station):
             gap_error_mm=p.needle_z_offset_mm, xy_offset_mm=p.needle_xy_offset_mm,
         )
         self.wp.data.update(disp_pressure_kpa=pressure, disp_temp_c=temp, nozzle_height_mm=height)
-        self.log("INFO", "Dispense done", pressure=f"{pressure:.1f}kPa", temp=f"{temp:.2f}C",
-                 height=f"{height:.3f}mm", t=f"{duration:.3f}s", syringe=f"{self.level_pct:.1f}%")
+        self.log("INFO", "Dispense done", vac=f"{vac:.1f}kPa", pressure=f"{pressure:.1f}kPa", temp=f"{temp:.2f}C",
+                 height=f"{height:.3f}mm", t=f"{duration:.3f}s", syringe=f"{self.level_pct:.1f}%",
+                 path_offset=f"{self.wp.data.get('align_dx_mm', 0):+.3f}/{self.wp.data.get('align_dy_mm', 0):+.3f}mm")
         self.pieces_since_check += 1
         if sp["retract_delay_s"] > 0:
             yield self.motion("DWELL", sp["retract_delay_s"])
         yield self.motion("RETRACT", 0.5)
+        self.vacuum_on = False
+        yield self.motion("VACUUM_OFF", 0.2)
+        yield self.motion("LIFT_DOWN", 0.4, pneumatic=True)
 
     def dispensing_pressure_kpa(self) -> float:
         # Line pressure sags while the valve is open; a narrower nozzle draws less flow and sags less.

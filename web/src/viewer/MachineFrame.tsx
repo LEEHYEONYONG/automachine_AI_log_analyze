@@ -95,8 +95,9 @@ export function Enclosure({ covers }: { covers: boolean }) {
       {covers && (
         <group>
           <Guard size={[W, H, 0.01]} position={[0, H / 2, FRAME.zBack]} />
-          <Guard size={[0.01, H, D]} position={[-FRAME.x, H / 2, ZC]} />
-          <Guard size={[0.01, H, D]} position={[FRAME.x, H / 2, ZC]} />
+          {/* side guards stop above the conveyor openings to the neighbouring machines */}
+          <Guard size={[0.01, H - 0.45, D]} position={[-FRAME.x, 0.45 + (H - 0.45) / 2, ZC]} />
+          <Guard size={[0.01, H - 0.45, D]} position={[FRAME.x, 0.45 + (H - 0.45) / 2, ZC]} />
           <Guard size={[W, 0.01, D]} position={[0, H, ZC]} />
           <Guard size={[W, H - 0.9, 0.01]} position={[0, 0.9 + (H - 0.9) / 2, FRAME.zFront]} />
           <Box size={[W + P, P, P]} position={[0, 0.9, FRAME.zFront]} />

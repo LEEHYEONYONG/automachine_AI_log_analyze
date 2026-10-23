@@ -16,7 +16,7 @@ export function SensorPanel({ sensors }: { sensors: Sensors }) {
   return (
     <section className="panel">
       <h2>센서</h2>
-      <Row label="로더 흡착 진공" value={sensors.loader_vac_kpa} unit="kPa" />
+      <Row label="지그 흡착 진공" value={sensors.fixture_vac_kpa} unit="kPa" />
       <Row label="토출 압력" value={sensors.disp_pressure_kpa} unit="kPa" />
       <Row label="시린지 온도" value={sensors.disp_temp_c} unit="°C" digits={2} />
       <div className="sensor-row">

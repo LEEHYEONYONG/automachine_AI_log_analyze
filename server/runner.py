@@ -88,7 +88,7 @@ class SimRunner:
         tol = target * r["weight_tolerance_pct"] / 100.0
         band = cfg["dispenser"]["temp_alarm_band_c"]
         limits = {
-            "pick_vac_kpa": {"hi": cfg["loader"]["vacuum_threshold_kpa"]},
+            "fixture_vac_kpa": {"hi": cfg["dispenser"]["vacuum_threshold_kpa"]},
             "weight_check_mg": {"lo": target - tol, "hi": target + tol},
             "bead_width_mm": {"lo": r["bead_width_spec_mm"][0], "hi": r["bead_width_spec_mm"][1]},
             "disp_temp_c": {"lo": r["syringe_temp_c"] - band, "hi": r["syringe_temp_c"] + band},

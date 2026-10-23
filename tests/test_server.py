@@ -54,11 +54,11 @@ class ServerTest(unittest.TestCase):
             runner.sim.step()
         trends = self.client.get("/api/trends", params={"minutes": 60}).json()["series"]
         widths = trends["bead_width_mm"]["points"]
-        # ~700 parts averaged into at most 300 buckets (buckets during stoppages stay empty)
+        # ~400 parts averaged into at most 300 buckets (buckets during stoppages stay empty)
         self.assertTrue(200 < len(widths) <= 300, len(widths))
         self.assertTrue(all(0.6 < v < 1.0 for _, v in widths))
-        self.assertGreater(len(trends["weight_check_mg"]["points"]), 3)
-        self.assertEqual(trends["pick_vac_kpa"]["limits"], {"hi": -60.0})
+        self.assertGreaterEqual(len(trends["weight_check_mg"]["points"]), 3)
+        self.assertEqual(trends["fixture_vac_kpa"]["limits"], {"hi": -60.0})
 
     def test_websocket_pushes_state(self):
         with self.client.websocket_connect("/ws") as ws:

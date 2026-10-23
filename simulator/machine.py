@@ -8,14 +8,14 @@ from typing import Callable
 from simulator.alarms import ALARMS, MachineAlarm
 from simulator.clock import VirtualClock
 from simulator.logger import MachineLogger
-from simulator.physics import DispenserPhysics, LoaderPhysics, Physics, PlantAir
+from simulator.physics import DispenserPhysics, FixturePhysics, Physics, PlantAir
 from simulator.sensors import Sensor
-from simulator.stations import Dispenser, Inspection, Loader, Station, StationState, Unloader, Vision
+from simulator.stations import Dispenser, Infeed, Inspection, Outfeed, Station, StationState, Vision
 from simulator.trends import TrendStore
 from simulator.workpiece import Workpiece
 
 # Per-part measurements that feed the HMI trend charts (weight checks are added by the dispenser).
-PART_TRENDS = ("pick_vac_kpa", "disp_pressure_kpa", "disp_temp_c", "bead_width_mm", "bead_offset_mm")
+PART_TRENDS = ("fixture_vac_kpa", "disp_pressure_kpa", "disp_temp_c", "bead_width_mm", "bead_offset_mm")
 
 
 class MachineMode(str, Enum):
@@ -47,24 +47,24 @@ class Machine:
         temp = self.recipe["syringe_temp_c"]
         self.physics = Physics(
             air=PlantAir(nominal_kpa=cfg["plant"]["nominal_air_kpa"]),
-            loader=LoaderPhysics(),
+            fixture=FixturePhysics(),
             dispenser=DispenserPhysics(temp_setpoint_c=temp, temp_true_c=temp,
                                        syringe_capacity_ml=capacity, syringe_level_ml=capacity,
                                        thickening_per_h=cfg["dispenser"]["thickening_per_h"]),
         )
         self.sensors = {
-            "loader_vac": Sensor(noise_std=0.4, decimals=1),
+            "fixture_vac": Sensor(noise_std=0.4, decimals=1),
             "disp_pressure": Sensor(noise_std=0.8, decimals=1),
             "disp_temp": Sensor(noise_std=0.05, decimals=2),
             "nozzle_height": Sensor(noise_std=0.003, decimals=3),
         }
 
-        self.loader = Loader(self, cfg["loader"])
+        self.infeed = Infeed(self, cfg["infeed"])
         self.vision = Vision(self, cfg["vision"])
         self.dispenser = Dispenser(self, cfg["dispenser"])
         self.inspection = Inspection(self, cfg["inspection"])
-        self.unloader = Unloader(self, cfg["unloader"])
-        self.stations: list[Station] = [self.loader, self.vision, self.dispenser, self.inspection, self.unloader]
+        self.outfeed = Outfeed(self, cfg["outfeed"])
+        self.stations: list[Station] = [self.infeed, self.vision, self.dispenser, self.inspection, self.outfeed]
 
         self.mode = MachineMode.STOPPED
         self.active_alarm: tuple[Station | None, MachineAlarm] | None = None
@@ -120,10 +120,8 @@ class Machine:
         """Apply the physical effect of an operator/engineer action."""
         p = self.physics
         d = p.dispenser
-        if action == "supply_magazine":
-            self.loader.magazine = self.cfg["loader"]["magazine_capacity"]
-        elif action == "swap_output_tray":
-            self.unloader.tray_count = 0
+        if action == "empty_ng_buffer":
+            self.outfeed.ng_count = 0
         elif action == "replace_syringe":
             d.syringe_level_ml = d.syringe_capacity_ml
             d.material_viscosity = self.rng.gauss(1.0, 0.02)
@@ -142,8 +140,8 @@ class Machine:
             d.needle_z_offset_mm = 0.0
             d.needle_xy_offset_mm = 0.0
             self.dispenser.need_weight_check = True
-        elif action == "replace_pick_pad":
-            p.loader.leak_ratio = 0.0
+        elif action == "replace_vacuum_pad":
+            p.fixture.leak_ratio = 0.0
         elif action == "call_engineer":
             self.sensors["disp_temp"].offset = 0.0
             d.nozzle_open_ratio = 1.0
@@ -164,8 +162,6 @@ class Machine:
         self.recipe = self._load_recipe(name)
         self.setpoints = dict(self.recipe)
         self._lot_id = None
-        self.loader.magazine = self.cfg["loader"]["magazine_capacity"]
-        self.unloader.tray_count = 0
         self.dispenser.need_weight_check = True
         self.log.event("INFO", "MACHINE", "Model change", recipe=name, by=by)
         for listener in self.maintenance_listeners:
@@ -241,8 +237,10 @@ class Machine:
                 self._record(station.release())
             elif self.stations[i + 1].can_accept():
                 self.stations[i + 1].accept(station.release())
-        if not self._cycle_stop and self.loader.can_accept():
-            self.loader.accept(None)
+        if self._cycle_stop:
+            self.infeed.abort_if_empty()  # stop asking upstream for another part
+        elif self.infeed.can_accept():
+            self.infeed.accept(None)
 
         for station in self.stations:
             if self.mode is not MachineMode.RUNNING:
@@ -266,14 +264,13 @@ class Machine:
             "alarm_history": list(self.alarm_history)[:20],
             "lot": self._lot_id,
             "counts": {"OK": self.counts["OK"], "NG": self.counts["NG"]},
-            "magazine": self.loader.magazine,
-            "magazine_capacity": self.cfg["loader"]["magazine_capacity"],
-            "tray_count": self.unloader.tray_count,
-            "tray_capacity": self.cfg["unloader"]["tray_capacity"],
+            "ng_buffer": self.outfeed.ng_count,
+            "ng_buffer_capacity": self.cfg["outfeed"]["ng_buffer_capacity"],
             "syringe_level_pct": round(self.dispenser.level_pct, 1),
             "syringe_age_min": round(self.physics.dispenser.syringe_age_h * 60),
             "stations": [s.view() for s in self.stations],
-            "loader_vacuum_on": self.loader.vacuum_on,
+            "fixture_vacuum_on": self.dispenser.vacuum_on,
+            "ng_picker_vacuum_on": self.outfeed.picker_vacuum,
             "dispenser_valve_open": self.dispenser.valve_open,
         }
 

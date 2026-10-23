@@ -14,20 +14,19 @@ export const STATION_STATE_LABEL: Record<StationState, string> = {
 };
 
 export const STATION_LABEL: Record<string, string> = {
-  LOADER: "투입",
+  INFEED: "투입",
   VISION: "비전 정렬",
   DISPENSER: "디스펜싱",
   INSPECTION: "도포 검사",
-  UNLOADER: "배출",
+  OUTFEED: "배출",
 };
 
 export const ACTION_LABEL: Record<string, string> = {
-  supply_magazine: "매거진 보충",
-  swap_output_tray: "배출 트레이 교체",
+  empty_ng_buffer: "NG 버퍼 비우기",
   remove_part: "제품 제거",
   vision_check: "비전 점검",
   vacuum_check: "진공 점검",
-  replace_pick_pad: "흡착 패드 교체",
+  replace_vacuum_pad: "진공 패드 교체",
   nozzle_clean: "노즐 청소",
   purge: "퍼지 (기포 제거)",
   needle_calibration: "니들 캘리브레이션",
@@ -54,7 +53,7 @@ export const OPERATOR_PHASE_LABEL: Record<string, string> = {
 
 export const FAULT_LABEL: Record<string, string> = {
   nozzle_clog: "노즐 막힘",
-  vacuum_leak: "흡착 패드 누설",
+  vacuum_leak: "진공 지그 패드 누설",
   temp_sensor_drift: "온도 센서 드리프트",
   air_bubble: "시린지 기포",
   needle_tip_buildup: "니들 끝 접착제 누적 (실 끊김)",
@@ -89,7 +88,7 @@ export const FAULT_STATE_LABEL: Record<string, string> = {
 export const SCENARIO_LABEL: Record<string, string> = {
   normal: "정상 가동",
   nozzle_clog: "노즐 막힘",
-  vacuum_leak: "흡착 패드 누설",
+  vacuum_leak: "진공 지그 누설",
   temp_sensor_drift: "온도 센서 드리프트",
   air_bubble: "시린지 기포",
   stringing: "실 끊김",
