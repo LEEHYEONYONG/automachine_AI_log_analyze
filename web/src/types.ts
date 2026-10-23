@@ -16,7 +16,10 @@ export interface StationView {
   name: string;
   state: StationState;
   step: string;
+  step_s: number; // duration of the current step in simulated seconds
+  progress: number; // 0..1 through the current step when the state was sent
   wp: string | null;
+  judge: "" | "OK" | "NG" | null;
 }
 
 export interface Sensors {
@@ -95,6 +98,8 @@ export interface MachineState {
   tray_capacity: number;
   syringe_level_pct: number;
   stations: StationView[];
+  loader_vacuum_on: boolean;
+  dispenser_valve_open: boolean;
   sensors: Sensors;
   sim: {
     run_id: string;

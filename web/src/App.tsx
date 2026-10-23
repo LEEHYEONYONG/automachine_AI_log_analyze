@@ -1,20 +1,31 @@
-import { useCallback, useState } from "react";
+import { Suspense, lazy, useCallback, useState } from "react";
 import { useMachineState } from "./api";
 import { ConsolePage } from "./console/ConsolePage";
 import { Header } from "./hmi/Header";
 import { HmiPage } from "./hmi/HmiPage";
+
+// three.js is large, so the viewer is only downloaded when its tab is opened.
+const ViewerPage = lazy(() => import("./viewer/ViewerPage"));
 
 type Tab = "hmi" | "console" | "3d";
 
 const TABS: { id: Tab; label: string; ready: boolean }[] = [
   { id: "hmi", label: "HMI", ready: true },
   { id: "console", label: "엔지니어 콘솔", ready: true },
-  { id: "3d", label: "3D 뷰어", ready: false },
+  { id: "3d", label: "3D 뷰어", ready: true },
 ];
 
 export default function App() {
   const { state, connected } = useMachineState();
-  const [tab, setTab] = useState<Tab>("hmi");
+  // The tab lives in the URL hash (#console, #3d) so a reload or a shared link opens the same screen.
+  const [tab, setTabState] = useState<Tab>(() => {
+    const hash = location.hash.slice(1);
+    return TABS.some((t) => t.id === hash) ? (hash as Tab) : "hmi";
+  });
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    history.replaceState(null, "", `#${t}`);
+  };
   const [error, setError] = useState<string | null>(null);
 
   const run = useCallback((action: () => Promise<void>) => {
@@ -46,6 +57,11 @@ export default function App() {
       <Header state={state} connected={connected} run={run} />
       {tab === "hmi" && <HmiPage state={state} run={run} />}
       {tab === "console" && <ConsolePage state={state} run={run} />}
+      {tab === "3d" && (
+        <Suspense fallback={<div className="loading">3D 뷰어 불러오는 중…</div>}>
+          <ViewerPage state={state} />
+        </Suspense>
+      )}
       {error && <div className="toast">{error}</div>}
     </div>
   );

@@ -198,10 +198,9 @@ class Machine:
             "tray_count": self.unloader.tray_count,
             "tray_capacity": self.cfg["unloader"]["tray_capacity"],
             "syringe_level_pct": round(self.dispenser.level_pct, 1),
-            "stations": [
-                {"name": s.name, "state": s.state.value, "step": s.step, "wp": s.wp.wp_id if s.wp else None}
-                for s in self.stations
-            ],
+            "stations": [s.view() for s in self.stations],
+            "loader_vacuum_on": self.loader.vacuum_on,
+            "dispenser_valve_open": self.dispenser.valve_open,
         }
 
     def _record(self, wp: Workpiece) -> None:

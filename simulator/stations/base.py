@@ -37,6 +37,19 @@ class Station:
         self._proc: Iterator[float] | None = None
         self._wait = 0.0
 
+    def view(self) -> dict:
+        """What the HMI and 3D viewer need to draw this station."""
+        progress = min(1.0, max(0.0, 1.0 - self._wait / self._step_s)) if self.step and self._step_s else 0.0
+        return {
+            "name": self.name,
+            "state": self.state.value,
+            "step": self.step,
+            "step_s": round(self._step_s, 3) if self.step else 0.0,
+            "progress": round(progress, 3),
+            "wp": self.wp.wp_id if self.wp else None,
+            "judge": self.wp.judge if self.wp else None,
+        }
+
     def can_accept(self) -> bool:
         return self.state is StationState.IDLE and self.wp is None
 
