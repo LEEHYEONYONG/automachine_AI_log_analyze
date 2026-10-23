@@ -1,6 +1,7 @@
 import { useMeta } from "../api";
 import type { MachineState } from "../types";
 import { FaultInjectPanel } from "./FaultInjectPanel";
+import { FieldPanel } from "./FieldPanel";
 import { FaultList } from "./FaultList";
 import { HiddenStatePanel } from "./HiddenStatePanel";
 import { RunPanel } from "./RunPanel";
@@ -20,6 +21,7 @@ export function ConsolePage({ state, run }: Props) {
       <div className="console-grid">
         <div className="col">
           <RunPanel state={state} scenarios={meta?.scenarios ?? []} recipes={meta?.recipes ?? []} run={run} />
+          <FieldPanel state={state} run={run} />
           {meta && <FaultInjectPanel faultTypes={meta.fault_types} run={run} />}
         </div>
         <div className="col">

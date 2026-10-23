@@ -47,8 +47,8 @@ export function Scene({ state, covers, view }: { state: MachineState; covers: bo
       />
 
       <Floor />
-      <BaseCabinet />
-      <Enclosure covers={covers} />
+      <BaseCabinet estop={state.safety.estop} />
+      <Enclosure covers={covers} doorsOpen={state.safety.doors_open} />
       <ConveyorLine m={state} running={running} speed={speed} />
       {state.stations.map((s) => {
         const Comp = STATION_COMPONENTS[s.name];

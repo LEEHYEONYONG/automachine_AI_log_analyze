@@ -160,6 +160,45 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(any(t.startswith("Access denied") for t in
                             [e["text"] for e in c.get("/api/logs", params={"level": "WARN"}).json()["items"]]))
 
+    def test_emergency_stop_and_safety_door(self):
+        c = self.client
+
+        def io():
+            return {s["id"]: s["value"] for s in c.get("/api/io").json()["inputs"]}
+
+        # E-stop while running: alarm, outputs off, re-initialization needed, no reset until released
+        c.post("/api/machine/start")
+        self._steps(10)
+        state = c.post("/api/safety/estop", json={"pressed": True}).json()
+        self.assertEqual((state["mode"], state["alarm"]["code"]), ("ALARM", "E9100"))
+        self.assertEqual(state["init"]["state"], "REQUIRED")
+        self.assertFalse(state["dispenser_valve_open"] or state["fixture_vacuum_on"])
+        self._steps(0.2)
+        self.assertFalse(io()["ESTOP_OK"])
+        self.assertEqual(c.post("/api/machine/reset").status_code, 409)
+        c.post("/api/safety/estop", json={"pressed": False})
+        self.assertEqual(c.post("/api/machine/reset").json()["mode"], "STOPPED")
+        self.assertEqual(c.post("/api/machine/start").json()["mode"], "STOPPED")  # initialize first
+        c.post("/api/initialize", json={"clear_parts": False})
+        self._steps(15)
+        self.assertEqual(c.post("/api/machine/start").json()["mode"], "RUNNING")
+
+        # door opened while running: alarm; START and initialize refused until it is closed
+        self._steps(5)
+        state = c.post("/api/safety/door", json={"door": "FRONT_LEFT", "open": True}).json()
+        self.assertEqual(state["alarm"]["code"], "E9101")
+        self._steps(0.2)
+        self.assertFalse(io()["DOOR_FL_CLOSED"])
+        self.assertEqual(c.post("/api/machine/reset").status_code, 409)
+        c.post("/api/safety/door", json={"door": "FRONT_LEFT", "open": False})
+        c.post("/api/machine/reset")
+        self.assertEqual(c.get("/api/state").json()["init"]["state"], "DONE")  # a door does not need re-init
+        c.post("/api/safety/door", json={"door": "FRONT_RIGHT", "open": True})
+        self.assertEqual(c.post("/api/machine/start").status_code, 409)
+        self.assertEqual(c.post("/api/initialize", json={"clear_parts": False}).status_code, 409)
+        c.post("/api/safety/door", json={"door": "FRONT_RIGHT", "open": False})
+        self.assertEqual(c.post("/api/machine/start").json()["mode"], "RUNNING")
+
     def test_recipe_edit_limits_permissions_and_physics(self):
         c = self.client
         data = c.get("/api/recipes").json()

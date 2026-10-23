@@ -153,6 +153,7 @@ export interface MachineState {
     maintenance_level: Record<string, HmiLevel>; // maintenance actions that need more than OPERATOR
   };
   init: { state: "REQUIRED" | "RUNNING" | "DONE"; step: string; progress: number };
+  safety: { estop: boolean; doors_open: Record<string, boolean>; problems: string[] };
   manual: { devices: ManualDevice[]; axes: ManualAxis[] } | null; // only in MANUAL
   alarm: AlarmEntry | null;
   alarm_history: AlarmEntry[];

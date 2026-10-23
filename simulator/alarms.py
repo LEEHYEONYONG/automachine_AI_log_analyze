@@ -21,6 +21,8 @@ ALARMS = {a.code: a for a in [
     AlarmDef("E4001", "INSPECTION", "Consecutive bead NG", "continue"),
     AlarmDef("E5001", "OUTFEED", "NG buffer full", "retry"),
     AlarmDef("E9001", "MACHINE", "Main air pressure low", "retry"),
+    AlarmDef("E9100", "MACHINE", "Emergency stop", "retry"),
+    AlarmDef("E9101", "MACHINE", "Safety door open", "retry"),
 ]}
 
 

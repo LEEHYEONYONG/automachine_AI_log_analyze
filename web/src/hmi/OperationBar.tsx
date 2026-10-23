@@ -33,6 +33,13 @@ export function OperationBar({ state, run }: Props) {
 
   return (
     <div className="op-bar">
+      <button
+        className={`estop ${state.safety.estop ? "pressed" : ""}`}
+        title={state.safety.estop ? "비상정지 버튼을 돌려서 해제합니다" : "누르면 모든 동작이 즉시 정지합니다"}
+        onClick={() => run(() => api.estop(!state.safety.estop))}
+      >
+        {state.safety.estop ? "비상정지 해제" : "비상정지"}
+      </button>
       <div className="mode-switch" role="radiogroup" aria-label="운전 모드">
         {(["AUTO", "MANUAL"] as const).map((m) => (
           <button

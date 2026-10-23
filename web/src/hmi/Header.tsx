@@ -15,6 +15,14 @@ export function Header({ state, run }: { state: MachineState; run: (action: () =
 
       <div className={`mode-badge mode-${state.mode}`}>{MODE_LABEL[state.mode]}</div>
       <span className={`opmode-badge opmode-${state.op_mode}`}>{state.op_mode}</span>
+      {state.safety.estop && <span className="tag danger">비상정지</span>}
+      {Object.entries(state.safety.doors_open)
+        .filter(([, open]) => open)
+        .map(([door]) => (
+          <span key={door} className="tag danger">
+            도어 열림 {door === "FRONT_LEFT" ? "(좌)" : "(우)"}
+          </span>
+        ))}
       {state.init.state === "REQUIRED" && <span className="tag warn">원점 복귀 필요</span>}
       {state.init.state === "RUNNING" && (
         <span className="tag warn">원점 복귀 중 · {INIT_STEP_LABEL[state.init.step] ?? state.init.step}</span>

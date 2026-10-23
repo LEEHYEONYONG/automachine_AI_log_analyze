@@ -25,6 +25,8 @@ RESPONSE_LADDER = {
     "E4001:WIDTH_HIGH": ["needle_calibration", "call_engineer"],
     "E5001": ["empty_ng_buffer"],
     "E9001": ["air_check", "air_check", "call_engineer"],
+    "E9100": ["check"],  # E-stop: check the area, then reset (initialize follows on START)
+    "E9101": ["check"],  # door: check the area, then reset
 }
 
 ACTION_MINUTES = {
@@ -147,6 +149,8 @@ class Operator:
             self.m.cycle_stop(by=self.names[0], reason="break")
             return
         if self.m.mode is MachineMode.ALARM:
+            if self.m.safety_problems():
+                return  # whoever pressed the E-stop or opened the door has to clear it first
             self.phase = "ack"
             self._due = now + timedelta(seconds=self.rng.uniform(15, 180))
             return

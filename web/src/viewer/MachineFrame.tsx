@@ -1,6 +1,6 @@
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
-import { DoubleSide, type MeshStandardMaterial } from "three";
+import { DoubleSide, MathUtils, type Group, type MeshStandardMaterial } from "three";
 import type { MachineMode } from "../types";
 import { Box, Cyl } from "./details";
 import { COLORS, FLOOR_Y, FRAME } from "./layout";
@@ -37,7 +37,7 @@ export function Floor() {
 }
 
 /** Base cabinet with doors, feet, the table plate and an E-stop. */
-export function BaseCabinet() {
+export function BaseCabinet({ estop }: { estop: boolean }) {
   const bodyH = -0.06 - (FLOOR_Y + 0.12);
   const bodyY = FLOOR_Y + 0.12 + bodyH / 2;
   const doors = [-5.1, -1.7, 1.7, 5.1];
@@ -66,14 +66,40 @@ export function BaseCabinet() {
       <group position={[6.55, bodyY + 0.25, FRAME.zFront]}>
         <Box size={[0.22, 0.22, 0.08]} mat="white" color="#e2b521" />
         <Cyl r={0.045} h={0.05} position={[0, 0, 0.06]} rotation={[Math.PI / 2, 0, 0]} mat="black" />
-        <Cyl r={0.075} rTop={0.07} h={0.05} position={[0, 0, 0.1]} rotation={[Math.PI / 2, 0, 0]} mat="white" color="#c8262e" />
+        {/* the mushroom head sits lower and glows while pressed */}
+        <mesh position={[0, 0, estop ? 0.08 : 0.1]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.07, 0.075, 0.05, 20]} />
+          <meshStandardMaterial color="#c8262e" emissive="#ff2a2a" emissiveIntensity={estop ? 2.5 : 0} />
+        </mesh>
       </group>
     </group>
   );
 }
 
 /** Aluminium profile frame with polycarbonate guards (guards can be hidden). */
-export function Enclosure({ covers }: { covers: boolean }) {
+/** One half of the front guard, hinged at the outer post; it swings outwards when opened. */
+function GuardDoor({ side, open, visible }: { side: -1 | 1; open: boolean; visible: boolean }) {
+  const hinge = useRef<Group>(null);
+  useFrame((_, dt) => {
+    if (hinge.current) hinge.current.rotation.y = MathUtils.damp(hinge.current.rotation.y, open ? side * 1.2 : 0, 6, dt);
+  });
+  const w = W / 2 - 0.02;
+  const h = H - 0.9;
+  return (
+    <group ref={hinge} position={[side * FRAME.x, 0.9, FRAME.zFront]} visible={visible || open}>
+      <group position={[-side * (w / 2), h / 2, 0]}>
+        <Guard size={[w, h, 0.01]} position={[0, 0, 0]} />
+        {/* door frame and handle so an open door reads clearly */}
+        <Box size={[w, 0.04, 0.03]} position={[0, h / 2, 0]} mat={open ? "white" : "alu"} color={open ? "#e2b521" : undefined} />
+        <Box size={[w, 0.04, 0.03]} position={[0, -h / 2, 0]} mat={open ? "white" : "alu"} color={open ? "#e2b521" : undefined} />
+        <Box size={[0.04, h, 0.03]} position={[-side * (w / 2), 0, 0]} mat="alu" />
+        <Box size={[0.03, 0.25, 0.05]} position={[-side * (w / 2 - 0.08), 0, 0.04]} mat="steel" />
+      </group>
+    </group>
+  );
+}
+
+export function Enclosure({ covers, doorsOpen }: { covers: boolean; doorsOpen: Record<string, boolean> }) {
   const xs = [-FRAME.x, -FRAME.x / 3, FRAME.x / 3, FRAME.x];
   const posts: [number, number][] = [
     ...xs.map((x) => [x, FRAME.zBack] as [number, number]),
@@ -99,10 +125,11 @@ export function Enclosure({ covers }: { covers: boolean }) {
           <Guard size={[0.01, H - 0.45, D]} position={[-FRAME.x, 0.45 + (H - 0.45) / 2, ZC]} />
           <Guard size={[0.01, H - 0.45, D]} position={[FRAME.x, 0.45 + (H - 0.45) / 2, ZC]} />
           <Guard size={[W, 0.01, D]} position={[0, H, ZC]} />
-          <Guard size={[W, H - 0.9, 0.01]} position={[0, 0.9 + (H - 0.9) / 2, FRAME.zFront]} />
           <Box size={[W + P, P, P]} position={[0, 0.9, FRAME.zFront]} />
         </group>
       )}
+      <GuardDoor side={-1} open={!!doorsOpen.FRONT_LEFT} visible={covers} />
+      <GuardDoor side={1} open={!!doorsOpen.FRONT_RIGHT} visible={covers} />
     </group>
   );
 }

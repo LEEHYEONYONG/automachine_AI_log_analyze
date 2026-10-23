@@ -86,6 +86,9 @@ class Machine:
         self._finished_at: deque[float] = deque(maxlen=2000)
         self.op_mode = "AUTO"  # AUTO: sequences run on START. MANUAL: devices are moved one by one.
         self.manual = ManualDevices(self)
+        # Safety circuit: the E-stop button and the two front guard doors (physical, not HMI commands).
+        self.estop = False
+        self.doors_open = {"FRONT_LEFT": False, "FRONT_RIGHT": False}
         self.io = IoMonitor(self)
         self.io.update(force=True)  # initial read so the I/O screen is filled before the first tick
         self.init = Initializer(self)  # power-on: START needs an initialization first
@@ -107,6 +110,9 @@ class Machine:
             return
         if not self.init.done:
             self.log.event("WARN", "MACHINE", "Start rejected: initialize required", by=by)
+            return
+        if self.safety_problems():
+            self.log.event("WARN", "MACHINE", "Start rejected: safety", reason=f"[{', '.join(self.safety_problems())}]", by=by)
             return
         self._cycle_stop = False
         self.mode = MachineMode.RUNNING
@@ -153,8 +159,49 @@ class Machine:
             self._cycle_stop = True
             self.log.event("INFO", "MACHINE", "Cycle stop requested", reason=reason, by=by)
 
+    # ---- safety ---------------------------------------------------------------
+
+    def safety_problems(self) -> list[str]:
+        problems = ["비상정지 버튼이 눌려 있음"] if self.estop else []
+        problems += [f"안전 도어 열림 ({door})" for door, is_open in self.doors_open.items() if is_open]
+        return problems
+
+    def press_estop(self, by: str) -> None:
+        """Emergency stop: everything halts, outputs drop, and servo power loss means re-initialization."""
+        if self.estop:
+            return
+        self.estop = True
+        self.log.event("WARN", "MACHINE", "Emergency stop pressed", by=by)
+        self.dispenser.valve_open = False
+        self.dispenser.vacuum_on = False
+        self.outfeed.picker_vacuum = False
+        self.init.require("emergency stop")
+        self.raise_alarm(None, MachineAlarm("E9100", "E-stop pressed"))
+
+    def release_estop(self, by: str) -> None:
+        if self.estop:
+            self.estop = False
+            self.log.event("INFO", "MACHINE", "Emergency stop released", by=by)
+            self.io.dirty = True
+
+    def set_door(self, door: str, is_open: bool, by: str) -> None:
+        if door not in self.doors_open or self.doors_open[door] == is_open:
+            return
+        self.doors_open[door] = is_open
+        self.io.dirty = True
+        self.log.event("WARN" if is_open else "INFO", "MACHINE", "Safety door " + ("opened" if is_open else "closed"),
+                       door=door, by=by)
+        if is_open and self.init.state == "RUNNING":
+            self.init.require("safety door opened during initialize")
+        if is_open and self.mode is MachineMode.RUNNING:
+            self.raise_alarm(None, MachineAlarm("E9101", f"door={door}"))
+
     def reset(self, by: str) -> None:
         if self.active_alarm is None:
+            return
+        problems = self.safety_problems()
+        if problems:
+            self.log.event("WARN", "MACHINE", "Reset rejected", reason=f"[{', '.join(problems)}]", by=by)
             return
         station, alarm = self.active_alarm
         self.active_alarm = None
@@ -349,6 +396,7 @@ class Machine:
             "mode": self.mode.value,
             "op_mode": self.op_mode,
             "init": self.init.view(),
+            "safety": {"estop": self.estop, "doors_open": dict(self.doors_open), "problems": self.safety_problems()},
             "manual": self.manual.view() if self.op_mode == "MANUAL" else None,
             "cycle_stop": self._cycle_stop,
             "alarm": self.alarm_history[0] if self.active_alarm else None,

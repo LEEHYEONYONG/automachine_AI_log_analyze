@@ -165,8 +165,9 @@ class IoMonitor:
 
         # machine-wide
         x += [
-            ("ESTOP_OK", "비상정지 해제 (정상)", "MACHINE", lambda: True),
-            ("DOOR_CLOSED", "안전 도어 닫힘", "MACHINE", lambda: True),
+            ("ESTOP_OK", "비상정지 해제 (정상)", "MACHINE", lambda: not m.estop),
+            ("DOOR_FL_CLOSED", "전면 좌측 도어 닫힘", "MACHINE", lambda: not m.doors_open["FRONT_LEFT"]),
+            ("DOOR_FR_CLOSED", "전면 우측 도어 닫힘", "MACHINE", lambda: not m.doors_open["FRONT_RIGHT"]),
             ("MAIN_AIR_OK", "메인 에어 압력 스위치", "MACHINE",
              lambda: m.physics.air.supply_kpa >= m.cfg["air_pressure_switch_kpa"]),
             ("UPSTREAM_PART_AVAILABLE", "이전 공정 제품 있음 (SMEMA)", "INFEED",

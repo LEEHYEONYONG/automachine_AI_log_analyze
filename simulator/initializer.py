@@ -34,7 +34,11 @@ class Initializer:
 
     def require(self, reason: str) -> None:
         if self.state != "REQUIRED":
+            if self.state == "RUNNING":
+                self.m.log.event("WARN", "MACHINE", "Initialize aborted", step=self.step)
             self.state = "REQUIRED"
+            self._proc = None
+            self.step = ""
             self.m.log.event("INFO", "MACHINE", "Initialize required", reason=reason)
 
     def start(self, clear_parts: bool, by: str) -> None:
@@ -124,7 +128,7 @@ class Initializer:
 
     def _safety_problems(self) -> list[str]:
         m = self.m
-        problems = []
+        problems = m.safety_problems()
         if m.physics.air.supply_kpa < m.cfg["air_pressure_switch_kpa"]:
             problems.append("메인 에어 압력 부족")
         return problems

@@ -15,6 +15,8 @@ async function post(path: string, body?: unknown): Promise<void> {
 
 export const api = {
   command: (cmd: "start" | "stop" | "cycle_stop" | "reset") => post(`/api/machine/${cmd}`),
+  estop: (pressed: boolean) => post("/api/safety/estop", { pressed }),
+  door: (door: string, open: boolean) => post("/api/safety/door", { door, open }),
   login: (user: string, pin: string) => post("/api/login", { user, pin }),
   logout: () => post("/api/logout"),
   setOpMode: (mode: "AUTO" | "MANUAL") => post("/api/opmode", { mode }),

@@ -68,6 +68,15 @@ class RecipeRequest(BaseModel):
     recipe: str
 
 
+class EstopRequest(BaseModel):
+    pressed: bool
+
+
+class DoorRequest(BaseModel):
+    door: str
+    open: bool
+
+
 class RecipeEditRequest(BaseModel):
     values: dict[str, float | list[float]]
 
@@ -174,6 +183,10 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
     async def machine_command(command: Literal["start", "stop", "cycle_stop", "reset"]):
         gate(command)
         machine = runner.sim.machine
+        if command in ("start", "reset") and machine.safety_problems():
+            machine.log.event("WARN", "MACHINE", f"{command.capitalize()} rejected: safety",
+                              reason=f"[{', '.join(machine.safety_problems())}]", by=session.by)
+            raise HTTPException(409, "안전 조건 미충족: " + ", ".join(machine.safety_problems()))
         if command == "cycle_stop":
             machine.cycle_stop(by=session.by, reason="operator")
         else:
@@ -186,6 +199,25 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
             fn(*args)
         except InterlockError as e:
             raise HTTPException(409, str(e)) from None
+        return runner.state()
+
+    # Physical actions: anyone can hit the E-stop, and doors are opened by hand (no login involved).
+
+    @app.post("/api/safety/estop")
+    async def estop(req: EstopRequest):
+        m = runner.sim.machine
+        if req.pressed:
+            m.press_estop(by=session.by)
+        else:
+            m.release_estop(by=session.by)
+        return runner.state()
+
+    @app.post("/api/safety/door")
+    async def door(req: DoorRequest):
+        m = runner.sim.machine
+        if req.door not in m.doors_open:
+            raise HTTPException(400, f"unknown door: {req.door}")
+        m.set_door(req.door, req.open, by="FIELD")
         return runner.state()
 
     @app.post("/api/initialize")
