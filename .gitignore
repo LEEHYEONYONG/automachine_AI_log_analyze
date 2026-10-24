@@ -9,3 +9,6 @@ ground_truth/
 # vendor manuals: reference only, do not redistribute
 docs/references/*
 !docs/references/README.md
+
+# local secrets
+.env
