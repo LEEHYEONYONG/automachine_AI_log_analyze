@@ -54,7 +54,7 @@ docker compose up                 # 평소
 
 ## 실시간 실행 (HMI)
 
-Python 패키지와 Node.js 20 이상이 필요합니다.
+Python 패키지와 Node.js 22.12 이상이 필요합니다(Vite 8 요구 사항).
 
 ```powershell
 pip install -r requirements-dev.txt
@@ -231,7 +231,7 @@ config/          장비 설정, 시나리오
 simulator/       시뮬레이터 (clock, physics, sensors, stations, machine, operator, simulation)
 faults/          고장 엔진과 고장 라이브러리
 server/          FastAPI 실시간 서버 (시뮬레이터 구동, REST + WebSocket)
-web/             React + Vite 화면 (HMI, 엔지니어 콘솔, 3D 뷰어)
+web/             React 19 + Vite 8, JavaScript (HMI, 엔지니어 콘솔, 3D 뷰어). 검사: npm run lint
 analysis/        AI 로그 분석 서버 (FastAPI). 로그 적재는 app/ingest.py, 분석 코드는 직접 구현
 eval/            분석 결과 평가 (직접 구현)
 docs/references/ 참고 매뉴얼 보관 (git 제외)
