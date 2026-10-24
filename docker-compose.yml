@@ -1,0 +1,25 @@
+# Host ports avoid medi-info (5432/8000/5173) so both projects can run at once.
+services:
+  sim:
+    build: .
+    init: true
+    # Run as the WSL user so logs/ and ground_truth/ are not owned by root.
+    user: "1000:1000"
+    ports:
+      - "8100:8000"
+    volumes:
+      - .:/app
+    command: uvicorn server.app:app --host 0.0.0.0 --port 8000 --reload
+
+  web:
+    build: ./web
+    init: true
+    environment:
+      API_TARGET: http://sim:8000
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    depends_on:
+      - sim
