@@ -25,6 +25,33 @@ python -m unittest -v                                     # 테스트
 
 8시간 가동 시뮬레이션은 약 2초가 걸립니다.
 
+## Docker로 실행 (WSL)
+
+WSL Ubuntu에 Docker Engine이 있으면 시뮬레이터, 화면, 분석 서버, DB를 한 번에 띄울 수 있습니다.
+처음 한 번 `.env`를 만들고 `DB_PASS`를 채우세요.
+
+```bash
+cp .env.example .env              # DB_PASS 입력
+docker compose up --build         # 처음, 또는 Dockerfile·requirements가 바뀌었을 때
+docker compose up                 # 평소
+```
+
+| 서비스 | 주소 | 내용 |
+|---|---|---|
+| web | http://localhost:5174 | HMI, 엔지니어 콘솔, 3D 뷰어 (Vite dev) |
+| sim | http://localhost:8100 | 시뮬레이터 서버 (`server/`), `logs/`와 `ground_truth/`에 기록 |
+| analysis | http://localhost:8101/docs | 로그 분석 서버 (`analysis/`), `/api/analysis/health` |
+| db | localhost:5433 | PostgreSQL 17 + pgvector |
+| Ollama | WSL의 11434 | Docker 밖 systemd 서비스. analysis는 `host.docker.internal`로 접속 |
+
+포트는 medi-info(5432/8000/5173)와 겹치지 않게 정했습니다. 코드를 고치면 sim, analysis, web 모두 자동으로 다시 로드됩니다.
+
+- **analysis 컨테이너에는 `logs/`만 읽기 전용으로 연결**하고 `ground_truth/`는 연결하지 않습니다. 분석기가 정답을 볼 수 없게 하기 위해서입니다.
+- 로그를 DB에 적재: `docker compose exec analysis python -m app.ingest` (전체) 또는 `... python -m app.ingest <run_id>`. 같은 실행을 다시 적재하면 덮어씁니다. `io_trace.csv`는 파일로 둡니다.
+- 테스트: `docker compose exec sim python -m unittest -v`
+- DB 접속: `docker compose exec db psql -U automachine -d automachine`
+- 스키마(`db/init/`)는 DB 볼륨을 처음 만들 때만 실행됩니다. 바꾼 뒤에는 `docker compose down -v`로 볼륨을 지우고 다시 올리세요(적재한 데이터도 지워집니다).
+
 ## 실시간 실행 (HMI)
 
 Python 패키지와 Node.js 20 이상이 필요합니다.
@@ -205,9 +232,10 @@ simulator/       시뮬레이터 (clock, physics, sensors, stations, machine, op
 faults/          고장 엔진과 고장 라이브러리
 server/          FastAPI 실시간 서버 (시뮬레이터 구동, REST + WebSocket)
 web/             React + Vite 화면 (HMI, 엔지니어 콘솔, 3D 뷰어)
-analysis/        AI 로그 분석 (직접 구현)
+analysis/        AI 로그 분석 서버 (FastAPI). 로그 적재는 app/ingest.py, 분석 코드는 직접 구현
 eval/            분석 결과 평가 (직접 구현)
 docs/references/ 참고 매뉴얼 보관 (git 제외)
+db/init/         PostgreSQL 스키마 (DB 볼륨을 처음 만들 때 실행)
 tests/
 ```
 
