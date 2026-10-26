@@ -1,0 +1,13 @@
+{
+  "name": "recipe_retract_error",
+  "description": "The dwell before the needle lifts was set to 0, so the adhesive strings.",
+  "start_time": "2026-10-31T08:00:00",
+  "duration_hours": 8,
+  "seed": 110,
+  "faults": [
+    {
+      "type": "recipe_retract_error",
+      "start_after_min": 200
+    }
+  ]
+}
