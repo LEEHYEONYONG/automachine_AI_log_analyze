@@ -19,6 +19,10 @@
 | `rule1_air_supply_drop.sh` | **규칙 1** 최종본을 dev 전체에 적용 |
 | `obs_vacuum_leak.sh` | vacuum_leak 런, 30분 단위 압력·진공·알람 |
 | `obs_vacuum_normal.sh` | 정상 런 진공 범위, vacuum_leak 런이 기준선별로 처음 넘는 시각 |
+| `obs_nozzle_clog.sh` | 정상 런 vs nozzle_clog 런, 30분 단위 비드 폭·압력·NG·알람 (production) |
+| `obs_syringe_drift.sh` | 알람 코드 뜻, 정상 런에서 주사기 잔량과 함께 폭이 줄어드는지 |
+| `obs_width_drop.sh` | 런마다 '50개 중앙값 폭이 30분 전보다 가장 많이 줄어든 양' |
+| `rule3_nozzle_clog.sh` | **규칙 3** 최종본을 dev 전체에 적용 |
 | `rule2_vacuum_leak.sh` | **규칙 2** 최종본을 dev 전체에 적용 (급락 조건 10분/60분 두 가지 비교) |
 
 ## 규칙 요약 (2026-10-27, dev 22런 기준)
@@ -29,3 +33,4 @@
 |---|---|---|
 | 1 air_supply_drop | 압력 < 230 **그리고** 진공 > -75 인 샘플이 20개 연속 | 4/4 탐지, 오탐 0, 지연 4~5분 |
 | 2 vacuum_leak | 최근 20샘플 진공 중앙값 > -80 **그리고** 압력 중앙값 ≥ 238. 단 최근 60분 안에 진공이 10분 사이 5 이상 급락했으면 무시 | 2/2 탐지, 오탐 0, 지연 약 35분 |
+| 3 nozzle_clog | (production, 제품별) 최근 50개 폭 중앙값이 30분 전보다 0.015 이상 감소. 단 최근 60분 안에 최근 10개 압력 중앙값 < 238이 있었으면 무시 | 2/2 탐지, 지연 약 45분. 오탐 3 (temp_sensor_drift 2, needle_tip_buildup 1: 폭만으로는 구분 불가, 받아들임) |
