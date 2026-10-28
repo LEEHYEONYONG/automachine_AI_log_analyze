@@ -96,13 +96,15 @@ CREATE TABLE manual_chunks (
 );
 CREATE INDEX manual_chunks_embedding ON manual_chunks USING hnsw (embedding vector_cosine_ops);
 
--- One row per analysis of an alarm (rule / anomaly / classifier / agent).
+-- One row per fault candidate (rule / anomaly / classifier / agent).
+-- detected_at = when the analyzer could first have called it; eval compares it with faults.json injected_at.
 CREATE TABLE analysis_results (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     run_id          text NOT NULL REFERENCES runs ON DELETE CASCADE,
     alarm_id        bigint REFERENCES alarms ON DELETE CASCADE,
     method          text NOT NULL,
     predicted_cause text,
+    detected_at     timestamp(3),
     confidence      real,
     evidence        jsonb NOT NULL DEFAULT '{}',
     report          text,
