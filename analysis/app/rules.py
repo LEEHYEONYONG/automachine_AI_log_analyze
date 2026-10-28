@@ -170,3 +170,42 @@ def _detect_nozzle_clog_one_recipe(run_id, parts):
         on = hit
 
     return results
+
+
+# 규칙 4: recipe_pressure_error, recipe_retract_error (event.log의 HMI 설정 변경 기록)
+RECIPE_TOLERANCE = 0.10                 # 새 값이 표준값에서 10% 넘게 벗어나면 오입력 (장비 무게 허용 오차와 같은 폭)
+RECIPE_PARAM_FAULT = {                  # 어떤 설정이 틀리면 어떤 고장인지
+    "dispense_pressure_kpa": "recipe_pressure_error",
+    "retract_delay_s": "recipe_retract_error",
+}
+
+
+def detect_recipe_error(run_id, changes, recipes):
+    """changes: 한 런의 "Recipe parameter changed" 이벤트 (ts, attrs) 목록 (ts 순서)
+    recipes: 런 시작 때의 표준 레시피 (runs.machine_info의 recipes)
+    "바뀌었다"가 아니라 "표준값에서 크게 벗어났다"를 본다. 원래대로 되돌리는 변경은 고장이 아니다."""
+    results = []
+    for c in changes:
+        a = c["attrs"]
+        fault = RECIPE_PARAM_FAULT.get(a["param"])
+        standard = recipes.get(a["recipe"], {}).get(a["param"])
+        if fault is None or not standard:
+            continue
+
+        deviation = (float(a["new"]) - standard) / standard
+        if abs(deviation) > RECIPE_TOLERANCE:
+            results.append({
+                "run_id": run_id,
+                "fault_type": fault,
+                "detected_at": c["ts"],
+                "evidence": {
+                    "recipe": a["recipe"],
+                    "param": a["param"],
+                    "old": float(a["old"]),
+                    "new": float(a["new"]),
+                    "standard": standard,
+                    "deviation_pct": round(deviation * 100, 1),
+                    "by": a.get("by"),
+                },
+            })
+    return results
