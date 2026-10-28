@@ -20,6 +20,9 @@ function evidenceText(type, e) {
   if (type === "nozzle_clog") {
     return `비드 폭 중앙값 ${num(e.width_median_30min_ago_mm, 3)} → ${num(e.width_median_mm, 3)} mm (30분 사이), ${e.recipe}`;
   }
+  if (type === "recipe_pressure_error" || type === "recipe_retract_error") {
+    return `${e.by}가 ${e.param}를 ${e.old} → ${e.new}로 변경 (표준 ${e.standard}, ${e.deviation_pct}%), ${e.recipe}`;
+  }
   return Object.entries(e).map(([k, v]) => `${k}=${v}`).join(", ");
 }
 
