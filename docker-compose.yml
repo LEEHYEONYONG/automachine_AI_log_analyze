@@ -55,6 +55,7 @@ services:
     init: true
     environment:
       API_TARGET: http://sim:8000
+      ANALYSIS_TARGET: http://analysis:8000
     ports:
       - "5174:5173"
     volumes:
@@ -62,6 +63,7 @@ services:
       - /app/node_modules
     depends_on:
       - sim
+      - analysis
 
 volumes:
   pgdata:

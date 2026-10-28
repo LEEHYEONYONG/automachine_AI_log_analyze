@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { AnalysisPage } from "./analysis/AnalysisPage";
 import { useMachineState } from "./api";
 import { ConsolePage } from "./console/ConsolePage";
 import { Header } from "./hmi/Header";
@@ -13,6 +14,7 @@ const TABS = [
   { id: "hmi", label: "HMI" },
   { id: "console", label: "엔지니어 콘솔" },
   { id: "3d", label: "3D 뷰어" },
+  { id: "analysis", label: "AI 분석" },
 ];
 
 // The location hash holds the screen (#hmi/sequence, #console, #3d) so reloads and links keep it.
@@ -72,6 +74,7 @@ export default function App() {
           <ViewerPage state={state} />
         </Suspense>
       )}
+      {route.tab === "analysis" && <AnalysisPage />}
       {error && <div className="toast">{error}</div>}
     </div>
   );
