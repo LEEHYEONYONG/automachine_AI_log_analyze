@@ -2,6 +2,7 @@
 
     python eval/score.py              # dev 런 채점 (기본)
     python eval/score.py --split test # test 런 채점: 탐정을 다 만든 뒤 한 번만
+    python eval/score.py --clock      # 예전 방식(시계 시간)으로 채점. 생산 시간 방식과 비교할 때
 """
 import argparse
 import csv
@@ -18,7 +19,34 @@ WINDOW_MIN = 60
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--split", default="dev", choices=["dev", "test"])
+parser.add_argument("--clock", action="store_true", help="장비가 멈춘 시간도 포함해 잰다 (10/29 이전 방식)")
 args = parser.parse_args()
+
+
+def running_periods(run_id):
+    """event.log의 Mode change 기록으로 장비가 RUNNING이던 구간 목록을 만든다."""
+    periods, since = [], None
+    with (Path("logs") / run_id / "event.log").open(encoding="utf-8") as f:
+        for line in f:
+            if "Mode change mode=" not in line:
+                continue
+            ts = datetime.fromisoformat(line[:23])
+            running = "mode=RUNNING" in line
+            if running and since is None:
+                since = ts
+            elif not running and since is not None:
+                periods.append((since, ts))
+                since = None
+    if since is not None:
+        periods.append((since, datetime.max))
+    return periods
+
+
+def minutes_between(periods, a, b):
+    """a~b 사이의 경과 시간(분). 생산 시간 방식이면 장비가 RUNNING이던 시간만 센다."""
+    if args.clock:
+        return (b - a).total_seconds() / 60
+    return sum(max(0.0, (min(b, e) - max(a, s)).total_seconds()) for s, e in periods) / 60
 
 # 1. 채점할 런: runs.csv의 (scenario, seed) → ground_truth 폴더
 wanted = set()
@@ -32,7 +60,8 @@ for path in sorted(Path("ground_truth").glob("*/faults.json")):
     truth = json.loads(path.read_text(encoding="utf-8"))
     if (truth["scenario"], str(truth["seed"])) in wanted:
         runs.append(truth)
-print(f"[{args.split}] 런 {len(runs)}개 / runs.csv {len(wanted)}줄")
+print(f"[{args.split}] 런 {len(runs)}개 / runs.csv {len(wanted)}줄, "
+      f"{'시계 시간' if args.clock else '생산 시간(장비가 멈춘 시간 제외)'} 기준")
 
 # 2. 런마다 탐정에게 묻고 정답지와 비교
 found = defaultdict(int)      # 종류별 찾은 고장 수
@@ -46,6 +75,7 @@ for truth in runs:
     req = urllib.request.Request(API + run_id, method="POST")
     with urllib.request.urlopen(req) as res:
         answer = json.loads(res.read())["candidates"]
+    periods = running_periods(run_id)
 
     faults = []
     for f in truth["faults"]:
@@ -59,7 +89,7 @@ for truth in runs:
     for c in answer:                                  # 시각 순서
         at = datetime.fromisoformat(c["detected_at"])
         hits = [f for f in faults if f["type"] == c["fault_type"]
-                and f["start"] <= at <= f["start"] + timedelta(minutes=WINDOW_MIN)]
+                and f["start"] <= at and minutes_between(periods, f["start"], at) <= WINDOW_MIN]
         if not hits and any(f["type"] == c["fault_type"] and f["detected"] and at <= f["end"] for f in faults):
             continue                                  # 이미 맞힌 고장이 아직 진행 중일 때 또 외침 → 무시
         if not hits:                                  # 종류 틀림 / 너무 이름 / 너무 늦음 / 없는 고장
@@ -75,7 +105,7 @@ for truth in runs:
             if f["detected"] is None:
                 f["detected"] = at
                 found[f["type"]] += 1
-                delays[f["type"]].append((at - f["start"]).total_seconds() / 60)
+                delays[f["type"]].append(minutes_between(periods, f["start"], at))
                 break
 
     got = ", ".join(f"{f['type']}@{f['start']:%H:%M}" + (f" → {f['detected']:%H:%M} ✅" if f["detected"] else " ❌")

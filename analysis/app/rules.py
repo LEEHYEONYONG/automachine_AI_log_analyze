@@ -209,3 +209,43 @@ def detect_recipe_error(run_id, changes, recipes):
                 },
             })
     return results
+
+
+# 규칙 5: air_bubble (production 표의 불량 사유)
+BUBBLE_REASON = "BEAD_VOID"             # 기포가 지나가면 비드에 빈틈이 생긴다
+BUBBLE_COUNT = 2                        # 이만큼 나와야 기포로 판단 (우연한 1개는 거름)
+BUBBLE_LOOK = timedelta(minutes=10)     # 10분 안에. 기포 VOID는 흩어져 나와서 1분은 너무 좁음
+
+
+def detect_air_bubble(run_id, parts):
+    """parts: 한 런의 production 행 목록 (start_time 순서).
+    10분 안에 BEAD_VOID가 2개 이상이면 air_bubble. 조용해졌다가 다시 몰리면 다시 외친다."""
+    results = []
+    recent = deque()       # 최근 10분 안의 VOID 시각
+    on = False
+
+    for p in parts:
+        if p["ng_reason"] != BUBBLE_REASON:
+            continue
+
+        ts = p["start_time"]
+        recent.append(ts)
+        while recent[0] < ts - BUBBLE_LOOK:
+            recent.popleft()
+
+        hit = len(recent) >= BUBBLE_COUNT
+        if hit and not on:
+            results.append({
+                "run_id": run_id,
+                "fault_type": "air_bubble",
+                "detected_at": ts,
+                "evidence": {
+                    "recipe": p["recipe"],
+                    "void_count": len(recent),
+                    "first_void_at": recent[0].isoformat(),
+                    "window_min": BUBBLE_LOOK.total_seconds() / 60,
+                },
+            })
+        on = hit
+
+    return results
