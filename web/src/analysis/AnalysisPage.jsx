@@ -23,6 +23,9 @@ function evidenceText(type, e) {
   if (type === "recipe_pressure_error" || type === "recipe_retract_error") {
     return `${e.by}가 ${e.param}를 ${e.old} → ${e.new}로 변경 (표준 ${e.standard}, ${e.deviation_pct}%), ${e.recipe}`;
   }
+  if (type === "air_bubble") {
+    return `BEAD_VOID 불량이 ${e.window_min}분 안에 ${e.void_count}개 (첫 VOID ${time(e.first_void_at)}), ${e.recipe}`;
+  }
   return Object.entries(e).map(([k, v]) => `${k}=${v}`).join(", ");
 }
 
