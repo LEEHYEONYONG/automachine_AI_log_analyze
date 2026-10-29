@@ -41,7 +41,8 @@ def analyze_run(run_id: str, db: Session = Depends(get_db)):
                   + rules.detect_nozzle_clog(run_id, parts)
                   + rules.detect_recipe_error(run_id, recipe_changes, run.recipes or {})
                   + rules.detect_air_bubble(run_id, parts)
-                  + rules.detect_needle_offset(run_id, parts))
+                  + rules.detect_needle_offset(run_id, parts)
+                  + rules.detect_needle_tip_buildup(run_id, parts, recipe_changes, run.recipes or {}))
     candidates.sort(key=lambda c: c["detected_at"])
 
     db.execute(text("DELETE FROM analysis_results WHERE run_id = :r AND method = :m"),

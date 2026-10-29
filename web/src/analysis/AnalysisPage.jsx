@@ -29,6 +29,9 @@ function evidenceText(type, e) {
   if (type === "needle_offset") {
     return `최근 ${e.window}개 제품의 비드 오프셋 중앙값 ${num(e.offset_median_mm, 3)} mm (정상 약 0.010, 불량 기준 0.10), ${e.recipe}`;
   }
+  if (type === "needle_tip_buildup") {
+    return `STRINGING 불량이 ${e.window_min}분 안에 ${e.stringing_count}개 (첫 STRINGING ${time(e.first_stringing_at)}, retract 설정은 정상), ${e.recipe}`;
+  }
   return Object.entries(e).map(([k, v]) => `${k}=${v}`).join(", ");
 }
 

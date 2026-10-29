@@ -286,3 +286,66 @@ def detect_needle_offset(run_id, parts):
         on = hit
 
     return results
+
+
+# 규칙 7: needle_tip_buildup (production 표의 불량 사유 + 규칙 4의 retract 기록)
+TIP_REASON = "STRINGING"                # 바늘 끝 찌꺼기가 실처럼 끌려 나온다
+TIP_COUNT = 4                           # 10분 안에 이만큼 나오면 찌꺼기. 정상일 때 10분 최대 3개
+TIP_LOOK = timedelta(minutes=10)
+
+
+def _retract_wrong_periods(changes, recipes):
+    """HMI 기록으로 retract_delay_s가 표준에서 벗어나 있던 구간 [(시작, 끝)] 을 만든다.
+    끝은 표준값으로 되돌린 시각, 되돌리지 않았으면 None."""
+    periods, since = [], None
+    for c in changes:
+        a = c["attrs"]
+        standard = recipes.get(a["recipe"], {}).get("retract_delay_s")
+        if a["param"] != "retract_delay_s" or not standard:
+            continue
+        wrong = abs(float(a["new"]) - standard) / standard > RECIPE_TOLERANCE
+        if wrong and since is None:
+            since = c["ts"]
+        elif not wrong and since is not None:
+            periods.append((since, c["ts"]))
+            since = None
+    if since is not None:
+        periods.append((since, None))
+    return periods
+
+
+def detect_needle_tip_buildup(run_id, parts, changes, recipes):
+    """10분 안에 STRINGING이 4개 이상이면 needle_tip_buildup.
+    단, retract 대기 시간이 잘못 설정돼 있는 동안의 STRINGING은 그 설정 탓이므로 세지 않는다 (규칙 4가 잡음)."""
+    wrong = _retract_wrong_periods(changes, recipes)
+    results = []
+    recent = deque()
+    on = False
+
+    for p in parts:
+        if p["ng_reason"] != TIP_REASON:
+            continue
+        ts = p["start_time"]
+        if any(s <= ts and (e is None or ts < e) for s, e in wrong):
+            continue
+
+        recent.append(ts)
+        while recent[0] < ts - TIP_LOOK:
+            recent.popleft()
+
+        hit = len(recent) >= TIP_COUNT
+        if hit and not on:
+            results.append({
+                "run_id": run_id,
+                "fault_type": "needle_tip_buildup",
+                "detected_at": ts,
+                "evidence": {
+                    "recipe": p["recipe"],
+                    "stringing_count": len(recent),
+                    "first_stringing_at": recent[0].isoformat(),
+                    "window_min": TIP_LOOK.total_seconds() / 60,
+                },
+            })
+        on = hit
+
+    return results
