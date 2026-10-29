@@ -26,6 +26,9 @@ function evidenceText(type, e) {
   if (type === "air_bubble") {
     return `BEAD_VOID 불량이 ${e.window_min}분 안에 ${e.void_count}개 (첫 VOID ${time(e.first_void_at)}), ${e.recipe}`;
   }
+  if (type === "needle_offset") {
+    return `최근 ${e.window}개 제품의 비드 오프셋 중앙값 ${num(e.offset_median_mm, 3)} mm (정상 약 0.010, 불량 기준 0.10), ${e.recipe}`;
+  }
   return Object.entries(e).map(([k, v]) => `${k}=${v}`).join(", ");
 }
 
