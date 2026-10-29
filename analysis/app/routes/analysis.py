@@ -28,7 +28,7 @@ def analyze_run(run_id: str, db: Session = Depends(get_db)):
         FROM sensor_trend WHERE run_id = :r ORDER BY ts
     """), {"r": run_id}).mappings().all()
     parts = db.execute(text("""
-        SELECT start_time, recipe, bead_width_mm, disp_pressure_kpa, ng_reason
+        SELECT start_time, recipe, bead_width_mm, bead_offset_mm, disp_pressure_kpa, ng_reason
         FROM production WHERE run_id = :r ORDER BY start_time
     """), {"r": run_id}).mappings().all()
     recipe_changes = db.execute(text("""
@@ -40,7 +40,8 @@ def analyze_run(run_id: str, db: Session = Depends(get_db)):
                   + rules.detect_vacuum_leak(run_id, sensors)
                   + rules.detect_nozzle_clog(run_id, parts)
                   + rules.detect_recipe_error(run_id, recipe_changes, run.recipes or {})
-                  + rules.detect_air_bubble(run_id, parts))
+                  + rules.detect_air_bubble(run_id, parts)
+                  + rules.detect_needle_offset(run_id, parts))
     candidates.sort(key=lambda c: c["detected_at"])
 
     db.execute(text("DELETE FROM analysis_results WHERE run_id = :r AND method = :m"),

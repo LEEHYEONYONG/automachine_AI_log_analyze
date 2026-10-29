@@ -249,3 +249,40 @@ def detect_air_bubble(run_id, parts):
         on = hit
 
     return results
+
+
+# 규칙 6: needle_offset (production 표의 비드 오프셋)
+OFFSET_WINDOW = 10      # 최근 10개 제품. 고장이 짧으면 제품이 많이 안 나와서 20개는 못 채움
+OFFSET_MAX = 0.04       # 오프셋 중앙값이 이보다 크면 이상. 정상 ~0.025, 고장 0.05~ 의 사이 (불량 기준 0.10보다 훨씬 아래)
+
+
+def detect_needle_offset(run_id, parts):
+    """바늘이 옆으로 어긋나면 비드가 정해진 자리에서 벗어난다(오프셋이 계단처럼 뜀).
+    불량(0.10mm)이 되기 전, 아직 합격인 제품들에서 미리 잡는다. 오프셋은 제품과 상관없이 정상이 ~0.01mm."""
+    results = []
+    window = deque(maxlen=OFFSET_WINDOW)
+    on = False
+
+    for p in parts:
+        if p["bead_offset_mm"] is None:
+            continue
+        window.append(p["bead_offset_mm"])
+        if len(window) < OFFSET_WINDOW:
+            continue
+
+        offset = statistics.median(window)
+        hit = offset > OFFSET_MAX
+        if hit and not on:
+            results.append({
+                "run_id": run_id,
+                "fault_type": "needle_offset",
+                "detected_at": p["start_time"],
+                "evidence": {
+                    "recipe": p["recipe"],
+                    "offset_median_mm": offset,
+                    "window": OFFSET_WINDOW,
+                },
+            })
+        on = hit
+
+    return results
