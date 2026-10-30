@@ -3,6 +3,7 @@
     python eval/score.py              # dev 런 채점 (기본)
     python eval/score.py --split test # test 런 채점: 탐정을 다 만든 뒤 한 번만
     python eval/score.py --clock      # 예전 방식(시계 시간)으로 채점. 생산 시간 방식과 비교할 때
+    python eval/score.py --method anomaly  # 이상 탐지 채점: 고장 이름은 안 보고, 고장 중에 울렸는지만 본다
 """
 import argparse
 import csv
@@ -20,7 +21,13 @@ WINDOW_MIN = 60
 parser = argparse.ArgumentParser()
 parser.add_argument("--split", default="dev", choices=["dev", "test"])
 parser.add_argument("--clock", action="store_true", help="장비가 멈춘 시간도 포함해 잰다 (10/29 이전 방식)")
+parser.add_argument("--method", default="rule", choices=["rule", "anomaly"])
 args = parser.parse_args()
+
+
+def matches(fault, candidate):
+    """이상 탐지는 고장 이름을 모르므로 종류는 안 맞춰 본다."""
+    return args.method == "anomaly" or fault["type"] == candidate["fault_type"]
 
 
 def running_periods(run_id):
@@ -60,7 +67,7 @@ for path in sorted(Path("ground_truth").glob("*/faults.json")):
     truth = json.loads(path.read_text(encoding="utf-8"))
     if (truth["scenario"], str(truth["seed"])) in wanted:
         runs.append(truth)
-print(f"[{args.split}] 런 {len(runs)}개 / runs.csv {len(wanted)}줄, "
+print(f"[{args.split}] {args.method} / 런 {len(runs)}개 / runs.csv {len(wanted)}줄, "
       f"{'시계 시간' if args.clock else '생산 시간(장비가 멈춘 시간 제외)'} 기준")
 
 # 2. 런마다 탐정에게 묻고 정답지와 비교
@@ -72,7 +79,7 @@ details = []
 
 for truth in runs:
     run_id = truth["run_id"]
-    req = urllib.request.Request(API + run_id, method="POST")
+    req = urllib.request.Request(f"{API}{run_id}?method={args.method}", method="POST")
     with urllib.request.urlopen(req) as res:
         answer = json.loads(res.read())["candidates"]
     periods = running_periods(run_id)
@@ -88,9 +95,9 @@ for truth in runs:
     miss_start = {}                                   # 종류별 마지막 오탐 묶음의 시작 시각
     for c in answer:                                  # 시각 순서
         at = datetime.fromisoformat(c["detected_at"])
-        hits = [f for f in faults if f["type"] == c["fault_type"]
+        hits = [f for f in faults if matches(f, c)
                 and f["start"] <= at and minutes_between(periods, f["start"], at) <= WINDOW_MIN]
-        if not hits and any(f["type"] == c["fault_type"] and f["detected"] and at <= f["end"] for f in faults):
+        if not hits and any(matches(f, c) and f["detected"] and at <= f["end"] for f in faults):
             continue                                  # 이미 맞힌 고장이 아직 진행 중일 때 또 외침 → 무시
         if not hits:                                  # 종류 틀림 / 너무 이름 / 너무 늦음 / 없는 고장
             t = c["fault_type"]

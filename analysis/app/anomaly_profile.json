@@ -1,0 +1,58 @@
+{
+  "REAR_HOUSING_ADH_A": {
+    "bead_width_mm": {
+      "mean": 0.7916644712287866,
+      "std": 0.008565025343318865
+    },
+    "bead_offset_mm": {
+      "mean": 0.010443972425300227,
+      "std": 0.0034997671743154314
+    },
+    "disp_pressure_kpa": {
+      "mean": 242.49727546159082,
+      "std": 0.43702888396906414
+    },
+    "vacuum_kpa": {
+      "mean": -84.98928516542624,
+      "std": 0.35588080541783984
+    },
+    "void_10min": {
+      "max": 1
+    },
+    "stringing_10min": {
+      "max": 2
+    },
+    "ng_10min": {
+      "max": 4
+    },
+    "samples": 45549
+  },
+  "REAR_HOUSING_ADH_B": {
+    "bead_width_mm": {
+      "mean": 0.6392086466165414,
+      "std": 0.005520866130418977
+    },
+    "bead_offset_mm": {
+      "mean": 0.010208646616541353,
+      "std": 0.003446923065500742
+    },
+    "disp_pressure_kpa": {
+      "mean": 213.42584586466165,
+      "std": 0.28458887164883584
+    },
+    "vacuum_kpa": {
+      "mean": -84.99398496240602,
+      "std": 0.13579861167097917
+    },
+    "void_10min": {
+      "max": 0
+    },
+    "stringing_10min": {
+      "max": 1
+    },
+    "ng_10min": {
+      "max": 1
+    },
+    "samples": 532
+  }
+}
