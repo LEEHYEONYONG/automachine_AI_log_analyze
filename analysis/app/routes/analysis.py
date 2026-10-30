@@ -1,23 +1,24 @@
 import json
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from ..database import get_db
-from .. import rules
+from .. import anomaly, rules
 
 router = APIRouter(
     prefix="/api/analysis",
     tags=["Analysis"]
 )
 
-METHOD = "rule"
-
 
 @router.post("/runs/{run_id}")
-def analyze_run(run_id: str, db: Session = Depends(get_db)):
-    """런 하나에 규칙을 돌려 고장 후보를 찾고 analysis_results에 저장한다.
-    같은 런을 다시 분석하면 이전 규칙 결과는 지우고 새로 쓴다."""
+def analyze_run(run_id: str, method: Literal["rule", "anomaly"] = "rule", db: Session = Depends(get_db)):
+    """런 하나를 분석해 고장 후보를 찾고 analysis_results에 저장한다.
+    method=rule은 규칙 7개(고장 이름까지), method=anomaly는 이상 탐지(평소와 다른 값만).
+    같은 런을 같은 방법으로 다시 분석하면 이전 결과는 지우고 새로 쓴다."""
     run = db.execute(text("SELECT machine_info->'recipes' AS recipes FROM runs WHERE run_id = :r"),
                      {"r": run_id}).first()
     if run is None:
@@ -36,23 +37,29 @@ def analyze_run(run_id: str, db: Session = Depends(get_db)):
         WHERE run_id = :r AND unit = 'HMI' AND message LIKE 'Recipe parameter changed%' ORDER BY ts
     """), {"r": run_id}).mappings().all()
 
-    candidates = (rules.detect_air_supply_drop(run_id, sensors)
-                  + rules.detect_vacuum_leak(run_id, sensors)
-                  + rules.detect_nozzle_clog(run_id, parts)
-                  + rules.detect_recipe_error(run_id, recipe_changes, run.recipes or {})
-                  + rules.detect_air_bubble(run_id, parts)
-                  + rules.detect_needle_offset(run_id, parts)
-                  + rules.detect_needle_tip_buildup(run_id, parts, recipe_changes, run.recipes or {}))
+    if method == "anomaly":
+        profile = anomaly.load_profile()
+        if not profile:
+            raise HTTPException(status_code=503, detail="평소 모습이 아직 없음: app.train_anomaly를 먼저 실행")
+        candidates = anomaly.detect_anomaly(run_id, parts, sensors, profile)
+    else:
+        candidates = (rules.detect_air_supply_drop(run_id, sensors)
+                      + rules.detect_vacuum_leak(run_id, sensors)
+                      + rules.detect_nozzle_clog(run_id, parts)
+                      + rules.detect_recipe_error(run_id, recipe_changes, run.recipes or {})
+                      + rules.detect_air_bubble(run_id, parts)
+                      + rules.detect_needle_offset(run_id, parts)
+                      + rules.detect_needle_tip_buildup(run_id, parts, recipe_changes, run.recipes or {}))
     candidates.sort(key=lambda c: c["detected_at"])
 
     db.execute(text("DELETE FROM analysis_results WHERE run_id = :r AND method = :m"),
-               {"r": run_id, "m": METHOD})
+               {"r": run_id, "m": method})
     for c in candidates:
         db.execute(text("""
             INSERT INTO analysis_results (run_id, method, predicted_cause, detected_at, evidence)
             VALUES (:r, :m, :cause, :at, CAST(:evidence AS jsonb))
-        """), {"r": run_id, "m": METHOD, "cause": c["fault_type"],
+        """), {"r": run_id, "m": method, "cause": c["fault_type"],
                "at": c["detected_at"], "evidence": json.dumps(c["evidence"])})
     db.commit()
 
-    return {"run_id": run_id, "method": METHOD, "count": len(candidates), "candidates": candidates}
+    return {"run_id": run_id, "method": method, "count": len(candidates), "candidates": candidates}
