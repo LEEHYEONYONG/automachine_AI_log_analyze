@@ -6,8 +6,32 @@ const API = "/api/analysis";
 // Repeats of the same fault within this many minutes are shown as one row (same as eval/README.md).
 const GROUP_MIN = 60;
 
+const METHOD_LABEL = { rule: "규칙", anomaly: "경비원" };
+const METHOD_HINT = {
+  rule: "규칙은 고장 이름까지 알려 주지만, 규칙을 만들어 둔 고장만 찾습니다.",
+  anomaly: "경비원은 정상 구간에서 배운 평소 모습과 다른 값을 알려 줍니다. 처음 보는 고장도 찾지만, 고장 이름은 모릅니다.",
+};
+// The values the guard watches (FEATURES in analysis/app/anomaly.py).
+const FEATURE = {
+  bead_width_mm: { label: "비드 폭", unit: "mm", digits: 3 },
+  bead_offset_mm: { label: "비드 오프셋", unit: "mm", digits: 3 },
+  disp_pressure_kpa: { label: "토출 압력", unit: "kPa", digits: 1 },
+  vacuum_kpa: { label: "진공", unit: "kPa", digits: 1 },
+  ng_10min: { label: "10분 불량 수" },
+};
+
 const time = (t) => t.slice(11, 19);
 const num = (v, digits = 1) => Number(v).toFixed(digits);
+
+/** One line of evidence for the guard, from the evidence dict in anomaly.py. */
+function anomalyText(e) {
+  if (e.feature === "ng_10min") {
+    return `최근 10분 불량 ${e.count_10min}개 (평소 최대 ${e.normal_max}개), ${e.recipe}`;
+  }
+  const { unit, digits } = FEATURE[e.feature];
+  const usual = `${num(e.normal_mean, digits)} ± ${num(e.normal_std, digits)} ${unit}`;
+  return `${num(e.value, digits)} ${unit} (평소 ${usual}, 표준편차의 ${num(Math.abs(e.z))}배 벗어남), ${e.recipe}`;
+}
 
 /** One line of evidence per rule, from the evidence dict each rule leaves in rules.py. */
 function evidenceText(type, e) {
@@ -40,13 +64,15 @@ function groupRepeats(candidates) {
   const last = {};
   for (const c of candidates) {
     const at = new Date(c.detected_at).getTime();
-    const g = last[c.fault_type];
+    // Every guard result has fault_type "anomaly", so it groups by which value went off instead.
+    const key = c.evidence.feature ?? c.fault_type;
+    const g = last[key];
     if (g && at - g.start <= GROUP_MIN * 60_000) {
       g.repeats += 1;
       continue;
     }
-    last[c.fault_type] = { ...c, start: at, repeats: 1 };
-    rows.push(last[c.fault_type]);
+    last[key] = { ...c, key, start: at, repeats: 1 };
+    rows.push(last[key]);
   }
   return rows;
 }
@@ -54,6 +80,7 @@ function groupRepeats(candidates) {
 export function AnalysisPage() {
   const [runs, setRuns] = useState([]);
   const [runId, setRunId] = useState("");
+  const [method, setMethod] = useState("rule");
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -72,7 +99,7 @@ export function AnalysisPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/runs/${runId}`, { method: "POST" });
+      const res = await fetch(`${API}/runs/${runId}?method=${method}`, { method: "POST" });
       if (!res.ok) throw new Error(`분석 실패 (${res.status})`);
       setResult(await res.json());
     } catch (e) {
@@ -83,17 +110,25 @@ export function AnalysisPage() {
   };
 
   const rows = result ? groupRepeats(result.candidates) : [];
+  const isAnomaly = result?.method === "anomaly";
 
   return (
     <main className="console">
       <section className="panel">
-        <h2>AI 분석 (1주차: 규칙 기반)</h2>
-        <p className="hint">DB에 적재된 실행을 골라 분석하면, 규칙이 찾은 고장 후보와 근거가 나옵니다.</p>
+        <h2>AI 분석</h2>
+        <p className="hint">{METHOD_HINT[method]}</p>
         <div className="form-row">
           <select value={runId} onChange={(e) => setRunId(e.target.value)}>
             {runs.map((r) => (
               <option key={r.run_id} value={r.run_id}>
                 {r.run_id}
+              </option>
+            ))}
+          </select>
+          <select value={method} onChange={(e) => setMethod(e.target.value)}>
+            {Object.entries(METHOD_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
               </option>
             ))}
           </select>
@@ -107,29 +142,33 @@ export function AnalysisPage() {
       {result && (
         <section className="panel">
           <h2>
-            고장 후보 · <span className="mono">{result.run_id}</span>
+            {METHOD_LABEL[result.method]} 결과 · <span className="mono">{result.run_id}</span>
           </h2>
           {rows.length === 0 ? (
-            <p className="hint">규칙이 찾은 고장 후보가 없습니다.</p>
+            <p className="hint">
+              {isAnomaly ? "경비원이 평소와 다른 값을 찾지 못했습니다." : "규칙이 찾은 고장 후보가 없습니다."}
+            </p>
           ) : (
             <div className="table-wrap">
               <table className="alarm-table">
                 <thead>
                   <tr>
                     <th>탐지 시각</th>
-                    <th>고장 종류</th>
+                    <th>{isAnomaly ? "평소와 다른 값" : "고장 종류"}</th>
                     <th>근거</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={`${r.fault_type}-${r.detected_at}`}>
+                    <tr key={`${r.key}-${r.detected_at}`}>
                       <td className="mono">{time(r.detected_at)}</td>
                       <td>
-                        {FAULT_LABEL[r.fault_type] ?? r.fault_type}
+                        {isAnomaly ? FEATURE[r.evidence.feature].label : (FAULT_LABEL[r.fault_type] ?? r.fault_type)}
                         {r.repeats > 1 && <span className="muted small"> · 반복 {r.repeats}번</span>}
                       </td>
-                      <td className="detail">{evidenceText(r.fault_type, r.evidence)}</td>
+                      <td className="detail">
+                        {isAnomaly ? anomalyText(r.evidence) : evidenceText(r.fault_type, r.evidence)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
