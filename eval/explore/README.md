@@ -27,6 +27,9 @@
 | `anomaly_zscore.sh` | **이상 탐지**(z-score) 공정 채점: 런 하나씩 빼고 배워서 검사, 연속 개수별 비교 (2026-10-30) |
 | `anomaly_iforest.sh` | 비교 실험: Isolation Forest, 정답지 없이(A) vs 정상만(B). z-score보다 못함 |
 | `anomaly_iforest_mix.sh` | 비교 실험: Isolation Forest를 고장 비율 0~22%로 섞어 배움. 고장이 흔하면 약한 고장을 놓침 |
+| `unseen_fault_rules.sh` | **처음 보는 고장** 시험(규칙): 그 고장의 규칙을 빼면 30/31 → 6/31. 경비원은 26/31 그대로 |
+
+IF 두 스크립트는 `app.anomaly.FEATURES`를 쓰므로 10/30 값 7개 → 5개로 줄인 뒤에는 기록과 숫자가 조금 다를 수 있다.
 
 ## 규칙 요약 (2026-10-27, dev 22런 기준)
 

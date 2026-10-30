@@ -9,25 +9,27 @@ from pathlib import Path
 
 PROFILE_FILE = Path(__file__).with_name("anomaly_profile.json")
 
+# 공장이라면 어차피 보는 기본 값 5개만 쓴다. 사유별 불량 개수(VOID·STRINGING)는 고장을 보고 고른 값이라 뺐다:
+# 빼도 dev 점수가 같았고(26/31), 그래야 "처음 보는 고장도 잡는다"고 말할 수 있다 → 10/30 실험 기록
 MEASURES = ["bead_width_mm", "bead_offset_mm", "disp_pressure_kpa"]
-COUNTS = {"void_10min": "BEAD_VOID", "stringing_10min": "STRINGING", "ng_10min": None}   # None = 사유 상관없이 전부
-FEATURES = MEASURES + ["vacuum_kpa"] + list(COUNTS)
+COUNTS = ["ng_10min"]   # 사유 상관없이 최근 10분 불량 개수
+FEATURES = MEASURES + ["vacuum_kpa"] + COUNTS
 
 WINDOW = 10                         # 측정값은 레시피별 최근 10개 제품의 중앙값 (한 개 튀는 건 무시)
 VAC_WINDOW = 20                     # 진공은 토출 중 샘플 20개의 중앙값 (규칙 2와 같음)
 NG_LOOK = timedelta(minutes=10)     # 불량은 최근 10분 개수
 Z_MAX = 3.0                         # |z|가 이보다 크면 평소와 다름
-Z_STREAK = 10                       # 이만큼(약 4분) 연속이어야 울림. 값 7개 x 제품 900개를 검사하니 한 번 넘는 건 우연이 섞임
+Z_STREAK = 10                       # 이만큼(약 4분) 연속이어야 울림. 값 여러 개 x 제품 900개를 검사하니 한 번 넘는 건 우연이 섞임
 
 
 def features(parts, sensors):
-    """제품마다 값 7개를 만든다. (시각, 레시피, {값 이름: 값}) 를 차례로 내보냄.
+    """제품마다 값 5개를 만든다. (시각, 레시피, {값 이름: 값}) 를 차례로 내보냄.
     parts: production 행 (start_time 순서), sensors: sensor_trend 행 (ts 순서)."""
     vac = [(s["ts"], s["fixture_vac_kpa"]) for s in sensors
            if s["mode"] == "RUNNING" and s["disp_valve_open"] == 1]
     vac_ts = [v[0] for v in vac]
     windows = defaultdict(lambda: {k: deque(maxlen=WINDOW) for k in MEASURES})
-    ng = deque()   # 최근 10분 불량 (시각, 사유)
+    ng = deque()   # 최근 10분 불량 시각
 
     for p in parts:
         ts = p["start_time"]
@@ -36,8 +38,8 @@ def features(parts, sensors):
             if p[k] is not None:
                 w[k].append(p[k])
         if p["ng_reason"]:
-            ng.append((ts, p["ng_reason"]))
-        while ng and ng[0][0] < ts - NG_LOOK:
+            ng.append(ts)
+        while ng and ng[0] < ts - NG_LOOK:
             ng.popleft()
 
         i = bisect.bisect_right(vac_ts, ts)
@@ -45,8 +47,7 @@ def features(parts, sensors):
             continue
         values = {k: statistics.median(w[k]) for k in MEASURES}
         values["vacuum_kpa"] = statistics.median(v[1] for v in vac[i - VAC_WINDOW:i])
-        for k, reason in COUNTS.items():
-            values[k] = sum(1 for _, r in ng if reason is None or r == reason)
+        values["ng_10min"] = len(ng)
         yield ts, p["recipe"], values
 
 
