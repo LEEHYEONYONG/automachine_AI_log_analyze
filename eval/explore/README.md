@@ -25,6 +25,8 @@
 | `rule3_nozzle_clog.sh` | **규칙 3** 최종본을 dev 전체에 적용 |
 | `rule2_vacuum_leak.sh` | **규칙 2** 최종본을 dev 전체에 적용 (급락 조건 10분/60분 두 가지 비교) |
 | `anomaly_zscore.sh` | **이상 탐지**(z-score) 공정 채점: 런 하나씩 빼고 배워서 검사, 연속 개수별 비교 (2026-10-30) |
+| `anomaly_iforest.sh` | 비교 실험: Isolation Forest, 정답지 없이(A) vs 정상만(B). z-score보다 못함 |
+| `anomaly_iforest_mix.sh` | 비교 실험: Isolation Forest를 고장 비율 0~22%로 섞어 배움. 고장이 흔하면 약한 고장을 놓침 |
 
 ## 규칙 요약 (2026-10-27, dev 22런 기준)
 
