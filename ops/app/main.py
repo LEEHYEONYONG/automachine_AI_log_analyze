@@ -5,9 +5,12 @@ Ingress에서 이 PC 안의 요청만 통과시키고(k8s/app/ops.yaml), 조작�
 import hmac
 import os
 import re
+import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
+import psycopg
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
@@ -17,6 +20,11 @@ OPS_TOKEN = os.environ.get("OPS_TOKEN", "")
 GPU_URL = os.environ.get("GPU_METRICS_URL", "http://gpu-metrics:9400")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
 DISK_PATH = os.environ.get("DISK_PATH", "/host-disk")
+BACKUP_PATH = os.environ.get("BACKUP_PATH", "/backups")
+DB_HOST = os.environ.get("DB_HOST", "db")
+DB_NAME = os.environ.get("DB_NAME", "")
+OPS_DB_PASSWORD = os.environ.get("OPS_DB_PASSWORD", "")
+MIB = 1024 ** 2
 
 # 죽여도 되는 서비스만. db는 잠깐 전체가 멈추고, sim은 돌던 장비 상태가 사라진다.
 KILLABLE = {"web", "analysis"}
@@ -251,3 +259,85 @@ def infra():
             "memory_used_mib": k8s.memory_mib(used["memory"]) if used else None,
         })
     return {"nodes": views, "disk": disk(), "gpu": gpu(), "ollama": ollama()}
+
+
+def db_usage():
+    """ops_reader 계정은 표 내용을 읽을 수 없고, 크기와 연결 수만 본다."""
+    try:
+        with psycopg.connect(host=DB_HOST, dbname=DB_NAME, user="ops_reader", password=OPS_DB_PASSWORD,
+                             connect_timeout=3) as conn:
+            size = conn.execute("SELECT pg_database_size(current_database())").fetchone()[0]
+            connections = conn.execute(
+                "SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend'").fetchone()[0]
+            max_connections = conn.execute("SELECT current_setting('max_connections')::int").fetchone()[0]
+            tables = conn.execute(
+                """SELECT relname, pg_total_relation_size(oid) FROM pg_class
+                   WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace
+                   ORDER BY 2 DESC LIMIT 5""").fetchall()
+    except psycopg.Error as e:
+        return {"available": False, "error": type(e).__name__}
+    try:
+        pvc = k8s.get(k8s.namespaced("persistentvolumeclaims/pgdata-db-0"))
+        capacity = k8s.memory_mib(pvc["status"]["capacity"]["storage"])
+    except (httpx.HTTPError, KeyError):
+        capacity = None
+    return {
+        "available": True,
+        "size_mib": size / MIB,
+        "capacity_mib": capacity,
+        "connections": connections,
+        "max_connections": max_connections,
+        "tables": [{"name": name, "size_mib": bytes_ / MIB} for name, bytes_ in tables],
+    }
+
+
+def logs_usage():
+    root = Path(DISK_PATH)
+    try:
+        runs = [p for p in root.iterdir() if p.is_dir()]
+        size = sum(f.stat().st_size for f in root.rglob("*") if f.is_file())
+    except OSError as e:
+        return {"available": False, "error": type(e).__name__}
+    return {"available": True, "size_mib": size / MIB, "runs": len(runs)}
+
+
+def job_state(job):
+    status = job.get("status", {})
+    for condition in status.get("conditions", []):
+        if condition.get("status") == "True":
+            if condition.get("type") == "Complete":
+                return "성공"
+            if condition.get("type") == "Failed":
+                return "실패"
+    return "실행 중" if status.get("active") else "대기"
+
+
+def backup_status():
+    # 마지막 성공 시각은 파일로 판단한다. 다 읽어 본 뒤에야 .dump 이름이 붙기 때문이다.
+    try:
+        found = sorted(Path(BACKUP_PATH).glob("db_*.dump"), key=lambda f: f.stat().st_mtime, reverse=True)
+        files = [{"name": f.name, "size_mib": f.stat().st_size / MIB, "age_s": int(time.time() - f.stat().st_mtime)}
+                 for f in found]
+    except OSError:
+        files = []
+    try:
+        cron = k8s.get(k8s.namespaced("cronjobs/db-backup", "/apis/batch/v1"))
+        jobs = [j for j in k8s.get(k8s.namespaced("jobs", "/apis/batch/v1"))["items"]
+                if any(o.get("name") == "db-backup" for o in j["metadata"].get("ownerReferences", []))]
+    except httpx.HTTPError as e:
+        return {"files": files, "error": f"k8s API 오류: {type(e).__name__}"}
+    latest = max(jobs, key=lambda j: j["metadata"]["creationTimestamp"], default=None)
+    return {
+        "files": files,
+        "schedule": cron["spec"]["schedule"],
+        "time_zone": cron["spec"].get("timeZone"),
+        "last_job": latest and {
+            "state": job_state(latest),
+            "age_s": seconds_since(latest["metadata"]["creationTimestamp"]),
+        },
+    }
+
+
+@app.get("/api/ops/storage")
+def storage():
+    return {"db": db_usage(), "logs": logs_usage(), "backup": backup_status()}

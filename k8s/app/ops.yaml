@@ -14,13 +14,16 @@ metadata:
   namespace: automachine
 rules:
   - apiGroups: [""]
-    resources: [pods, pods/log, events]
+    resources: [pods, pods/log, events, persistentvolumeclaims]
     verbs: [get, list]
   - apiGroups: [""]
     resources: [pods]
     verbs: [delete]
   - apiGroups: [apps]
     resources: [deployments, statefulsets]
+    verbs: [get, list]
+  - apiGroups: [batch]
+    resources: [cronjobs, jobs]
     verbs: [get, list]
   - apiGroups: [metrics.k8s.io]
     resources: [pods]
@@ -108,6 +111,12 @@ spec:
             - name: OPS_TOKEN
               valueFrom:
                 secretKeyRef: { name: ops-token, key: token }
+            - name: OPS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: ops-db, key: password }
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef: { name: db-credentials, key: DB_NAME }
           resources:
             requests:
               cpu: 50m
@@ -128,14 +137,22 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
           volumeMounts:
-            # Only to read how full the disk is.
+            # Only to read how full the disk is and how much the logs take.
             - name: disk
               mountPath: /host-disk
+              readOnly: true
+            # Only to list the backups.
+            - name: backups
+              mountPath: /backups
               readOnly: true
       volumes:
         - name: disk
           hostPath:
             path: /home/lhy/projects/automachine_AI_log_analyze/logs
+            type: Directory
+        - name: backups
+          hostPath:
+            path: /home/lhy/projects/automachine_AI_log_analyze/backups
             type: Directory
 ---
 # Under WSL only a privileged pod may open the GPU, so this one is kept apart from the API above:

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 const API = "/api/ops";
 const OVERVIEW_MS = 2000;
 const INFRA_MS = 3000;
+const STORAGE_MS = 30000; // sizes change slowly, and adding up the logs reads every file's size
+const BACKUP_STALE_S = 36 * 3600; // a daily backup, plus room for the PC having been off
 const WATCH_MS = 500; // while a kill is being followed
 
 const SERVICE_LABEL = {
@@ -155,6 +157,80 @@ function InfraPanel({ infra, error }) {
               <span className="mono">{m.name}</span> <span className="muted small">GPU {gib(m.vram_mib)} GiB</span>
             </p>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const size = (mib) => (mib >= 1024 ? `${gib(mib)} GiB` : `${mib.toFixed(0)} MiB`);
+
+function backupHealth({ files, last_job: lastJob, error }) {
+  if (error) return { tone: "ng", text: error };
+  if (lastJob?.state === "실패") return { tone: "ng", text: `마지막 백업 실패 (${age(lastJob.age_s)} 전)` };
+  if (files.length === 0) return { tone: "ng", text: "백업 없음" };
+  if (files[0].age_s > BACKUP_STALE_S) return { tone: "warn", text: `마지막 성공 ${age(files[0].age_s)} 전, 오래됨` };
+  return { tone: "ok", text: `마지막 성공 ${age(files[0].age_s)} 전` };
+}
+
+function StoragePanel({ storage, error }) {
+  if (!storage) return <section className="panel"><h2>저장 공간과 백업</h2><p className="hint">{error ?? "불러오는 중…"}</p></section>;
+  const { db, logs, backup } = storage;
+  const health = backupHealth(backup);
+  return (
+    <section className="panel">
+      <h2>저장 공간과 백업</h2>
+      <div className="ops-cards">
+        <div className="ops-card">
+          <h3>
+            <span className={`ops-dot ops-${db.available ? "ok" : "ng"}`} /> 데이터베이스
+          </h3>
+          {!db.available && <p className="hint">읽을 수 없습니다. {db.error}</p>}
+          {db.available && (
+            <>
+              <Meter label="크기 / 요청한 볼륨" used={db.size_mib} total={db.capacity_mib} text={`${size(db.size_mib)} / ${size(db.capacity_mib ?? 0)}`} />
+              <Meter label="연결 수" used={db.connections} total={db.max_connections} text={`${db.connections} / ${db.max_connections}`} />
+              <ul className="ops-list">
+                {db.tables.map((t) => (
+                  <li key={t.name}>
+                    <span className="mono">{t.name}</span>
+                    <span className="mono">{size(t.size_mib)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+        <div className="ops-card">
+          <h3>시뮬레이터 로그</h3>
+          {!logs.available && <p className="hint">읽을 수 없습니다. {logs.error}</p>}
+          {logs.available && (
+            <p className="ops-gpu-name">
+              <span className="mono">{size(logs.size_mib)}</span> · 런 {logs.runs}개
+            </p>
+          )}
+          <p className="hint ops-spec">시뮬레이터를 재시작할 때마다 새 런이 쌓입니다. 자동으로 지우지 않습니다.</p>
+        </div>
+        <div className="ops-card">
+          <h3>
+            <span className={`ops-dot ops-${health.tone}`} /> DB 백업
+          </h3>
+          <p className="ops-gpu-name">{health.text}</p>
+          {backup.schedule && (
+            <p className="hint ops-spec">
+              일정 <span className="mono">{backup.schedule}</span> ({backup.time_zone})
+              {backup.last_job && ` · 최근 실행 ${backup.last_job.state}, ${age(backup.last_job.age_s)} 전`}
+            </p>
+          )}
+          <ul className="ops-list">
+            {backup.files.map((f) => (
+              <li key={f.name}>
+                <span className="mono">{f.name}</span>
+                <span className="mono">{size(f.size_mib)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="hint ops-spec">이 PC에만 저장됩니다. 디스크 고장에 대비하려면 다른 곳에도 복사하세요.</p>
         </div>
       </div>
     </section>
@@ -405,6 +481,7 @@ function EventsPanel({ events }) {
 export function OpsPage() {
   const { data: overview, error: overviewError } = usePolling(`${API}/overview`, OVERVIEW_MS);
   const { data: infra, error: infraError } = usePolling(`${API}/infra`, INFRA_MS);
+  const { data: storage, error: storageError } = usePolling(`${API}/storage`, STORAGE_MS);
   const { recovery, start } = useRecovery();
   const [killing, setKilling] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -431,6 +508,7 @@ export function OpsPage() {
     <main className="console">
       {overviewError && overview && <p className="hint analysis-error">최신 상태를 가져오지 못했습니다: {overviewError}</p>}
       <InfraPanel infra={infra} error={infraError} />
+      <StoragePanel storage={storage} error={storageError} />
       <ServicesPanel
         overview={overview}
         error={overviewError}

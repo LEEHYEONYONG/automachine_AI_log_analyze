@@ -100,6 +100,21 @@ kubectl -n automachine get secret ops-token -o jsonpath='{.data.token}' | base64
 - GPU 수집기(`gpu-metrics`)는 WSL 제약으로 특권 파드입니다. 그래서 ops와 분리했고 k8s 계정을 주지 않았습니다.
 - 메모리 값은 k8s 측정값이라 캐시 일부가 포함되어, `free`의 used보다 크게 나옵니다. Windows 전체 메모리는 보이지 않습니다.
 
+## DB 백업
+
+`db-backup` CronJob이 매일 12:30(KST)에 `backups/db_날짜_시각.dump`를 만들고 최근 3개만 남깁니다. k3s가 꺼져 있어 놓쳐도 6시간 안에 켜면 실행됩니다. 결과는 운영 화면의 "저장 공간과 백업"에서 봅니다.
+
+```bash
+# 지금 바로 백업
+kubectl -n automachine create job --from=cronjob/db-backup backup-$(date +%m%d%H%M)
+
+# 복원 (현재 DB 내용을 덮어씁니다)
+kubectl -n automachine exec -i db-0 -- sh -c 'pg_restore --clean --if-exists -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backups/파일이름.dump
+```
+
+- 백업은 이 PC의 WSL 디스크에만 있습니다. 디스크 고장이나 PC 교체에 대비하려면 다른 곳에 복사해야 합니다.
+- 운영 화면은 표 내용을 읽을 수 없는 `ops_reader` 계정으로 DB 크기와 연결 수만 봅니다.
+
 ## 왜 Traefik이 포트를 직접 여나
 
 WSL mirrored 네트워크에서는 PC에서 Service 주소로 들어가는 경로가 시간 초과로 막힙니다 (파드에서 Service로, PC에서 파드 IP로는 됩니다). 그래서 `cluster/traefik-config.yaml`로 Traefik이 80, 443을 직접 엽니다. k3s가 켜져 있는 동안 80, 443, 8088, 9100번을 씁니다.
