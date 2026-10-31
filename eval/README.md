@@ -6,6 +6,8 @@
 - `make_runs.py`: `runs.csv`대로 시뮬레이터를 실행해 런을 만든다
 - `score.py`: analysis API(`POST /api/analysis/runs/{run_id}`)의 답안을 정답지와 비교해 점수표를 낸다.
   `python eval/score.py`(dev), `python eval/score.py --split test`(test, 마지막에 한 번)
+- `compare.py`: 규칙과 경비원을 같은 채점 기준으로 비교한 표. dev에서 경비원은 런 하나씩 빼고 배워서 채점한다.
+  `python3 eval/compare.py`(dev), `python3 eval/compare.py --split test`(test, 마지막에 한 번)
 
 # 평가 기준 (채점 기준표)
 
