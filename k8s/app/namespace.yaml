@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: automachine
+---
+# Settings that are not secret. DB_USER, DB_PASS and DB_NAME are in the db-credentials Secret, made from .env by deploy.sh.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: analysis-config
+  namespace: automachine
+data:
+  DB_HOST: db
+  DB_PORT: "5432"
+  OLLAMA_URL: http://ollama:11434

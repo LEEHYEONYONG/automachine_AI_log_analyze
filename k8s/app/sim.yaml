@@ -1,0 +1,51 @@
+# The simulator keeps the machine's state in memory, so there is exactly one replica.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sim
+  namespace: automachine
+spec:
+  selector:
+    app: sim
+  ports:
+    - port: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sim
+  namespace: automachine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sim
+  template:
+    metadata:
+      labels:
+        app: sim
+    spec:
+      # Run as the WSL user so logs/ and ground_truth/ are not owned by root, as under Compose.
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: sim
+          image: localhost:5000/automachine-sim:dev
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+            - name: ground-truth
+              mountPath: /app/ground_truth
+      volumes:
+        - name: logs
+          hostPath:
+            path: /home/lhy/projects/automachine_AI_log_analyze/logs
+            type: Directory
+        - name: ground-truth
+          hostPath:
+            path: /home/lhy/projects/automachine_AI_log_analyze/ground_truth
+            type: Directory

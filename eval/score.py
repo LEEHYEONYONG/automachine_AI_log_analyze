@@ -8,6 +8,7 @@
 import argparse
 import csv
 import json
+import os
 import statistics
 import urllib.request
 from collections import defaultdict
@@ -15,7 +16,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 RUNS_FILE = Path("eval/runs.csv")
-API = "http://localhost:8101/api/analysis/runs/"
+# On k8s: ANALYSIS_API=http://127.0.0.1/api/analysis/runs/
+API = os.environ.get("ANALYSIS_API", "http://localhost:8101/api/analysis/runs/")
 WINDOW_MIN = 60
 
 
