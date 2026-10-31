@@ -27,6 +27,18 @@ function age(seconds) {
 
 const gib = (mib) => (mib / 1024).toFixed(1);
 
+const usageTone = (pct) => (pct >= 90 ? "ng" : pct >= 70 ? "warn" : "ok");
+
+/** Why a container last stopped, from what k8s recorded. Exit codes above 128 mean a signal ended it. */
+function stopReason({ reason, exit_code: code }) {
+  if (reason === "OOMKilled") return "메모리 한도 초과";
+  if (reason === "Completed") return "정상 종료";
+  if (reason === "Unknown") return "PC 또는 k3s 재시작으로 추정";
+  if (code === 137) return "강제 종료 (137)";
+  if (code === 143) return "종료 요청 (143)";
+  return `${reason ?? "오류"} (코드 ${code ?? "?"})`;
+}
+
 function statusTone(status, ready, containers) {
   if (status === "Running") return ready === containers ? "ok" : "warn";
   if (status === "Terminating" || status === "Pending" || status === "ContainerCreating" || /^Init:\d/.test(status)) {
@@ -73,7 +85,7 @@ function usePolling(path, intervalMs) {
 function Meter({ label, used, total, text }) {
   const known = used !== null && used !== undefined && total;
   const pct = known ? Math.min(100, (used / total) * 100) : 0;
-  const tone = pct >= 90 ? "ng" : pct >= 70 ? "warn" : "ok";
+  const tone = usageTone(pct);
   return (
     <div className="ops-meter">
       <div className="ops-meter-head">
@@ -149,6 +161,23 @@ function InfraPanel({ infra, error }) {
   );
 }
 
+/** One table cell: the number, and how close it is to the pod's limit when it has one. */
+function UsageCell({ label, used, limit, unit }) {
+  if (used === null || used === undefined) return <td className="mono">-</td>;
+  const pct = limit ? Math.min(100, (used / limit) * 100) : null;
+  return (
+    <td className="mono ops-usage">
+      {used.toFixed(0)}
+      {limit ? ` / ${limit.toFixed(0)}` : ""} {unit}
+      {pct !== null && (
+        <div className="ops-bar" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
+          <div className={`ops-bar-fill ops-${usageTone(pct)}`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </td>
+  );
+}
+
 function ServicesPanel({ overview, error, onKill, onLogs }) {
   return (
     <section className="panel">
@@ -185,13 +214,17 @@ function ServicesPanel({ overview, error, onKill, onLogs }) {
                         <td>
                           <span className={`ops-dot ops-${statusTone(p.status, p.ready, p.containers)}`} /> {p.status}
                         </td>
-                        <td className={p.restarts > 0 ? "ops-warn-text" : ""}>{p.restarts}</td>
-                        <td>{age(p.age_s)}</td>
-                        <td className="mono">{p.cpu_m === null ? "-" : `${p.cpu_m.toFixed(0)}m`}</td>
-                        <td className="mono">
-                          {p.memory_mib === null ? "-" : `${p.memory_mib.toFixed(0)}`}
-                          {p.memory_limit_mib ? ` / ${p.memory_limit_mib.toFixed(0)} MiB` : " MiB"}
+                        <td>
+                          <span className={p.restarts > 0 ? "ops-warn-text" : ""}>{p.restarts}</span>
+                          {p.last_termination && (
+                            <div className="ops-stop-reason">
+                              {stopReason(p.last_termination)} · {age(p.last_termination.seconds_ago)} 전
+                            </div>
+                          )}
                         </td>
+                        <td>{age(p.age_s)}</td>
+                        <UsageCell label={`${p.name} CPU`} used={p.cpu_m} limit={p.cpu_limit_m} unit="m" />
+                        <UsageCell label={`${p.name} 메모리`} used={p.memory_mib} limit={p.memory_limit_mib} unit="MiB" />
                       </>
                     ) : (
                       <td colSpan={6} className="ops-warn-text">파드 없음</td>
