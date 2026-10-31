@@ -16,6 +16,13 @@ metadata:
   namespace: automachine
 spec:
   replicas: 1
+  revisionHistoryLimit: 5
+  # A new pod has to be ready before the old one stops, so requests keep being answered during an update.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: analysis
@@ -29,10 +36,16 @@ spec:
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
+      # The app connects on its first request, so a DB that is still starting would only show up as errors.
+      # -U is required: this user has no name in the image, and without one pg_isready does not even try.
+      initContainers:
+        - name: wait-for-db
+          image: pgvector/pgvector:pg17
+          command: [sh, -c, "until pg_isready -q -U postgres -h db -p 5432; do sleep 2; done"]
       containers:
         - name: analysis
           image: localhost:5000/automachine-analysis:dev
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           envFrom:
@@ -40,6 +53,38 @@ spec:
                 name: analysis-config
             - secretRef:
                 name: db-credentials
+          # Measured peak while scoring is about 100 MiB. The limit leaves room for training and the LLM agent's work.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /api/analysis/live
+              port: 8000
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/analysis/live
+              port: 8000
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/analysis/ready
+              port: 8000
+            periodSeconds: 5
+            timeoutSeconds: 3
+          # Gives Traefik time to stop sending requests here before the process exits.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 3
           volumeMounts:
             - name: logs
               mountPath: /logs

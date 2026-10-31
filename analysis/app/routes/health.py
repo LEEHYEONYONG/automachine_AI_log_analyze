@@ -1,5 +1,5 @@
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -37,3 +37,19 @@ def health(db: Session = Depends(get_db)):
         result["ollama"] = f"실패: {e}"
 
     return result
+
+
+@router.get("/live")
+def live():
+    """k8s liveness: 프로세스가 응답하는가. DB가 죽었다고 이 앱을 재시작해도 소용없으니 DB는 보지 않는다."""
+    return {"status": "ok"}
+
+
+@router.get("/ready")
+def ready(db: Session = Depends(get_db)):
+    """k8s readiness: 요청을 받아도 되는가. DB에 못 붙으면 503을 돌려 트래픽을 받지 않는다."""
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(status_code=503, detail="DB에 연결할 수 없음") from None
+    return {"status": "ok"}
