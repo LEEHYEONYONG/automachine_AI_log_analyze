@@ -19,23 +19,32 @@ def in_fault(ts, spans):
     return any(s <= ts <= e for s, e in spans)
 
 
+def load_run(db, run_id):
+    parts = db.execute(text("""
+        SELECT start_time, recipe, bead_width_mm, bead_offset_mm, disp_pressure_kpa, ng_reason
+        FROM production WHERE run_id = :r ORDER BY start_time
+    """), {"r": run_id}).mappings().all()
+    sensors = db.execute(text("""
+        SELECT ts, mode, disp_valve_open, fixture_vac_kpa
+        FROM sensor_trend WHERE run_id = :r ORDER BY ts
+    """), {"r": run_id}).mappings().all()
+    return parts, sensors
+
+
+def normal_rows(parts, sensors, faults):
+    """고장 구간을 뺀 (레시피, 값들) 목록."""
+    spans = [(datetime.fromisoformat(f["start"]),
+              datetime.fromisoformat(f["end"]) + MARGIN if f["end"] else datetime.max)
+             for f in faults]
+    return [(recipe, values) for ts, recipe, values in features(parts, sensors) if not in_fault(ts, spans)]
+
+
 def main():
     runs = json.load(sys.stdin)
     db = SessionLocal()
     rows = []
     for r in runs:
-        spans = [(datetime.fromisoformat(f["start"]),
-                  datetime.fromisoformat(f["end"]) + MARGIN if f["end"] else datetime.max)
-                 for f in r["faults"]]
-        parts = db.execute(text("""
-            SELECT start_time, recipe, bead_width_mm, bead_offset_mm, disp_pressure_kpa, ng_reason
-            FROM production WHERE run_id = :r ORDER BY start_time
-        """), {"r": r["run_id"]}).mappings().all()
-        sensors = db.execute(text("""
-            SELECT ts, mode, disp_valve_open, fixture_vac_kpa
-            FROM sensor_trend WHERE run_id = :r ORDER BY ts
-        """), {"r": r["run_id"]}).mappings().all()
-        rows += [(recipe, values) for ts, recipe, values in features(parts, sensors) if not in_fault(ts, spans)]
+        rows += normal_rows(*load_run(db, r["run_id"]), r["faults"])
 
     profile = learn(rows)
     PROFILE_FILE.write_text(json.dumps(profile, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
