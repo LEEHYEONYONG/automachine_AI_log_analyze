@@ -5,6 +5,7 @@ const API = "/api/ops";
 const OVERVIEW_MS = 2000;
 const INFRA_MS = 3000;
 const STORAGE_MS = 30000; // sizes change slowly, and adding up the logs reads every file's size
+const DEPLOYMENTS_MS = 3000;
 const BACKUP_STALE_S = 36 * 3600; // a daily backup, plus room for the PC having been off
 const WATCH_MS = 500; // while a kill is being followed
 
@@ -233,6 +234,74 @@ function StoragePanel({ storage, error }) {
           <p className="hint ops-spec">이 PC에만 저장됩니다. 디스크 고장에 대비하려면 다른 곳에도 복사하세요.</p>
         </div>
       </div>
+    </section>
+  );
+}
+
+const ROLLOUT_TONE = { 완료: "ok", "진행 중": "warn", 대기: "warn", 멈춤: "ng" };
+
+function VersionTag({ version }) {
+  return (
+    <>
+      <span className="mono small">{version}</span>
+      {version.includes("-dirty-") && <span className="ops-dirty">커밋 전 코드</span>}
+    </>
+  );
+}
+
+function DeploymentsPanel({ data, error }) {
+  return (
+    <section className="panel">
+      <h2>배포 현황</h2>
+      {!data && <p className="hint">{error ?? "불러오는 중…"}</p>}
+      {data && (
+        <div className="table-wrap">
+          <table className="alarm-table">
+            <thead>
+              <tr>
+                <th>서비스</th>
+                <th>배포 상태</th>
+                <th>새 버전 준비</th>
+                <th>마지막 변경</th>
+                <th>현재 버전과 이력</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.deployments.map((d) => (
+                <tr key={d.name}>
+                  <td>{SERVICE_LABEL[d.name] ?? d.name}</td>
+                  <td title={d.message ?? undefined}>
+                    <span className={`ops-dot ops-${ROLLOUT_TONE[d.state] ?? "warn"}`} /> {d.state}
+                  </td>
+                  <td className="mono">
+                    {d.new_ready} / {d.desired}
+                  </td>
+                  <td>{d.last_change_s === null ? "-" : `${age(d.last_change_s)} 전`}</td>
+                  <td>
+                    <VersionTag version={d.version} />
+                    {d.history.length > 1 && (
+                      <details className="ops-history">
+                        <summary>이력 {d.history.length}개</summary>
+                        <ul className="ops-list">
+                          {d.history.map((h) => (
+                            <li key={h.revision}>
+                              <span>
+                                <span className="mono">#{h.revision}</span> <VersionTag version={h.version} />
+                                {h.current && <strong> 현재</strong>}
+                              </span>
+                              <span>{age(h.created_s)} 전</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
@@ -482,6 +551,7 @@ export function OpsPage() {
   const { data: overview, error: overviewError } = usePolling(`${API}/overview`, OVERVIEW_MS);
   const { data: infra, error: infraError } = usePolling(`${API}/infra`, INFRA_MS);
   const { data: storage, error: storageError } = usePolling(`${API}/storage`, STORAGE_MS);
+  const { data: rollouts, error: rolloutsError } = usePolling(`${API}/deployments`, DEPLOYMENTS_MS);
   const { recovery, start } = useRecovery();
   const [killing, setKilling] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -519,6 +589,7 @@ export function OpsPage() {
         onLogs={setLogsPod}
       />
       <RecoveryPanel recovery={recovery} />
+      <DeploymentsPanel data={rollouts} error={rolloutsError} />
       {logsPod && <LogsPanel pod={logsPod} onClose={() => setLogsPod(null)} />}
       <EventsPanel events={overview?.events} />
       {killing && (

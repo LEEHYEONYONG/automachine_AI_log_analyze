@@ -20,7 +20,7 @@ rules:
     resources: [pods]
     verbs: [delete]
   - apiGroups: [apps]
-    resources: [deployments, statefulsets]
+    resources: [deployments, statefulsets, replicasets]
     verbs: [get, list]
   - apiGroups: [batch]
     resources: [cronjobs, jobs]
