@@ -83,9 +83,22 @@ def pod_metrics():
     return usage
 
 
+def last_termination(statuses):
+    """이 파드의 컨테이너가 마지막으로 재시작되기 전에 왜 꺼졌는지. 파드를 새로 만들면 기록도 사라진다."""
+    ended = [c["lastState"]["terminated"] for c in statuses if "terminated" in c.get("lastState", {})]
+    if not ended:
+        return None
+    last = max(ended, key=lambda t: t.get("finishedAt") or "")
+    return {
+        "reason": last.get("reason"),
+        "exit_code": last.get("exitCode"),
+        "seconds_ago": seconds_since(last.get("finishedAt")),
+    }
+
+
 def pod_view(pod, usage):
     statuses = pod["status"].get("containerStatuses", [])
-    limit = pod["spec"]["containers"][0].get("resources", {}).get("limits", {}).get("memory")
+    limits = pod["spec"]["containers"][0].get("resources", {}).get("limits", {})
     used = usage.get(pod["metadata"]["name"], {})
     return {
         "name": pod["metadata"]["name"],
@@ -93,10 +106,12 @@ def pod_view(pod, usage):
         "ready": sum(1 for c in statuses if c.get("ready")),
         "containers": len(pod["spec"]["containers"]),
         "restarts": sum(c.get("restartCount", 0) for c in statuses),
+        "last_termination": last_termination(statuses),
         "age_s": seconds_since(pod["metadata"].get("creationTimestamp")),
         "cpu_m": used.get("cpu_m"),
+        "cpu_limit_m": k8s.cpu_millicores(limits["cpu"]) if "cpu" in limits else None,
         "memory_mib": used.get("memory_mib"),
-        "memory_limit_mib": k8s.memory_mib(limit) if limit else None,
+        "memory_limit_mib": k8s.memory_mib(limits["memory"]) if "memory" in limits else None,
     }
 
 
