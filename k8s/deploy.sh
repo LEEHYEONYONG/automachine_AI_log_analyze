@@ -25,7 +25,8 @@ docker start registry >/dev/null
 docker build -q -t $REGISTRY/automachine-sim:$TAG .
 docker build -q -t $REGISTRY/automachine-analysis:$TAG analysis
 docker build -q -t $REGISTRY/automachine-web:$TAG -f web/Dockerfile.prod web
-for name in sim analysis web; do
+docker build -q -t $REGISTRY/automachine-ops:$TAG ops
+for name in sim analysis web ops; do
   docker push -q $REGISTRY/automachine-$name:$TAG
 done
 [ "${1:-}" = images ] && exit 0
@@ -39,14 +40,18 @@ kubectl -n automachine create secret generic db-credentials \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n automachine create configmap db-init --from-file=db/init \
   --dry-run=client -o yaml | kubectl apply -f -
+# Unlocks the buttons on the operations page. Made once and kept. To see it: k8s/README.md
+if ! kubectl -n automachine get secret ops-token >/dev/null 2>&1; then
+  kubectl -n automachine create secret generic ops-token --from-literal=token="$(openssl rand -hex 16)"
+fi
 
 # The files say :dev; each deployment fills in its own version, and the changed tag starts the rolling update.
 for f in k8s/app/*.yaml; do
   sed "s#\(localhost:5000/automachine-[a-z]*\):dev#\1:$TAG#" "$f" | kubectl apply -f -
 done
-kubectl -n automachine annotate deploy sim analysis web kubernetes.io/change-cause="$TAG" --overwrite
+kubectl -n automachine annotate deploy sim analysis web ops gpu-metrics kubernetes.io/change-cause="$TAG" --overwrite
 
 kubectl -n automachine rollout status statefulset/db --timeout=180s
-for name in sim analysis web; do
+for name in sim analysis web ops gpu-metrics; do
   kubectl -n automachine rollout status deploy/$name --timeout=180s
 done
