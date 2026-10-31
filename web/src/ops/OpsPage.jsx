@@ -7,6 +7,7 @@ const INFRA_MS = 3000;
 const STORAGE_MS = 30000; // sizes change slowly, and adding up the logs reads every file's size
 const DEPLOYMENTS_MS = 3000;
 const AUTOSCALE_MS = 2000;
+const TRAFFIC_MS = 15000; // the API reads Traefik this often, so asking more often shows nothing new
 const BACKUP_STALE_S = 36 * 3600; // a daily backup, plus room for the PC having been off
 const WATCH_MS = 500; // while a kill is being followed
 
@@ -303,6 +304,56 @@ function DeploymentsPanel({ data, error }) {
           </table>
         </div>
       )}
+    </section>
+  );
+}
+
+function TrafficPanel({ data, error }) {
+  const title = <h2>서비스 요청</h2>;
+  if (!data) return <section className="panel">{title}<p className="hint">{error ?? "불러오는 중…"}</p></section>;
+  const longMinutes = Math.max(1, Math.round(data.long_window_s / 60));
+  return (
+    <section className="panel">
+      {title}
+      {!data.available && <p className="hint analysis-error">Traefik 지표를 읽지 못했습니다. {data.error}</p>}
+      {data.services.length === 0 && data.available && <p className="hint">측정 중입니다. 15초쯤 걸립니다.</p>}
+      {data.services.length > 0 && (
+        <div className="table-wrap">
+          <table className="alarm-table">
+            <thead>
+              <tr>
+                <th>서비스</th>
+                <th>초당 요청</th>
+                <th>서버 오류 (5xx)</th>
+                <th>요청 오류 (4xx)</th>
+                <th>응답 시간 (95%)</th>
+                <th>5xx (최근 {longMinutes}분)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.services.map((s) => (
+                <tr key={s.name}>
+                  <td>{s.name === "_all" ? <strong>전체 (입구)</strong> : SERVICE_LABEL[s.name] ?? s.name}</td>
+                  <td className="mono">{s.per_second.toFixed(1)}</td>
+                  <td className={`mono ${s.server_errors > 0 ? "ops-ng-text" : ""}`}>
+                    {s.server_errors}
+                    {s.requests > 0 && ` (${((s.server_errors / s.requests) * 100).toFixed(1)}%)`}
+                  </td>
+                  <td className="mono">{s.client_errors}</td>
+                  <td className="mono">{s.p95_over ? "5초 초과" : s.p95_le === null ? "-" : `${s.p95_le}초 이내`}</td>
+                  <td className={`mono ${s.server_errors_long > 0 ? "ops-ng-text" : ""}`}>{s.server_errors_long}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="hint ops-spec">
+        최근 {data.window_s}초 기준입니다. Traefik을 거친 요청만 세므로 파드끼리의 요청과 부하 시험은 빠지고, 운영 API에는 이 화면의 자동 새로고침이 포함됩니다. 웹소켓은 제외합니다.
+      </p>
+      <p className="hint ops-spec">
+        응답할 파드가 하나도 없을 때의 503은 서비스별 줄에 없고 "전체"에만 잡힙니다. "전체"에는 같은 입구를 쓰는 다른 프로젝트의 요청도 포함됩니다.
+      </p>
     </section>
   );
 }
@@ -632,6 +683,7 @@ export function OpsPage() {
   const { data: storage, error: storageError } = usePolling(`${API}/storage`, STORAGE_MS);
   const { data: rollouts, error: rolloutsError } = usePolling(`${API}/deployments`, DEPLOYMENTS_MS);
   const { data: autoscale, error: autoscaleError } = usePolling(`${API}/autoscale`, AUTOSCALE_MS);
+  const { data: traffic, error: trafficError } = usePolling(`${API}/traffic`, TRAFFIC_MS);
   const [loadDialog, setLoadDialog] = useState(false);
   const [loadBusy, setLoadBusy] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -698,6 +750,7 @@ export function OpsPage() {
         onLogs={setLogsPod}
       />
       <RecoveryPanel recovery={recovery} />
+      <TrafficPanel data={traffic} error={trafficError} />
       <AutoscalePanel
         data={autoscale}
         error={autoscaleError}

@@ -6,6 +6,7 @@ import hmac
 import os
 import re
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,7 +15,7 @@ import psycopg
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from . import k8s, loadtest
+from . import k8s, loadtest, traffic
 
 OPS_TOKEN = os.environ.get("OPS_TOKEN", "")
 GPU_URL = os.environ.get("GPU_METRICS_URL", "http://gpu-metrics:9400")
@@ -30,7 +31,13 @@ MIB = 1024 ** 2
 KILLABLE = {"web", "analysis"}
 POD_NAME = re.compile(r"^[a-z0-9][a-z0-9.-]{0,252}$")
 
-app = FastAPI(title="automachine 운영 API")
+@asynccontextmanager
+async def lifespan(_app):
+    traffic.start()
+    yield
+
+
+app = FastAPI(title="automachine 운영 API", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -443,6 +450,11 @@ def autoscale():
         "load": loadtest.status(),
         "rescales": [{"at": when(e), "message": e.get("message")} for e in rescales],
     }
+
+
+@app.get("/api/ops/traffic")
+def traffic_status():
+    return traffic.status()
 
 
 @app.post("/api/ops/loadtest")
