@@ -2,8 +2,9 @@ import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 
 import { CameraRig } from "./CameraRig";
 import { ConveyorLine } from "./Conveyor";
+import { Effects } from "./Effects";
 import { VIEWS } from "./layout";
-import { BaseCabinet, Enclosure, Floor, HmiPendant, SignalTower } from "./MachineFrame";
+import { BaseCabinet, Enclosure, Floor, HmiPendant, InteriorLights, SignalTower } from "./MachineFrame";
 import { Dispenser3D, Infeed3D, Inspection3D, Outfeed3D, Vision3D } from "./stations";
 
 const STATION_COMPONENTS = {
@@ -26,7 +27,7 @@ function FactoryLighting() {
   );
 }
 
-export function Scene({ state, covers, view }) {
+export function Scene({ state, covers, view, effects }) {
   const running = state.mode === "RUNNING" && !state.sim.paused;
   const speed = state.sim.speed;
   return (
@@ -47,9 +48,10 @@ export function Scene({ state, covers, view }) {
         shadow-camera-bottom={-8}
       />
 
-      <Floor />
+      <Floor reflective={effects} />
       <BaseCabinet estop={state.safety.estop} />
       <Enclosure covers={covers} doorsOpen={state.safety.doors_open} />
+      <InteriorLights />
       <ConveyorLine m={state} running={running} speed={speed} />
       {state.stations.map((s) => {
         const Comp = STATION_COMPONENTS[s.name];
@@ -67,6 +69,7 @@ export function Scene({ state, covers, view }) {
         maxDistance={24}
       />
       <CameraRig view={view} />
+      {effects && <Effects />}
     </>
   );
 }
