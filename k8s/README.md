@@ -85,6 +85,21 @@ ANALYSIS_API=http://127.0.0.1/api/analysis/runs/ python3 eval/score.py --split d
 
 `eval/compare.py`의 공정 채점은 아직 Compose의 analysis 컨테이너를 씁니다.
 
+## 운영 화면
+
+http://127.0.0.1/#ops 에서 노드, GPU, LLM 상태와 서비스 상태판, 이벤트, 로그를 봅니다. "파드 죽이기"를 누르면 복구 과정이 기록됩니다.
+
+```bash
+# 파드 죽이기에 필요한 운영 토큰 보기
+kubectl -n automachine get secret ops-token -o jsonpath='{.data.token}' | base64 -d; echo
+```
+
+- 이 PC 안에서만 열립니다. 다른 주소로 들어오면 Traefik이 403을 돌려주고, Tailscale Funnel 요청은 ops가 거절합니다.
+- 죽일 수 있는 건 web과 analysis뿐입니다. db는 전체가 멈추고, sim은 돌던 장비 상태가 사라지기 때문입니다.
+- ops 계정(`k8s/app/ops.yaml`)은 Secret을 읽거나 Deployment를 바꿀 수 없고, 파드 삭제만 쓰기 권한입니다.
+- GPU 수집기(`gpu-metrics`)는 WSL 제약으로 특권 파드입니다. 그래서 ops와 분리했고 k8s 계정을 주지 않았습니다.
+- 메모리 값은 k8s 측정값이라 캐시 일부가 포함되어, `free`의 used보다 크게 나옵니다. Windows 전체 메모리는 보이지 않습니다.
+
 ## 왜 Traefik이 포트를 직접 여나
 
 WSL mirrored 네트워크에서는 PC에서 Service 주소로 들어가는 경로가 시간 초과로 막힙니다 (파드에서 Service로, PC에서 파드 IP로는 됩니다). 그래서 `cluster/traefik-config.yaml`로 Traefik이 80, 443을 직접 엽니다. k3s가 켜져 있는 동안 80, 443, 8088, 9100번을 씁니다.

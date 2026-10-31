@@ -5,6 +5,7 @@ import { ConsolePage } from "./console/ConsolePage";
 import { Header } from "./hmi/Header";
 import { HmiShell } from "./hmi/HmiShell";
 import { isHmiPage } from "./hmi/hmiPages";
+import { OpsPage } from "./ops/OpsPage";
 import { SimBar } from "./SimBar";
 
 // three.js is large, so the viewer is only downloaded when its tab is opened.
@@ -15,6 +16,7 @@ const TABS = [
   { id: "console", label: "엔지니어 콘솔" },
   { id: "3d", label: "3D 뷰어" },
   { id: "analysis", label: "AI 분석" },
+  { id: "ops", label: "운영" },
 ];
 
 // The location hash holds the screen (#hmi/sequence, #console, #3d) so reloads and links keep it.
@@ -75,6 +77,7 @@ export default function App() {
         </Suspense>
       )}
       {route.tab === "analysis" && <AnalysisPage />}
+      {route.tab === "ops" && <OpsPage />}
       {error && <div className="toast">{error}</div>}
     </div>
   );

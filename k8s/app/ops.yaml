@@ -1,0 +1,247 @@
+# The operations page's API, and the small GPU reader it asks. The page itself is a tab in the web app.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ops
+  namespace: automachine
+---
+# What the API may do in this namespace. No Secrets, no exec, no changing workloads.
+# Deleting pods is the one write; the code only allows it for web and analysis.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ops
+  namespace: automachine
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, events]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [delete]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets]
+    verbs: [get, list]
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ops
+  namespace: automachine
+subjects:
+  - kind: ServiceAccount
+    name: ops
+    namespace: automachine
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ops
+---
+# Nodes belong to the cluster, not a namespace, so reading them needs a ClusterRole. Read-only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: automachine-ops
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list]
+  - apiGroups: [metrics.k8s.io]
+    resources: [nodes]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: automachine-ops
+subjects:
+  - kind: ServiceAccount
+    name: ops
+    namespace: automachine
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: automachine-ops
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ops
+  namespace: automachine
+spec:
+  selector:
+    app: ops
+  ports:
+    - port: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops
+  namespace: automachine
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: ops
+  template:
+    metadata:
+      labels:
+        app: ops
+    spec:
+      serviceAccountName: ops
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: ops
+          image: localhost:5000/automachine-ops:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: OPS_TOKEN
+              valueFrom:
+                secretKeyRef: { name: ops-token, key: token }
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /api/ops/live
+              port: 8000
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/ops/live
+              port: 8000
+            periodSeconds: 5
+            timeoutSeconds: 3
+          volumeMounts:
+            # Only to read how full the disk is.
+            - name: disk
+              mountPath: /host-disk
+              readOnly: true
+      volumes:
+        - name: disk
+          hostPath:
+            path: /home/lhy/projects/automachine_AI_log_analyze/logs
+            type: Directory
+---
+# Under WSL only a privileged pod may open the GPU, so this one is kept apart from the API above:
+# it has no k8s account at all and only ever runs nvidia-smi.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-metrics
+  namespace: automachine
+spec:
+  selector:
+    app: gpu-metrics
+  ports:
+    - port: 9400
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-metrics
+  namespace: automachine
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: gpu-metrics
+  template:
+    metadata:
+      labels:
+        app: gpu-metrics
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: gpu-metrics
+          image: localhost:5000/automachine-ops:dev
+          imagePullPolicy: IfNotPresent
+          command: [python, gpu_metrics.py]
+          env:
+            # nvidia-smi's libraries are in the same folder, which is not on the image's search path.
+            - name: LD_LIBRARY_PATH
+              value: /usr/lib/wsl/lib
+          ports:
+            - containerPort: 9400
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9400
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9400
+            periodSeconds: 5
+          volumeMounts:
+            - name: wsl
+              mountPath: /usr/lib/wsl
+              readOnly: true
+            - name: dxg
+              mountPath: /dev/dxg
+      volumes:
+        - name: wsl
+          hostPath:
+            path: /usr/lib/wsl
+            type: Directory
+        - name: dxg
+          hostPath:
+            path: /dev/dxg
+            type: CharDevice
+---
+# Requests from other machines get 403. Traefik sits on the PC's network, so it sees the real source address.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ops-local
+  namespace: automachine
+spec:
+  ipAllowList:
+    sourceRange:
+      - 127.0.0.1/32
+      - ::1/128
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ops
+  namespace: automachine
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: automachine-ops-local@kubernetescrd
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/ops
+            pathType: Prefix
+            backend:
+              service:
+                name: ops
+                port:
+                  number: 8000
