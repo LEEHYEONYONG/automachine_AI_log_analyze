@@ -642,6 +642,7 @@ details ul { margin: 6px 0 0; padding-left: 18px; }
 .ops-history { margin-top: 4px; font-size: 12px; }
 .ops-history summary { cursor: pointer; color: var(--muted); }
 .ops-history .ops-list { margin: 4px 0 0; }
+.ops-rescales li { justify-content: flex-start; }
 .btn.ops-kill { padding: 3px 10px; font-size: 12px; background: var(--ng); }
 .ops-steps { margin: 0; padding-left: 20px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
 .ops-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
