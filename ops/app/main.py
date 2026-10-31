@@ -341,3 +341,63 @@ def backup_status():
 @app.get("/api/ops/storage")
 def storage():
     return {"db": db_usage(), "logs": logs_usage(), "backup": backup_status()}
+
+
+REVISION = "deployment.kubernetes.io/revision"
+
+
+def image_tag(template):
+    return template["spec"]["containers"][0]["image"].rsplit(":", 1)[-1]
+
+
+def rollout_state(deployment):
+    """kubectl rollout status와 같은 순서로 판단한다."""
+    spec, status = deployment["spec"], deployment.get("status", {})
+    want = spec.get("replicas", 1)
+    updated = status.get("updatedReplicas", 0)
+    if deployment["metadata"].get("generation", 0) > status.get("observedGeneration", 0):
+        return "대기"
+    progressing = next((c for c in status.get("conditions", []) if c.get("type") == "Progressing"), {})
+    if progressing.get("reason") == "ProgressDeadlineExceeded":
+        return "멈춤"
+    if updated < want or status.get("replicas", 0) > updated or status.get("availableReplicas", 0) < updated:
+        return "진행 중"
+    return "완료"
+
+
+def deployment_view(deployment, replica_sets):
+    meta, status = deployment["metadata"], deployment.get("status", {})
+    current = meta.get("annotations", {}).get(REVISION)
+    mine = [rs for rs in replica_sets
+            if any(o.get("uid") == meta["uid"] for o in rs["metadata"].get("ownerReferences", []))]
+    history = sorted(mine, key=lambda rs: int(rs["metadata"].get("annotations", {}).get(REVISION, 0)), reverse=True)
+    progressing = next((c for c in status.get("conditions", []) if c.get("type") == "Progressing"), {})
+    return {
+        "name": meta["name"],
+        "version": image_tag(deployment["spec"]["template"]),
+        "state": rollout_state(deployment),
+        "message": progressing.get("message"),
+        "desired": deployment["spec"].get("replicas", 1),
+        # 만들어졌지만 뜨지 못한 파드는 세지 않는다. 그동안 옛 버전이 응답한다.
+        "new_ready": next((rs["status"].get("readyReplicas", 0) for rs in history
+                           if rs["metadata"].get("annotations", {}).get(REVISION) == current), 0),
+        # 되돌리면 옛 ReplicaSet을 다시 쓰므로 ReplicaSet의 생성 시각은 마지막 배포 시각이 아니다.
+        "last_change_s": seconds_since(progressing.get("lastUpdateTime")),
+        "history": [{
+            "revision": int(rs["metadata"].get("annotations", {}).get(REVISION, 0)),
+            "version": image_tag(rs["spec"]["template"]),
+            "current": rs["metadata"].get("annotations", {}).get(REVISION) == current,
+            "created_s": seconds_since(rs["metadata"].get("creationTimestamp")),
+        } for rs in history],
+    }
+
+
+@app.get("/api/ops/deployments")
+def deployments():
+    try:
+        items = k8s.get(k8s.namespaced("deployments", "/apis/apps/v1"))["items"]
+        replica_sets = k8s.get(k8s.namespaced("replicasets", "/apis/apps/v1"))["items"]
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"k8s API 오류: {e}") from None
+    views = [deployment_view(d, replica_sets) for d in sorted(items, key=lambda d: d["metadata"]["name"])]
+    return {"deployments": views}
