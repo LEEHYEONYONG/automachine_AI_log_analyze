@@ -6,6 +6,7 @@ const OVERVIEW_MS = 2000;
 const INFRA_MS = 3000;
 const STORAGE_MS = 30000; // sizes change slowly, and adding up the logs reads every file's size
 const DEPLOYMENTS_MS = 3000;
+const AUTOSCALE_MS = 2000;
 const BACKUP_STALE_S = 36 * 3600; // a daily backup, plus room for the PC having been off
 const WATCH_MS = 500; // while a kill is being followed
 
@@ -306,6 +307,84 @@ function DeploymentsPanel({ data, error }) {
   );
 }
 
+function LoadDialog({ duration, onCancel, onConfirm, busy, error }) {
+  const [token, setToken] = useState("");
+  return (
+    <div className="dialog-backdrop">
+      <form
+        className="dialog"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onConfirm(token);
+        }}
+      >
+        <h2>부하 시험을 시작할까요?</h2>
+        <p className="hint">AI 분석 파드에 {duration}초 동안 요청을 보냅니다. CPU가 오르면 파드가 늘고, 끝나면 줄어드는 과정을 볼 수 있습니다.</p>
+        <label className="field">
+          운영 토큰
+          <input type="password" value={token} autoFocus autoComplete="off" onChange={(e) => setToken(e.target.value)} />
+        </label>
+        {error && <p className="hint analysis-error">{error}</p>}
+        <div className="dialog-actions">
+          <button type="button" className="btn-text" onClick={onCancel}>
+            취소
+          </button>
+          <button className="btn" disabled={!token || busy}>
+            {busy ? "요청 중…" : "시작"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function AutoscalePanel({ data, error, stopError, onStart, onStop }) {
+  if (!data) return <section className="panel"><h2>자동 확장 (HPA)</h2><p className="hint">{error ?? "불러오는 중…"}</p></section>;
+  const { hpa, load, rescales } = data;
+  return (
+    <section className="panel">
+      <h2>자동 확장 (HPA)</h2>
+      <div className="ops-cards">
+        <div className="ops-card">
+          <h3>
+            <span className={`ops-dot ops-${hpa.active ? "ok" : "warn"}`} /> {SERVICE_LABEL[hpa.name] ?? hpa.name}
+          </h3>
+          <Meter label={`파드 수 (최소 ${hpa.min}, 최대 ${hpa.max})`} used={hpa.current} total={hpa.max} text={`${hpa.current}개${hpa.desired !== hpa.current ? ` → ${hpa.desired}개` : ""}`} />
+          <Meter label="CPU (요청한 양 대비, 파드 평균)" used={hpa.cpu_pct} total={100} text={`${hpa.cpu_pct}% / 목표 ${hpa.target_cpu_pct}%`} />
+          {!hpa.active && <p className="hint ops-spec">CPU 측정값을 기다리는 중입니다.</p>}
+        </div>
+        <div className="ops-card">
+          <h3>부하 시험</h3>
+          {load.elapsed_s !== null && (
+            <p className="ops-gpu-name">
+              {load.running ? `진행 중 ${load.elapsed_s} / ${load.duration_s}초` : `끝남 (${load.elapsed_s}초)`} · 요청 {load.requests.toLocaleString()}개 · 실패 {load.errors.toLocaleString()}개
+            </p>
+          )}
+          {load.running ? (
+            <button className="btn" onClick={onStop}>멈추기</button>
+          ) : (
+            <button className="btn" onClick={onStart}>부하 시작</button>
+          )}
+          {stopError && load.running && <p className="hint analysis-error">{stopError}</p>}
+          <p className="hint ops-spec">가벼운 상태 확인 요청을 반복합니다. 실제 분석 작업의 부하와는 다릅니다.</p>
+        </div>
+        <div className="ops-card">
+          <h3>확장 기록</h3>
+          {rescales.length === 0 && <p className="hint">최근 기록이 없습니다.</p>}
+          <ul className="ops-list ops-rescales">
+            {rescales.map((r) => (
+              <li key={`${r.at}${r.message}`}>
+                <span className="mono">{new Date(r.at).toTimeString().slice(0, 8)}</span>
+                <span>{r.message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** One table cell: the number, and how close it is to the pod's limit when it has one. */
 function UsageCell({ label, used, limit, unit }) {
   if (used === null || used === undefined) return <td className="mono">-</td>;
@@ -552,6 +631,11 @@ export function OpsPage() {
   const { data: infra, error: infraError } = usePolling(`${API}/infra`, INFRA_MS);
   const { data: storage, error: storageError } = usePolling(`${API}/storage`, STORAGE_MS);
   const { data: rollouts, error: rolloutsError } = usePolling(`${API}/deployments`, DEPLOYMENTS_MS);
+  const { data: autoscale, error: autoscaleError } = usePolling(`${API}/autoscale`, AUTOSCALE_MS);
+  const [loadDialog, setLoadDialog] = useState(false);
+  const [loadBusy, setLoadBusy] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [stopError, setStopError] = useState(null);
   const { recovery, start } = useRecovery();
   const [killing, setKilling] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -574,6 +658,31 @@ export function OpsPage() {
     }
   };
 
+  // Stopping twice does no harm, so one failed request is simply tried again.
+  const stopLoad = async () => {
+    setStopError(null);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const res = await fetch(`${API}/loadtest/stop`, { method: "POST" }).catch(() => null);
+      if (res?.ok) return;
+    }
+    setStopError("멈추지 못했습니다. 다시 눌러 보세요. 시간이 다 되면 저절로 끝납니다.");
+  };
+
+  const startLoad = async (token) => {
+    setLoadBusy(true);
+    setLoadError(null);
+    try {
+      const res = await fetch(`${API}/loadtest`, { method: "POST", headers: { "X-Ops-Token": token } });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail ?? `응답 ${res.status}`);
+      setLoadDialog(false);
+    } catch (e) {
+      setLoadError(e.message);
+    } finally {
+      setLoadBusy(false);
+    }
+  };
+
   return (
     <main className="console">
       {overviewError && overview && <p className="hint analysis-error">최신 상태를 가져오지 못했습니다: {overviewError}</p>}
@@ -589,9 +698,29 @@ export function OpsPage() {
         onLogs={setLogsPod}
       />
       <RecoveryPanel recovery={recovery} />
+      <AutoscalePanel
+        data={autoscale}
+        error={autoscaleError}
+        stopError={stopError}
+        onStart={() => {
+          setLoadError(null);
+          setStopError(null);
+          setLoadDialog(true);
+        }}
+        onStop={stopLoad}
+      />
       <DeploymentsPanel data={rollouts} error={rolloutsError} />
       {logsPod && <LogsPanel pod={logsPod} onClose={() => setLogsPod(null)} />}
       <EventsPanel events={overview?.events} />
+      {loadDialog && (
+        <LoadDialog
+          duration={autoscale?.load.duration_s}
+          busy={loadBusy}
+          error={loadError}
+          onCancel={() => setLoadDialog(false)}
+          onConfirm={startLoad}
+        />
+      )}
       {killing && (
         <KillDialog service={killing} busy={busy} error={killError} onCancel={() => setKilling(null)} onConfirm={kill} />
       )}

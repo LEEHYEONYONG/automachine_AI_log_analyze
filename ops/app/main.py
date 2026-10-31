@@ -14,7 +14,7 @@ import psycopg
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from . import k8s
+from . import k8s, loadtest
 
 OPS_TOKEN = os.environ.get("OPS_TOKEN", "")
 GPU_URL = os.environ.get("GPU_METRICS_URL", "http://gpu-metrics:9400")
@@ -177,10 +177,14 @@ def logs(pod: str, tail: int = 200):
         raise HTTPException(status_code=502, detail=f"k8s API 오류: {e}") from None
 
 
+def require_token(token):
+    if not OPS_TOKEN or not hmac.compare_digest(token, OPS_TOKEN):
+        raise HTTPException(status_code=401, detail="토큰이 맞지 않음")
+
+
 @app.post("/api/ops/services/{service}/kill")
 def kill(service: str, x_ops_token: str = Header(default="")):
-    if not OPS_TOKEN or not hmac.compare_digest(x_ops_token, OPS_TOKEN):
-        raise HTTPException(status_code=401, detail="토큰이 맞지 않음")
+    require_token(x_ops_token)
     if service not in KILLABLE:
         raise HTTPException(status_code=403, detail=f"{service}는 죽일 수 없음")
     try:
@@ -401,3 +405,57 @@ def deployments():
         raise HTTPException(status_code=502, detail=f"k8s API 오류: {e}") from None
     views = [deployment_view(d, replica_sets) for d in sorted(items, key=lambda d: d["metadata"]["name"])]
     return {"deployments": views}
+
+
+def hpa_view(hpa):
+    spec, status = hpa["spec"], hpa.get("status", {})
+    current = next((m["resource"]["current"] for m in status.get("currentMetrics") or []
+                    if m.get("type") == "Resource"), {})
+    active = next((c for c in status.get("conditions", []) if c.get("type") == "ScalingActive"), {})
+    return {
+        "name": hpa["metadata"]["name"],
+        "min": spec.get("minReplicas", 1),
+        "max": spec["maxReplicas"],
+        "current": status.get("currentReplicas", 0),
+        "desired": status.get("desiredReplicas", 0),
+        "cpu_pct": current.get("averageUtilization"),
+        "target_cpu_pct": spec["metrics"][0]["resource"]["target"]["averageUtilization"],
+        "active": active.get("status") == "True",
+    }
+
+
+@app.get("/api/ops/autoscale")
+def autoscale():
+    try:
+        hpa = k8s.get(k8s.namespaced("horizontalpodautoscalers/analysis", "/apis/autoscaling/v2"))
+        events = k8s.get(k8s.namespaced("events"))["items"]
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"k8s API 오류: {e}") from None
+
+    def when(e):
+        return e.get("lastTimestamp") or e.get("eventTime") or e["metadata"].get("creationTimestamp") or ""
+
+    rescales = sorted((e for e in events if e.get("reason") == "SuccessfulRescale"
+                       and e.get("involvedObject", {}).get("kind") == "HorizontalPodAutoscaler"),
+                      key=when, reverse=True)[:8]
+    return {
+        "hpa": hpa_view(hpa),
+        "load": loadtest.status(),
+        "rescales": [{"at": when(e), "message": e.get("message")} for e in rescales],
+    }
+
+
+@app.post("/api/ops/loadtest")
+def start_load(x_ops_token: str = Header(default="")):
+    require_token(x_ops_token)
+    if not loadtest.start():
+        raise HTTPException(status_code=409, detail="이미 부하 시험 중")
+    print("load test started from ops page", flush=True)
+    return loadtest.status()
+
+
+@app.post("/api/ops/loadtest/stop")
+def stop_load():
+    """부하를 멈추는 것은 해가 없으므로 토큰을 받지 않는다."""
+    loadtest.stop()
+    return loadtest.status()

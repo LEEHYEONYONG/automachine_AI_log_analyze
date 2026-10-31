@@ -100,6 +100,12 @@ kubectl -n automachine get secret ops-token -o jsonpath='{.data.token}' | base64
 - GPU 수집기(`gpu-metrics`)는 WSL 제약으로 특권 파드입니다. 그래서 ops와 분리했고 k8s 계정을 주지 않았습니다.
 - 메모리 값은 k8s 측정값이라 캐시 일부가 포함되어, `free`의 used보다 크게 나옵니다. Windows 전체 메모리는 보이지 않습니다.
 
+## 자동 확장 (HPA)
+
+analysis는 파드 평균 CPU가 요청량(100m)의 50%를 넘으면 최대 3개까지 늘고, 부하가 사라지고 1분이 지나면 다시 줄어듭니다. 운영 화면의 "부하 시작"으로 볼 수 있습니다. 토큰이 필요하고 150초 뒤 저절로 끝납니다.
+
+부하 시험은 가벼운 `/api/analysis/live`만 호출합니다. 확장 동작을 보여 주기 위한 것으로, 실제 분석 작업의 성능 측정이 아닙니다.
+
 ## DB 백업
 
 `db-backup` CronJob이 매일 12:30(KST)에 `backups/db_날짜_시각.dump`를 만들고 최근 3개만 남깁니다. k3s가 꺼져 있어 놓쳐도 6시간 안에 켜면 실행됩니다. 결과는 운영 화면의 "저장 공간과 백업"에서 봅니다.
