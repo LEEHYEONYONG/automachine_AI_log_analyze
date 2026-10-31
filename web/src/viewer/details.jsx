@@ -1,5 +1,5 @@
-// Small building blocks shared by the stations and the machine frame. Everything is
-// built from primitives so the repo needs no 3D model files.
+// Small building blocks for the parts that change at runtime. The machine's rigid hardware
+// is in the model file (see Model.jsx and web/models/machine.py).
 import { RoundedBox } from "@react-three/drei";
 import { useMemo } from "react";
 import { CatmullRomCurve3, TubeGeometry, Vector3 } from "three";
@@ -50,43 +50,6 @@ export function Hose({ points, radius = 0.015, color = "#8c96a0" }) {
   );
 }
 
-/** Linear guide rail along x or z. */
-export function LinearRail({ length, position, axis = "z" }) {
-  const size = axis === "z" ? [0.05, 0.04, length] : [length, 0.04, 0.05];
-  return <Box size={size} position={position} mat="steel" />;
-}
-
-/** Servo motor with flange, axis along +z by default. */
-export function ServoMotor({ position, rotation }) {
-  return (
-    <group position={position} rotation={rotation}>
-      <Box size={[0.15, 0.15, 0.24]} mat="black" />
-      <Box size={[0.17, 0.17, 0.03]} position={[0, 0, 0.13]} mat="aluDark" />
-      <Box size={[0.05, 0.04, 0.06]} position={[0, 0.09, -0.06]} mat="black" color="#2b3138" />
-    </group>
-  );
-}
-
-/** Energy chain lying on top of an axis. */
-export function CableChain({ length, position, axis = "z" }) {
-  const links = Math.max(2, Math.round(length / 0.07));
-  return (
-    <group position={position}>
-      {Array.from({ length: links }, (_, i) => {
-        const d = -length / 2 + (i + 0.5) * (length / links);
-        return (
-          <Box
-            key={i}
-            size={axis === "z" ? [0.09, 0.05, 0.055] : [0.055, 0.05, 0.09]}
-            position={axis === "z" ? [0, 0, d] : [d, 0, 0]}
-            mat="black"
-          />
-        );
-      })}
-    </group>
-  );
-}
-
 /** A phone rear housing with a camera bump (no bead; see Part). */
 export function Housing() {
   return (
@@ -133,29 +96,31 @@ export function TrayStack({ fill }) {
   );
 }
 
-/** Syringe barrel on a dispensing valve; the needle tip is at the group origin. */
+/** The syringe parts that change at runtime, inside the head's hardware; the needle tip is at the group origin. */
 export function Syringe({ level, valveOpen }) {
   const fill = Math.max(0, Math.min(1, level));
   const fillH = Math.max(0.001, 0.46 * fill);
   return (
     <group>
-      <Cyl r={0.007} h={0.12} position={[0, 0.06, 0]} mat="steel" />
-      <Cyl r={0.03} rTop={0.02} h={0.05} position={[0, 0.145, 0]} mat="white" color="#e1709f" />
       <mesh position={[0, 0.005, 0]} visible={valveOpen}>
         <sphereGeometry args={[0.022, 12, 12]} />
         <meshStandardMaterial color="#e8a33d" emissive="#e8a33d" emissiveIntensity={2} />
       </mesh>
-      {/* valve body with air port */}
-      <Box size={[0.17, 0.1, 0.17]} position={[0, 0.22, 0]} mat="black" />
-      <Cyl r={0.018} h={0.06} position={[0.11, 0.22, 0]} rotation={[0, 0, Math.PI / 2]} mat="steel" />
-      {/* clear barrel, adhesive, plunger and adapter cap */}
+      {/* lamp on the valve's front plate, lit while the valve is open */}
+      <mesh position={[0, 0.22, 0.087]}>
+        <sphereGeometry args={[0.008, 8, 8]} />
+        <meshStandardMaterial color="#e8a33d" emissive="#e8a33d" emissiveIntensity={valveOpen ? 4 : 0.1} toneMapped={false} />
+      </mesh>
+      {/* clear barrel, adhesive, plunger and volume marks */}
       <mesh position={[0, 0.51, 0]}>
         <cylinderGeometry args={[0.07, 0.07, 0.48, 24, 1, true]} />
         <meshPhysicalMaterial color="#e6f0f8" transparent opacity={0.28} roughness={0.05} depthWrite={false} />
       </mesh>
       <Cyl r={0.064} h={fillH} position={[0, 0.28 + fillH / 2, 0]} mat="white" color="#d9952f" />
       <Cyl r={0.066} h={0.025} position={[0, 0.28 + fillH + 0.013, 0]} mat="white" />
-      <Cyl r={0.08} h={0.05} position={[0, 0.775, 0]} mat="black" color="#2f6fc0" />
+      {[0.33, 0.42, 0.51, 0.6, 0.69].map((y) => (
+        <Cyl key={y} r={0.0715} h={0.003} position={[0, y, 0]} mat="white" color="#9fb0bf" />
+      ))}
       <Hose points={[[0, 0.8, 0], [0, 0.95, 0], [0.04, 1.08, -0.08], [0.06, 1.2, -0.22]]} radius={0.014} />
     </group>
   );

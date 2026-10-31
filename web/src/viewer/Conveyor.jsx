@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { CanvasTexture, MathUtils, RepeatWrapping } from "three";
 
-import { Box, Cyl, Housing, ServoMotor } from "./details";
+import { Box, Housing } from "./details";
 import {
   BELT_TOP,
   COLORS,
@@ -20,6 +20,7 @@ import {
   ZONE_LEN,
 } from "./layout";
 import { manualDevice } from "./manual";
+import { Model } from "./Model";
 
 const STRIPE = 0.25; // texture repeat length along the belt
 const TRANSFER_S = 1.0; // matches the transfer step time on the server
@@ -59,47 +60,25 @@ function ConveyorZone({ x, moving, speed, stopperUp = false, partPresent = false
     }
   });
 
-  const frame = foreign ? "aluDark" : "alu";
   return (
     <group position={[x, 0, 0]}>
+      {/* lane channels, guide rails, cross members and the zone drive */}
+      <Model name={foreign ? "conveyor_zone_neighbour" : "conveyor_zone"} />
       {[-LANE_Z, LANE_Z].map((z) => (
-        <group key={z} position={[0, 0, z]}>
-          <Box size={[ZONE_LEN, BELT_TOP - 0.02, LANE_W + 0.03]} position={[0, (BELT_TOP - 0.02) / 2, 0]} mat={frame} />
-          <mesh position={[0, BELT_TOP - 0.009, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-            <planeGeometry args={[ZONE_LEN - 0.04, LANE_W]} />
-            <meshStandardMaterial ref={belt} map={texture} roughness={0.9} />
-          </mesh>
-          {[-ZONE_LEN / 2 + 0.03, ZONE_LEN / 2 - 0.03].map((px) => (
-            <Cyl key={px} r={0.03} h={LANE_W + 0.04} position={[px, BELT_TOP - 0.035, 0]}
-              rotation={[Math.PI / 2, 0, 0]} mat="steel" />
-          ))}
-        </group>
+        <mesh key={z} position={[0, BELT_TOP - 0.009, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[ZONE_LEN - 0.04, LANE_W]} />
+          <meshStandardMaterial ref={belt} map={texture} roughness={0.9} />
+        </mesh>
       ))}
-      {/* guide rails keep the part between the lanes */}
-      {[-1, 1].map((side) => (
-        <group key={side}>
-          <Box size={[ZONE_LEN, 0.03, 0.012]} position={[0, BELT_TOP + 0.03, side * (PART.d / 2 + 0.03)]} mat="steel" />
-          {[-0.8, 0, 0.8].map((px) => (
-            <Box key={px} size={[0.02, 0.06, 0.02]} position={[px, BELT_TOP, side * (PART.d / 2 + 0.045)]} mat="aluDark" />
-          ))}
-        </group>
-      ))}
-      {/* cross members and the zone drive */}
-      {[-ZONE_LEN / 2 + 0.1, ZONE_LEN / 2 - 0.1].map((px) => (
-        <Box key={px} size={[0.06, 0.04, 2 * LANE_Z + LANE_W]} position={[px, 0.03, 0]} mat="black" />
-      ))}
-      <ServoMotor position={[ZONE_LEN / 2 - 0.25, 0.07, -LANE_Z - 0.17]} rotation={[0, Math.PI, 0]} />
 
       {!foreign && (
         <>
-          {/* pneumatic stop pin in front of the part, between the lanes */}
-          <Box size={[0.06, 0.12, 0.05]} position={[STOPPER_X, 0.05, 0]} mat="aluDark" />
+          {/* pneumatic stop pin in front of the part, between the lanes, and the through-beam part sensor */}
+          <Model name="conveyor_stop" />
           <mesh ref={stopper} position={[STOPPER_X, BELT_TOP - 0.07, 0]}>
             <cylinderGeometry args={[0.018, 0.018, 0.1, 12]} />
             <meshStandardMaterial color={COLORS.steel} metalness={0.9} roughness={0.2} />
           </mesh>
-          {/* through-beam part sensor on the front rail */}
-          <Box size={[0.04, 0.04, 0.03]} position={[0.1, BELT_TOP + 0.05, PART.d / 2 + 0.06]} mat="black" />
           <mesh position={[0.1, BELT_TOP + 0.075, PART.d / 2 + 0.06]}>
             <sphereGeometry args={[0.008, 8, 8]} />
             <meshStandardMaterial

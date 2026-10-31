@@ -1,4 +1,5 @@
 import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
+import { Suspense } from "react";
 
 import { CameraRig } from "./CameraRig";
 import { ConveyorLine } from "./Conveyor";
@@ -49,16 +50,19 @@ export function Scene({ state, covers, view, effects }) {
       />
 
       <Floor reflective={effects} />
-      <BaseCabinet estop={state.safety.estop} />
-      <Enclosure covers={covers} doorsOpen={state.safety.doors_open} />
       <InteriorLights />
-      <ConveyorLine m={state} running={running} speed={speed} />
-      {state.stations.map((s) => {
-        const Comp = STATION_COMPONENTS[s.name];
-        return Comp ? <Comp key={s.name} station={s} m={state} running={running} speed={speed} /> : null;
-      })}
-      <SignalTower mode={state.mode} />
-      <HmiPendant mode={state.mode} />
+      {/* the machine's hardware comes from one model file, so everything appears together once it has loaded */}
+      <Suspense fallback={null}>
+        <BaseCabinet estop={state.safety.estop} />
+        <Enclosure covers={covers} doorsOpen={state.safety.doors_open} />
+        <ConveyorLine m={state} running={running} speed={speed} />
+        {state.stations.map((s) => {
+          const Comp = STATION_COMPONENTS[s.name];
+          return Comp ? <Comp key={s.name} station={s} m={state} running={running} speed={speed} /> : null;
+        })}
+        <SignalTower mode={state.mode} />
+        <HmiPendant mode={state.mode} />
+      </Suspense>
 
       <OrbitControls
         makeDefault

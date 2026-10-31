@@ -2,14 +2,12 @@ import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import { DoubleSide, MathUtils } from "three";
 
-import { Box, CableChain, Cyl, Hose, LinearRail, ServoMotor, Syringe, TrayStack } from "./details";
+import { Cyl, Hose, Syringe, TrayStack } from "./details";
 import {
   BACK_Z,
   BELT_TOP,
   COLORS,
   HEAD_HIGH,
-  LANE_W,
-  LANE_Z,
   LIFT_H,
   PART,
   PART_TOP,
@@ -21,6 +19,7 @@ import {
   trayStackTop,
 } from "./layout";
 import { manualAxis, manualDevice } from "./manual";
+import { Model } from "./Model";
 import { Part } from "./Part";
 import { PickGantry } from "./PickGantry";
 import { StationBase } from "./StationBase";
@@ -48,10 +47,9 @@ function LiftUnit({ level, cups = false, vacuum = false }) {
   const glow = vacuum ? { emissive: COLORS.accent, emissiveIntensity: 1.2 } : {};
   return (
     <group>
-      <Cyl r={0.045} h={0.1} position={[0, 0.05, 0]} mat="alu" />
+      <Model name="lift_base" />
       <group ref={plate} position={[0, plateTop(0), 0]}>
-        <Box size={[0.5, 0.02, 2 * LANE_Z - LANE_W - 0.03]} position={[0, -0.01, 0]} mat="aluDark" />
-        <Cyl r={0.015} h={0.12} position={[0, -0.08, 0]} mat="steel" />
+        <Model name="lift_plate" />
         {cups &&
           [-0.15, 0.15].flatMap((x) =>
             [-0.05, 0.05].map((z) => (
@@ -62,17 +60,6 @@ function LiftUnit({ level, cups = false, vacuum = false }) {
             )),
           )}
       </group>
-    </group>
-  );
-}
-
-/** Overhead camera column with an arm reaching over the belt. */
-function CameraMount({ armY }) {
-  return (
-    <group>
-      <Box size={[0.26, 0.03, 0.26]} position={[0, 0.015, -0.95]} mat="aluDark" />
-      <Box size={[0.08, armY + 0.06, 0.08]} position={[0, (armY + 0.06) / 2, -0.95]} />
-      <Box size={[0.08, 0.08, 1.0]} position={[0, armY, -0.47]} />
     </group>
   );
 }
@@ -104,10 +91,9 @@ export function Infeed3D({ station, running, speed }) {
     <group position={[STATION_X.INFEED, 0, 0]}>
       <StationBase station={station} x={0} />
       {/* 2D code reader on a bracket behind the belt, looking down at the camera-bump corner */}
-      <Box size={[0.05, 0.6, 0.05]} position={[-0.2, 0.3, -0.5]} mat="aluDark" />
+      <Model name="infeed_reader" />
       <group position={[-0.2, 0.62, -0.38]} rotation={[0.9, 0, 0]}>
-        <Box size={[0.12, 0.08, 0.16]} mat="black" />
-        <mesh position={[0, -0.04, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh position={[0, -0.042, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.06, 0.04]} />
           <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={reading ? 2 : 0.3}
             side={DoubleSide} />
@@ -175,30 +161,17 @@ export function Vision3D({ station, m, running, speed }) {
       ].map(([x, z]) => (
         <Cyl key={`${x}${z}`} r={0.012} h={0.08} position={[x, pinsUp ? padY : BELT_TOP - 0.03, z]} mat="steel" />
       ))}
-      {/* end pusher (pushes +x) and side pusher (pushes -z) */}
-      <Box size={[0.18, 0.06, 0.06]} position={[-0.86, padY, 0]} mat="alu" />
+      {/* end pusher (pushes +x) and side pusher (pushes -z); their bodies, the camera and the ring light's housing are fixed */}
+      <Model name="vision_fixed" />
       <group ref={pusherX} position={[-0.62, padY, 0]}>
-        <Cyl r={0.01} h={0.25} position={[-0.125, 0, 0]} rotation={[0, 0, Math.PI / 2]} mat="steel" />
-        <Box size={[0.02, 0.04, 0.12]} mat="white" color="#e6c34a" />
+        <Model name="vision_pusher_x" />
       </group>
-      <Box size={[0.06, 0.06, 0.18]} position={[0, padY, 0.74]} mat="alu" />
       <group ref={pusherZ} position={[0, padY, 0.5]}>
-        <Cyl r={0.01} h={0.25} position={[0, 0, 0.125]} rotation={[Math.PI / 2, 0, 0]} mat="steel" />
-        <Box size={[0.2, 0.04, 0.02]} mat="white" color="#e6c34a" />
+        <Model name="vision_pusher_z" />
       </group>
 
-      <CameraMount armY={1.6} />
-      <Box size={[0.16, 0.24, 0.16]} position={[0, 1.42, 0]} mat="black" />
-      <Box size={[0.17, 0.02, 0.17]} position={[0, 1.55, 0]} mat="aluDark" />
-      <Cyl r={0.055} h={0.14} position={[0, 1.23, 0]} mat="black" color="#0d1013" />
-      <Cyl r={0.06} h={0.02} position={[0, 1.17, 0]} mat="steel" />
       <Hose points={[[0.06, 1.5, 0], [0.12, 1.62, -0.1], [0.08, 1.66, -0.5], [0.05, 1.5, -0.9]]} radius={0.012} />
-      <Box size={[0.04, 0.48, 0.04]} position={[0.32, 1.0, 0]} mat="aluDark" />
-      <mesh position={[0, 0.78, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.3, 0.035, 12, 48]} />
-        <meshStandardMaterial color="#1c2127" metalness={0.3} roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 0.745, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 0.752, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.3, 0.012, 8, 48]} />
         <meshStandardMaterial
           color={capture ? "#ffffff" : "#5a6672"}
@@ -293,23 +266,20 @@ export function Dispenser3D({ station, m, running, speed }) {
       <StationBase station={station} x={0} />
       <LiftUnit level={level} cups vacuum={(manualDevice(m, "DISP_FIXTURE_VAC") ?? 0) >= 1 || m.fixture_vacuum_on} />
 
-      {/* dispensing controller with its air line */}
+      {/* X axis on the table, the dispensing controller and the weigh scale */}
+      <Model name="dispenser_fixed" />
+
+      {/* controller screen and air line */}
       <group position={[-0.8, 0, -2.2]}>
-        <Box size={[0.7, 0.32, 0.4]} position={[0, 0.16, 0]} mat="white" color="#d5dade" />
-        <mesh position={[-0.12, 0.2, 0.201]}>
+        <mesh position={[-0.12, 0.23, 0.201]}>
           <planeGeometry args={[0.3, 0.1]} />
           <meshStandardMaterial color="#0c1a12" emissive={COLORS.ok} emissiveIntensity={0.7} />
         </mesh>
-        {[0.12, 0.22].map((x) => (
-          <Cyl key={x} r={0.025} h={0.03} position={[x, 0.2, 0.215]} rotation={[Math.PI / 2, 0, 0]} mat="black" />
-        ))}
         <Hose points={[[0.3, 0.3, 0], [0.55, 0.45, 0.1], [0.75, 0.6, 0.25]]} radius={0.015} />
       </group>
 
-      {/* weigh scale with a draft shield */}
+      {/* the scale's draft shield and screen */}
       <group position={[SCALE_X, 0, SCALE_Z]}>
-        <Box size={[0.42, 0.12, 0.38]} position={[0, 0.06, 0]} mat="white" color="#cfd5db" />
-        <Cyl r={0.11} h={0.015} position={[0, SCALE_TOP - 0.06, 0]} mat="steel" />
         {[
           { size: [0.36, 0.2, 0.005], pos: [0, 0.22, -0.16] },
           { size: [0.005, 0.2, 0.32], pos: [-0.18, 0.22, 0] },
@@ -326,29 +296,21 @@ export function Dispenser3D({ station, m, running, speed }) {
         </mesh>
       </group>
 
-      {/* X axis on the table, then the bridge, its Z carriage and the vertical head */}
-      <LinearRail length={1.4} position={[0, 0.02, -1.9]} axis="x" />
-      <ServoMotor position={[-0.85, 0.08, -1.9]} rotation={[0, -Math.PI / 2, 0]} />
+      {/* the bridge, its Z carriage and the vertical head */}
       <group ref={bridge}>
-        <Box size={[0.3, 0.08, 0.3]} position={[0, 0.06, -1.9]} mat="aluDark" />
-        <Box size={[0.14, BEAM_Y, 0.14]} position={[0, BEAM_Y / 2 + 0.1, -1.9]} />
-        <Box size={[0.18, 0.16, 2.35]} position={[0, BEAM_Y, -0.8]} />
-        <LinearRail length={2.2} position={[0.11, BEAM_Y, -0.8]} />
-        <ServoMotor position={[0, BEAM_Y, -2.1]} rotation={[0, Math.PI, 0]} />
-        <CableChain length={1.3} position={[-0.03, BEAM_Y + 0.11, -1.25]} />
+        <Model name="dispenser_bridge" />
         <group ref={carriage}>
-          <Box size={[0.3, 0.24, 0.3]} position={[0, BEAM_Y, 0]} mat="aluDark" />
-          <ServoMotor position={[0, BEAM_Y + 0.2, -0.12]} rotation={[-Math.PI / 2, 0, 0]} />
+          <Model name="dispenser_carriage" />
           <mesh ref={rod} position={[0, 1, -0.12]}>
             <boxGeometry args={[0.07, 1, 0.07]} />
             <meshStandardMaterial color={COLORS.steel} metalness={0.8} roughness={0.25} />
           </mesh>
           <group ref={head} position={[0, HOME_Y, 0]}>
-            <Box size={[0.08, 0.14, 0.12]} position={[0, 0.24, -0.1]} mat="aluDark" />
+            <Model name="dispenser_head" />
             <Syringe level={m.syringe_level_pct / 100} valveOpen={m.dispenser_valve_open} />
-            <Box size={[0.07, 0.13, 0.08]} position={[0.14, 0.2, 0]} mat="black" />
+            <Hose points={[[0.14, 0.285, 0], [0.14, 0.36, -0.01], [0.1, 0.46, -0.06]]} radius={0.006} color="#20262c" />
             <mesh position={[0.14, 0.13, 0]} rotation={[Math.PI / 2, 0, 0]}>
-              <planeGeometry args={[0.04, 0.04]} />
+              <planeGeometry args={[0.018, 0.018]} />
               <meshStandardMaterial color={COLORS.ng} emissive={COLORS.ng} emissiveIntensity={1} side={DoubleSide} />
             </mesh>
             {station.step === "HEIGHT_MEASURE" && (
@@ -400,22 +362,14 @@ export function Inspection3D({ station, m, running, speed }) {
   return (
     <group position={[STATION_X.INSPECTION, 0, 0]}>
       <StationBase station={station} x={0} />
-      <CameraMount armY={1.55} />
       {/* short scan axis across the part; camera and line laser ride on it */}
-      <Box size={[1.2, 0.08, 0.1]} position={[0, 1.47, 0]} mat="alu" />
-      <LinearRail length={1.1} position={[0, 1.42, 0.06]} axis="x" />
-      <ServoMotor position={[0.68, 1.47, 0]} rotation={[0, Math.PI / 2, 0]} />
+      <Model name="inspection_fixed" />
       <group ref={scanner} position={[SCAN_FROM, 0, 0]}>
-        <Box size={[0.2, 0.06, 0.18]} position={[0, 1.39, 0]} mat="aluDark" />
-        <Box size={[0.14, 0.18, 0.16]} position={[0, 1.27, 0]} mat="black" />
-        <Cyl r={0.045} h={0.1} position={[0, 1.13, 0]} mat="black" color="#0d1013" />
+        <Model name="inspection_scanner" />
         <mesh position={[0.05, 1.27, 0.081]}>
           <sphereGeometry args={[0.018, 16, 16]} />
           <meshStandardMaterial color={lampColor} emissive={lampColor} emissiveIntensity={judged ? 2 : 0.2} />
         </mesh>
-        <group position={[0.16, 1.2, 0]} rotation={[0, 0, 0.35]}>
-          <Box size={[0.05, 0.16, 0.07]} mat="black" />
-        </group>
         {scanning && (
           <mesh position={[0, PART_TOP + 0.02, 0]}>
             <boxGeometry args={[0.012, 0.004, 0.5]} />
@@ -475,8 +429,7 @@ export function Outfeed3D({ station, m, running, speed }) {
       {/* NG buffer drawer behind the belt */}
       <group position={[0, 0, BACK_Z]}>
         <TrayStack fill={fill} />
-        <Box size={[1.06, 0.06, 0.7]} position={[0, -0.0, 0]} mat="white" color="#b9262d" />
-        <Box size={[0.3, 0.03, 0.03]} position={[0, 0.03, 0.37]} mat="steel" />
+        <Model name="ng_drawer" />
       </group>
       <PickGantry target={target} vacuum={(manualDevice(m, "NG_PICK_VAC") ?? 0) >= 1 || m.ng_picker_vacuum_on}>
         {carrying && <Part position={[0, -PART.h / 2, 0]} bead={1} ng />}

@@ -5,6 +5,7 @@ import { DoubleSide, MathUtils } from "three";
 
 import { Box, Cyl } from "./details";
 import { COLORS, FLOOR_Y, FRAME } from "./layout";
+import { Model } from "./Model";
 
 const P = 0.08; // aluminium profile size
 const W = FRAME.x * 2;
@@ -54,32 +55,11 @@ export function Floor({ reflective }) {
 export function BaseCabinet({ estop }) {
   const bodyH = -0.06 - (FLOOR_Y + 0.12);
   const bodyY = FLOOR_Y + 0.12 + bodyH / 2;
-  const doors = [-5.1, -1.7, 1.7, 5.1];
   return (
     <group>
-      <Box size={[W + 0.1, 0.06, D + 0.1]} position={[0, -0.03, ZC]} mat="plate" />
-      <Box size={[W - 0.1, bodyH, D - 0.1]} position={[0, bodyY, ZC]} mat="cabinet" />
-      {doors.map((x) => (
-        <group key={x} position={[x, bodyY, FRAME.zFront - 0.04]}>
-          <Box size={[3.2, bodyH - 0.12, 0.02]} mat="cabinet" color="#b4bcc5" />
-          <Box size={[0.03, 0.22, 0.03]} position={[1.4, 0.05, 0.03]} mat="steel" />
-          {[0, 1, 2, 3].map((i) => (
-            <Box key={i} size={[0.6, 0.02, 0.01]} position={[-0.9, -0.25 + i * 0.06, 0.012]} mat="black" />
-          ))}
-        </group>
-      ))}
-      {[-6.5, 0, 6.5].flatMap((x) =>
-        [FRAME.zBack + 0.2, FRAME.zFront - 0.2].map((z) => (
-          <group key={`${x}${z}`} position={[x, FLOOR_Y, z]}>
-            <Cyl r={0.025} h={0.1} position={[0, 0.07, 0]} mat="steel" />
-            <Cyl r={0.08} h={0.03} position={[0, 0.015, 0]} mat="black" />
-          </group>
-        )),
-      )}
+      <Model name="frame_base" />
       {/* emergency stop on the front, right of the doors */}
       <group position={[6.55, bodyY + 0.25, FRAME.zFront]}>
-        <Box size={[0.22, 0.22, 0.08]} mat="white" color="#e2b521" />
-        <Cyl r={0.045} h={0.05} position={[0, 0, 0.06]} rotation={[Math.PI / 2, 0, 0]} mat="black" />
         {/* the mushroom head sits lower and glows while pressed */}
         <mesh position={[0, 0, estop ? 0.08 : 0.1]} rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.07, 0.075, 0.05, 20]} />
@@ -114,24 +94,9 @@ function GuardDoor({ side, open, visible }) {
 }
 
 export function Enclosure({ covers, doorsOpen }) {
-  const xs = [-FRAME.x, -FRAME.x / 3, FRAME.x / 3, FRAME.x];
-  const posts = [
-    ...xs.map((x) => [x, FRAME.zBack]),
-    [-FRAME.x, FRAME.zFront],
-    [FRAME.x, FRAME.zFront],
-  ];
   return (
     <group>
-      {posts.map(([x, z]) => (
-        <Box key={`${x}${z}`} size={[P, H, P]} position={[x, H / 2, z]} />
-      ))}
-      {[FRAME.zBack, FRAME.zFront].map((z) => (
-        <Box key={z} size={[W + P, P, P]} position={[0, H, z]} />
-      ))}
-      {[-FRAME.x, FRAME.x].map((x) => (
-        <Box key={x} size={[P, P, D]} position={[x, H, ZC]} />
-      ))}
-      <Box size={[W + P, P, P]} position={[0, 0.9, FRAME.zBack]} />
+      <Model name="frame_posts" />
       {covers && (
         <group>
           <Guard size={[W, H, 0.01]} position={[0, H / 2, FRAME.zBack]} />
@@ -139,7 +104,7 @@ export function Enclosure({ covers, doorsOpen }) {
           <Guard size={[0.01, H - 0.45, D]} position={[-FRAME.x, 0.45 + (H - 0.45) / 2, ZC]} />
           <Guard size={[0.01, H - 0.45, D]} position={[FRAME.x, 0.45 + (H - 0.45) / 2, ZC]} />
           <Guard size={[W, 0.01, D]} position={[0, H, ZC]} />
-          <Box size={[W + P, P, P]} position={[0, 0.9, FRAME.zFront]} />
+          <Model name="frame_front_rail" />
         </group>
       )}
       <GuardDoor side={-1} open={!!doorsOpen.FRONT_LEFT} visible={covers} />
@@ -192,11 +157,9 @@ const MODE_SCREEN = {
 export function HmiPendant({ mode }) {
   return (
     <group position={[FRAME.x - 0.6, 0, FRAME.zFront + 0.25]}>
-      <Box size={[0.08, 1.55, 0.08]} position={[0, 0.775, 0]} mat="aluDark" />
-      <Box size={[0.08, 0.08, 0.4]} position={[0, 1.55, -0.16]} mat="aluDark" />
+      <Model name="hmi_pendant" />
       <group position={[0, 1.55, 0.05]} rotation={[-0.25, -0.3, 0]}>
-        <Box size={[0.62, 0.46, 0.06]} mat="black" />
-        <mesh position={[0, 0, 0.031]}>
+        <mesh position={[0, 0, 0.033]}>
           <planeGeometry args={[0.54, 0.36]} />
           <meshStandardMaterial color={MODE_SCREEN[mode]} emissive={MODE_SCREEN[mode]} emissiveIntensity={0.9} />
         </mesh>
@@ -218,8 +181,7 @@ export function SignalTower({ mode }) {
   ];
   return (
     <group position={[-FRAME.x + 0.25, H + P / 2, FRAME.zBack + 0.25]}>
-      <Cyl r={0.06} h={0.04} position={[0, 0.02, 0]} mat="black" />
-      <Cyl r={0.025} h={0.14} position={[0, 0.1, 0]} mat="steel" />
+      <Model name="signal_tower" />
       {lamps.map((l) => (
         <group key={l.y} position={[0, l.y, 0]}>
           <mesh>
@@ -236,7 +198,6 @@ export function SignalTower({ mode }) {
           <Cyl r={0.077} h={0.02} position={[0, -0.09, 0]} mat="white" />
         </group>
       ))}
-      <Cyl r={0.077} h={0.03} position={[0, 0.725, 0]} mat="black" />
     </group>
   );
 }
