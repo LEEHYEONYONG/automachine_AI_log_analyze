@@ -1,0 +1,47 @@
+# Template filled in by k8s/ingest.sh. A Job runs to the end once, unlike a Deployment, which restarts what exits.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingest
+  namespace: automachine
+spec:
+  # Loading a run again replaces its rows, so one retry is safe.
+  backoffLimit: 1
+  # The finished Job and its log disappear after a day.
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      initContainers:
+        - name: wait-for-db
+          image: pgvector/pgvector:pg17
+          command: [sh, -c, "until pg_isready -q -U postgres -h db -p 5432; do sleep 2; done"]
+      containers:
+        - name: ingest
+          image: analysis-image
+          command: [python, -m, app.ingest, "RUN_IDS"]
+          envFrom:
+            - configMapRef:
+                name: analysis-config
+            - secretRef:
+                name: db-credentials
+          resources:
+            requests:
+              cpu: 200m
+              memory: 128Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          volumeMounts:
+            - name: logs
+              mountPath: /logs
+              readOnly: true
+      volumes:
+        - name: logs
+          hostPath:
+            path: /home/lhy/projects/automachine_AI_log_analyze/logs
+            type: Directory

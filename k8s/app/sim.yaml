@@ -17,6 +17,10 @@ metadata:
   namespace: automachine
 spec:
   replicas: 1
+  revisionHistoryLimit: 5
+  # Two simulators must never run at once (each would write its own run), so the old one stops first.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: sim
@@ -32,9 +36,37 @@ spec:
       containers:
         - name: sim
           image: localhost:5000/automachine-sim:dev
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
+          # Measured about 60 MiB at normal speed. CPU limit is generous because ×300 speed is CPU heavy.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /api/state
+              port: 8000
+            periodSeconds: 2
+            failureThreshold: 30
+          # A restart loses the running machine's state, so be slow to decide it is dead.
+          livenessProbe:
+            httpGet:
+              path: /api/state
+              port: 8000
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/state
+              port: 8000
+            periodSeconds: 5
+            timeoutSeconds: 3
           volumeMounts:
             - name: logs
               mountPath: /app/logs

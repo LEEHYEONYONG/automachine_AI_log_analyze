@@ -32,6 +32,31 @@ spec:
           image: pgvector/pgvector:pg17
           ports:
             - containerPort: 5432
+          # Memory beyond what queries need goes to the page cache, which the kernel gives back under the limit.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1536Mi
+          # First start or crash recovery can take a while, so liveness waits for this to pass.
+          startupProbe:
+            exec:
+              command: [sh, -c, 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            exec:
+              command: [sh, -c, 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: [sh, -c, 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 5
+            timeoutSeconds: 3
           env:
             - name: POSTGRES_USER
               valueFrom:

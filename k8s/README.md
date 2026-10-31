@@ -31,6 +31,41 @@ sudo k3s-killall.sh            # k3s 끄기 (systemctl stop만으로는 파드�
 
 주소는 http://127.0.0.1 입니다. Windows에서 `localhost`의 IPv6 경로는 막혀 있어서, 안 열리면 `127.0.0.1`로 접속합니다.
 
+## 버전과 되돌리기
+
+배포할 때마다 이미지에 커밋 번호로 태그를 붙입니다. 커밋 전 코드는 `커밋번호-dirty-시각`이 됩니다. 커밋이 같으면 태그도 같아서 파드를 바꾸지 않습니다.
+
+analysis와 web은 새 파드가 준비된 뒤에 옛 파드를 내립니다. 그래서 새 버전이 뜨지 못해도 옛 파드가 계속 응답합니다. sim은 둘이 동시에 돌면 안 되므로 옛 파드를 먼저 내리고, 그동안 끊기며 돌던 장비 상태는 사라집니다.
+
+```bash
+kubectl -n automachine rollout history deploy/analysis   # 지난 버전 보기
+kubectl -n automachine rollout undo deploy/analysis      # 직전 버전으로 되돌리기
+```
+
+되돌린 뒤 `deploy.sh`를 다시 실행하면 지금 코드로 배포됩니다.
+
+## 로그 적재
+
+`logs/`에는 시뮬레이터가 재시작할 때마다 생기는 라이브 런도 많아서, 적재할 런을 직접 지정합니다. 같은 런을 다시 적재하면 그 런의 기존 행을 지우고 새로 넣습니다.
+
+```bash
+bash k8s/ingest.sh 20261031_0800_7714b3   # 지정한 런
+bash k8s/ingest.sh --eval                 # eval/runs.csv의 33런
+```
+
+Job이 실패하면 `ingest.sh`는 최대 30분까지 기다린 뒤에 끝납니다. 오래 걸리면 `kubectl -n automachine get pods`로 확인합니다.
+
+## 상태 점검과 자원
+
+| 서비스 | 살아 있나 (실패하면 재시작) | 요청을 받아도 되나 (실패하면 트래픽 제외) | 메모리 제한 | 측정한 최대치 |
+|---|---|---|---|---|
+| db | `pg_isready` | `pg_isready` | 1536Mi | 약 280MB (복사 직후 853MB) |
+| sim | `/api/state` | `/api/state` | 512Mi | 약 60MB |
+| analysis | `/api/analysis/live` | `/api/analysis/ready` (DB 확인) | 1Gi | 약 100MB |
+| web | `/` | `/` | 64Mi | 약 13MB |
+
+analysis의 살아 있나 점검은 일부러 DB를 보지 않습니다. DB가 죽었을 때 앱을 재시작해도 소용없기 때문입니다. GPU는 k8s가 관리하지 않습니다 (Ollama가 클러스터 밖에 있음).
+
 ## 데이터
 
 k8s DB와 Compose DB는 따로입니다. 처음에 Compose DB를 복사했고, 이후 내용은 서로 반영되지 않습니다. `logs/`와 `ground_truth/`는 저장소 폴더를 그대로 씁니다.
