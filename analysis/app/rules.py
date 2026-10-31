@@ -46,16 +46,17 @@ LEAK_VACUUM_MIN = -80                   # 진공 중앙값이 이보다 높으�
 LEAK_PRESSURE_MIN = 238                 # 압력 중앙값이 이 이상이면 압력은 정상 → 공기 부족이 아님
 LEAK_DROP = 5                           # 진공 중앙값이 이만큼 이상 갑자기 약해지면 "급락"
 LEAK_DROP_LOOK = timedelta(minutes=10)  # 급락은 10분 전 값과 비교
-LEAK_MEMORY = timedelta(minutes=60)     # 급락이 있었으면 60분 동안은 무시 (공기 부족의 시작·회복 순간)
 
 
 def detect_vacuum_leak(run_id, samples):
     """진공이 천천히 약해지는데 압력은 정상이면 vacuum_leak.
-    진공 샘은 몇 시간에 걸쳐 서서히 약해지므로, 갑자기 약해진 경우(공기 부족)는 제외한다."""
+    진공 샘은 몇 시간에 걸쳐 서서히 약해지므로, 갑자기 약해진 경우(공기 부족)는 진공이 정상으로 돌아올 때까지 제외한다.
+    시간(예전 60분)으로 잊으면 기계가 오래 멈췄다 다시 돌 때 잘못 울린다 → eval/explore/rule2_long_stop.sh
+    한계: 공기 부족 중에 진짜 누설이 함께 시작되면 진공이 돌아오지 않아 못 잡는다."""
     results = []
     window = []            # 최근 20개 샘플
     past = deque()         # (시각, 진공 중앙값) 기록. 맨 앞이 "10분 전" 값이 되도록 유지
-    last_sudden = None     # 마지막으로 급락이 보인 시각
+    sudden = False         # 급락이 있었고 진공이 아직 정상으로 돌아오지 않았는지
     on = False             # 이미 외쳤는지 (켜지는 순간에만 기록)
 
     for s in samples:
@@ -74,15 +75,16 @@ def detect_vacuum_leak(run_id, samples):
         vac = statistics.median(x["fixture_vac_kpa"] for x in window)
         pres = statistics.median(x["disp_pressure_kpa"] for x in window)
 
-        # 10분 전 진공 중앙값과 비교해서 급락이면 시각을 기억
+        # 10분 전 진공 중앙값과 비교해서 급락이면 기억, 진공이 정상으로 돌아오면 잊음
         past.append((ts, vac))
         while len(past) >= 2 and past[1][0] <= ts - LEAK_DROP_LOOK:
             past.popleft()
         if past[0][0] <= ts - LEAK_DROP_LOOK and vac - past[0][1] >= LEAK_DROP:
-            last_sudden = ts
+            sudden = True
+        if vac <= LEAK_VACUUM_MIN:
+            sudden = False
 
-        recent_sudden = last_sudden is not None and ts - last_sudden <= LEAK_MEMORY
-        hit = vac > LEAK_VACUUM_MIN and pres >= LEAK_PRESSURE_MIN and not recent_sudden
+        hit = vac > LEAK_VACUUM_MIN and pres >= LEAK_PRESSURE_MIN and not sudden
 
         if hit and not on:
             results.append({
