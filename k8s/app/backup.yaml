@@ -1,0 +1,70 @@
+# A daily copy of the database in backups/ on this PC, newest three kept.
+# A copy only appears under its final name after pg_restore has read it back, so a cut-off dump never counts.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup
+  namespace: automachine
+spec:
+  schedule: "30 12 * * *"
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid
+  # k3s is off at times. If it comes back within 6 hours of the missed time, the backup still runs.
+  startingDeadlineSeconds: 21600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: backup
+              image: pgvector/pgvector:pg17
+              env:
+                - name: PGHOST
+                  value: db
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef: { name: db-credentials, key: DB_USER }
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef: { name: db-credentials, key: DB_PASS }
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef: { name: db-credentials, key: DB_NAME }
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  stamp=$(TZ=Asia/Seoul date +%Y%m%d_%H%M%S)
+                  tmp=/backups/.db_$stamp.tmp
+                  trap 'rm -f "$tmp"' EXIT
+                  pg_dump -Fc -f "$tmp"
+                  pg_restore --list "$tmp" > /dev/null
+                  mv "$tmp" "/backups/db_$stamp.dump"
+                  ls -1t /backups/db_*.dump | tail -n +4 | xargs -r rm -f
+                  ls -l /backups
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  cpu: "1"
+                  memory: 256Mi
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              hostPath:
+                path: /home/lhy/projects/automachine_AI_log_analyze/backups
+                type: Directory

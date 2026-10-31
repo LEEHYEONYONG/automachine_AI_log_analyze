@@ -6,6 +6,9 @@ __pycache__/
 logs/
 ground_truth/
 
+# made by the db-backup CronJob
+backups/
+
 # vendor manuals: reference only, do not redistribute
 docs/references/*
 !docs/references/README.md

@@ -44,6 +44,12 @@ kubectl -n automachine create configmap db-init --from-file=db/init \
 if ! kubectl -n automachine get secret ops-token >/dev/null 2>&1; then
   kubectl -n automachine create secret generic ops-token --from-literal=token="$(openssl rand -hex 16)"
 fi
+# The operations page's own DB login. It can see sizes and connection counts, not table contents.
+if ! kubectl -n automachine get secret ops-db >/dev/null 2>&1; then
+  kubectl -n automachine create secret generic ops-db --from-literal=password="$(openssl rand -hex 16)"
+fi
+# Must exist before the backup job's hostPath volume is mounted, and belong to this user rather than root.
+mkdir -p backups
 
 # The files say :dev; each deployment fills in its own version, and the changed tag starts the rolling update.
 for f in k8s/app/*.yaml; do
@@ -52,6 +58,13 @@ done
 kubectl -n automachine annotate deploy sim analysis web ops gpu-metrics kubernetes.io/change-cause="$TAG" --overwrite
 
 kubectl -n automachine rollout status statefulset/db --timeout=180s
+# The password is hex, so it is safe inside the SQL quotes.
+OPS_DB_PASS=$(kubectl -n automachine get secret ops-db -o jsonpath='{.data.password}' | base64 -d)
+kubectl -n automachine exec -i db-0 -- sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<SQL
+SELECT 'CREATE ROLE ops_reader LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ops_reader') \gexec
+ALTER ROLE ops_reader PASSWORD '$OPS_DB_PASS';
+SQL
+
 for name in sim analysis web ops gpu-metrics; do
   kubectl -n automachine rollout status deploy/$name --timeout=180s
 done

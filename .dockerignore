@@ -5,6 +5,7 @@ __pycache__
 web
 logs
 ground_truth
+backups
 docs/references
 .env
 k8s
