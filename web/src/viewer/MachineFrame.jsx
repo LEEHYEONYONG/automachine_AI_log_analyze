@@ -1,3 +1,4 @@
+import { MeshReflectorMaterial } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import { DoubleSide, MathUtils } from "three";
@@ -12,7 +13,7 @@ const ZC = (FRAME.zFront + FRAME.zBack) / 2;
 const H = FRAME.height;
 
 /** Factory floor with a yellow safety line around the machine. */
-export function Floor() {
+export function Floor({ reflective }) {
   const line = (size, pos) => (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[pos[0], FLOOR_Y + 0.002, pos[1]]}>
       <planeGeometry args={size} />
@@ -26,7 +27,20 @@ export function Floor() {
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_Y, 0]} receiveShadow>
         <planeGeometry args={[60, 60]} />
-        <meshStandardMaterial color="#1d2328" roughness={0.95} />
+        {reflective ? (
+          <MeshReflectorMaterial
+            color="#1d2328"
+            roughness={0.6}
+            metalness={0.6}
+            mirror={0.4}
+            blur={[200, 80]}
+            mixBlur={1}
+            mixStrength={1.5}
+            resolution={1024}
+          />
+        ) : (
+          <meshStandardMaterial color="#1d2328" roughness={0.95} />
+        )}
       </mesh>
       {line([2 * x, 0.08], [0, z0])}
       {line([2 * x, 0.08], [0, z1])}
@@ -130,6 +144,23 @@ export function Enclosure({ covers, doorsOpen }) {
       )}
       <GuardDoor side={-1} open={!!doorsOpen.FRONT_LEFT} visible={covers} />
       <GuardDoor side={1} open={!!doorsOpen.FRONT_RIGHT} visible={covers} />
+    </group>
+  );
+}
+
+/** LED bars under the roof, so the stations are lit from inside the enclosure. */
+export function InteriorLights() {
+  return (
+    <group>
+      {[-4.5, 0, 4.5].map((x) => (
+        <group key={x} position={[x, H - 0.08, ZC]}>
+          <mesh>
+            <boxGeometry args={[3.4, 0.03, 0.12]} />
+            <meshStandardMaterial color="#ffffff" emissive="#eef4ff" emissiveIntensity={2.5} toneMapped={false} />
+          </mesh>
+          <pointLight position={[0, -0.1, 0]} intensity={14} distance={9} color="#f4f7ff" />
+        </group>
+      ))}
     </group>
   );
 }

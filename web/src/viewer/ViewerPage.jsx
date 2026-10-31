@@ -13,13 +13,14 @@ function initialView() {
 
 export default function ViewerPage({ state }) {
   const [covers, setCovers] = useState(true);
+  const [effects, setEffects] = useState(true);
   const [view, setView] = useState(initialView);
   const fast = state.sim.speed > 10;
   const start = VIEWS[view].position;
   return (
     <main className="viewer">
       <Canvas shadows camera={{ position: [...start], fov: 40 }} dpr={[1, 2]}>
-        <Scene state={state} covers={covers} view={view} />
+        <Scene state={state} covers={covers} view={view} effects={effects} />
       </Canvas>
 
       <div className="viewer-overlay">
@@ -42,6 +43,10 @@ export default function ViewerPage({ state }) {
         <label className="toggle">
           <input type="checkbox" checked={covers} onChange={(e) => setCovers(e.target.checked)} />
           안전 커버
+        </label>
+        <label className="toggle" title="느리면 끄세요">
+          <input type="checkbox" checked={effects} onChange={(e) => setEffects(e.target.checked)} />
+          그래픽 효과
         </label>
       </div>
       <div className="viewer-help">드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동</div>
