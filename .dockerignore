@@ -6,3 +6,5 @@ web
 logs
 ground_truth
 docs/references
+.env
+k8s

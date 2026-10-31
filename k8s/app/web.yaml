@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: automachine
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: automachine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: localhost:5000/automachine-web:dev
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+---
+# Same routes as the Vite proxy in development. Traefik picks the longest matching path, so /api/analysis beats /api.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: automachine
+  namespace: automachine
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/analysis
+            pathType: Prefix
+            backend:
+              service:
+                name: analysis
+                port:
+                  number: 8000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: sim
+                port:
+                  number: 8000
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: sim
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 8080
