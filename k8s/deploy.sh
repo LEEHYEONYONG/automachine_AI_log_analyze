@@ -68,3 +68,7 @@ SQL
 for name in sim analysis web ops gpu-metrics; do
   kubectl -n automachine rollout status deploy/$name --timeout=180s
 done
+
+# The foreman's manual search needs this. Ollama may be off; the rest of the site works without it.
+kubectl -n automachine exec deploy/analysis -- python -m app.manual \
+  || echo "manual not loaded (is Ollama running?). Later: kubectl -n automachine exec deploy/analysis -- python -m app.manual"

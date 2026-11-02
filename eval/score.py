@@ -4,12 +4,14 @@
     python eval/score.py --split test # test 런 채점: 탐정을 다 만든 뒤 한 번만
     python eval/score.py --clock      # 예전 방식(시계 시간)으로 채점. 생산 시간 방식과 비교할 때
     python eval/score.py --method anomaly  # 이상 탐지 채점: 고장 이름은 안 보고, 고장 중에 울렸는지만 본다
+    python eval/score.py --method classify # 경비원 + 원인 분류 채점: 규칙처럼 고장 이름까지 맞혀야 정답
 """
 import argparse
 import csv
 import json
 import os
 import statistics
+import subprocess
 import urllib.request
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -63,6 +65,18 @@ def load_runs(split):
     return runs, len(wanted)
 
 
+def in_analysis(*command, stdin=None):
+    """analysis 컨테이너 안에서 명령을 실행해 출력을 돌려준다. k8s에서는
+    ANALYSIS_EXEC="kubectl -n automachine exec -i deploy/analysis --" 를 설정한다."""
+    prefix = os.environ.get("ANALYSIS_EXEC", "docker compose exec -T analysis").split()
+    return subprocess.run([*prefix, *command], input=stdin, check=True, capture_output=True).stdout
+
+
+def dev_periods():
+    """dev 런의 고장 구간과 종류. 학습과 공정 채점의 입력."""
+    return subprocess.run(["python3", "eval/normal_periods.py"], check=True, capture_output=True).stdout
+
+
 def ask_api(run_id, method):
     req = urllib.request.Request(f"{API}{run_id}?method={method}", method="POST")
     with urllib.request.urlopen(req) as res:
@@ -79,6 +93,7 @@ def score(runs, answers, by_name=True, clock=False):
     delays = defaultdict(list)    # 종류별 지연(분)
     false_alarms = defaultdict(int)
     details = []
+    unknown = 0
 
     for truth in runs:
         run_id = truth["run_id"]
@@ -94,6 +109,9 @@ def score(runs, answers, by_name=True, clock=False):
         misses = []
         miss_start = {}                                   # 종류별 마지막 오탐 묶음의 시작 시각
         for c in answers[run_id]:                         # 시각 순서
+            if by_name and c["fault_type"] == "unknown":  # 모른다는 답은 찾은 것도 오탐도 아니다 (README 3절)
+                unknown += 1
+                continue
             at = datetime.fromisoformat(c["detected_at"])
             hits = [f for f in faults if matches(f, c)
                     and f["start"] <= at and minutes_between(periods, f["start"], at, clock) <= WINDOW_MIN]
@@ -122,7 +140,7 @@ def score(runs, answers, by_name=True, clock=False):
                           if misses else ""))
 
     return {"found": found, "total": total, "delays": delays, "false_alarms": false_alarms, "details": details,
-            "all_found": sum(found.values()), "all_total": sum(total.values()),
+            "unknown": unknown, "all_found": sum(found.values()), "all_total": sum(total.values()),
             "all_delays": [x for v in delays.values() for x in v], "all_false": sum(false_alarms.values())}
 
 
@@ -144,13 +162,15 @@ def print_report(result, run_count):
         print("탐지율 -")
     print(f"지연 중앙값 {statistics.median(result['all_delays']):.0f}분" if result["all_delays"] else "지연 -")
     print(f"오탐 {result['all_false']}개 (런당 {result['all_false'] / run_count:.2f})")
+    if result["unknown"]:
+        print(f"모른다고 답함 {result['unknown']}개 (점수에 넣지 않음)")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", default="dev", choices=["dev", "test"])
     parser.add_argument("--clock", action="store_true", help="장비가 멈춘 시간도 포함해 잰다 (10/29 이전 방식)")
-    parser.add_argument("--method", default="rule", choices=["rule", "anomaly"])
+    parser.add_argument("--method", default="rule", choices=["rule", "anomaly", "classify"])
     args = parser.parse_args()
 
     runs, wanted = load_runs(args.split)
