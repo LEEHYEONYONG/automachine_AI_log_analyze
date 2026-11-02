@@ -12,6 +12,7 @@ from simulator.simulation import Simulation
 FRAME_S = 0.1          # how often state is pushed to the browser
 FLUSH_S = 1.0          # how often log files are flushed to disk
 MAX_SPEED = 1000.0
+STALL_S = 30.0         # no frame for this long means the machine has stopped moving
 
 
 class SimRunner:
@@ -28,6 +29,12 @@ class SimRunner:
         self.paused = False
         self._debt = 0.0
         self.session = None  # HmiSession, set by the app
+        self.last_frame: float | None = None  # when the real-time loop last ran; None without a loop
+
+    def loop_stalled(self) -> bool:
+        """The HTTP API keeps answering when the loop dies, so only this shows the machine has stopped moving.
+        A paused simulation still runs frames."""
+        return self.last_frame is not None and time.perf_counter() - self.last_frame > STALL_S
 
     def scenarios(self) -> list[str]:
         return sorted(p.stem for p in (self.root / "config" / "scenarios").glob("*.json"))
@@ -117,6 +124,7 @@ class SimRunner:
         while True:
             await asyncio.sleep(FRAME_S)
             now = time.perf_counter()
+            self.last_frame = now
             self.advance(now - last)
             last = now
             if now - last_flush >= FLUSH_S:

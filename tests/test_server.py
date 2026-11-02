@@ -1,10 +1,64 @@
+import asyncio
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from server.app import ROOT, create_app
+from server.app import ROOT, broadcast_to, create_app
+
+
+class FakeClient:
+    def __init__(self, stuck=False):
+        self.stuck = stuck
+        self.frames = []
+        self.closed = False
+
+    async def send_json(self, state):
+        if self.stuck:
+            await asyncio.Event().wait()   # like a browser that stopped reading: never finishes
+        self.frames.append(state)
+
+    async def close(self, code=1000):
+        self.closed = True
+
+
+class BroadcastTest(unittest.IsolatedAsyncioTestCase):
+    async def test_a_client_that_stops_reading_does_not_stop_the_others(self):
+        stuck, healthy = FakeClient(stuck=True), FakeClient()
+        clients = {stuck, healthy}
+        await asyncio.wait_for(broadcast_to(clients, {"n": 1}, timeout=0.05), 1)
+        self.assertEqual(healthy.frames, [{"n": 1}])
+        self.assertEqual(clients, {healthy})
+        self.assertTrue(stuck.closed)
+
+    async def test_no_clients(self):
+        await broadcast_to(set(), {"n": 1})
+
+
+class LiveCheckTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.app = create_app(ROOT, Path(self._tmp.name), seed=7, live=False)
+        self.client = TestClient(self.app)
+        self.client.__enter__()
+
+    def tearDown(self):
+        self.client.__exit__(None, None, None)
+        self._tmp.cleanup()
+
+    def test_ok_without_a_loop(self):
+        self.assertEqual(self.client.get("/api/live").status_code, 200)
+
+    def test_fresh_frame_is_ok(self):
+        self.app.state.runner.last_frame = time.perf_counter()
+        self.assertEqual(self.client.get("/api/live").status_code, 200)
+
+    def test_stopped_loop_fails_while_state_still_answers(self):
+        self.app.state.runner.last_frame = time.perf_counter() - 31
+        self.assertEqual(self.client.get("/api/live").status_code, 503)
+        self.assertEqual(self.client.get("/api/state").status_code, 200)
 
 
 class ServerTest(unittest.TestCase):
