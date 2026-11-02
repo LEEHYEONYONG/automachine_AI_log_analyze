@@ -83,7 +83,24 @@ docker compose exec -T db sh -c 'pg_dump -Fc --data-only --disable-triggers -U "
 ANALYSIS_API=http://127.0.0.1/api/analysis/runs/ python3 eval/score.py --split dev
 ```
 
-`eval/compare.py`의 공정 채점은 아직 Compose의 analysis 컨테이너를 씁니다.
+공정 채점과 반장 채점은 analysis 파드 안에서 학습을 돌리므로 `ANALYSIS_EXEC`도 필요합니다. 공정 채점은 약 1분 동안 파드 CPU를 많이 써서 HPA가 파드를 늘릴 수 있습니다.
+
+```bash
+export ANALYSIS_API=http://127.0.0.1/api/analysis/runs/
+export ANALYSIS_EXEC="kubectl -n automachine exec -i deploy/analysis --"
+python3 eval/compare.py
+python3 eval/score_foreman.py   # 사건마다 LLM을 불러 오래 걸립니다. 끊겼으면 --reuse
+```
+
+## 분류와 반장
+
+분류 모델(`analysis/app/classifier.json`)은 이미지에 들어갑니다. 매뉴얼은 `deploy.sh`가 배포 때마다 `manual_chunks`에 다시 넣습니다. 이때 Ollama가 꺼져 있으면 경고만 내고 넘어가므로, 나중에 다시 넣습니다.
+
+```bash
+kubectl -n automachine exec deploy/analysis -- python -m app.manual
+```
+
+반장 보고서는 한 건에 1분 안팎 걸립니다. Ollama가 꺼져 있으면 보고서만 503으로 실패하고, 규칙·경비원·분류는 그대로 동작합니다. 모델은 `LLM_MODEL` 환경 변수로 바꿉니다. GPU는 k8s가 나눠 주지 못하므로 medi-info 평가와 시간을 겹치지 않게 돌립니다.
 
 ## 운영 화면
 

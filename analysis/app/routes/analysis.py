@@ -1,12 +1,14 @@
 import json
 
+from datetime import datetime
 from typing import Literal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from ..database import get_db
-from .. import anomaly, rules
+from .. import anomaly, classify, foreman, rules
 
 router = APIRouter(
     prefix="/api/analysis",
@@ -14,16 +16,8 @@ router = APIRouter(
 )
 
 
-@router.post("/runs/{run_id}")
-def analyze_run(run_id: str, method: Literal["rule", "anomaly"] = "rule", db: Session = Depends(get_db)):
-    """런 하나를 분석해 고장 후보를 찾고 analysis_results에 저장한다.
-    method=rule은 규칙 7개(고장 이름까지), method=anomaly는 이상 탐지(평소와 다른 값만).
-    같은 런을 같은 방법으로 다시 분석하면 이전 결과는 지우고 새로 쓴다."""
-    run = db.execute(text("SELECT machine_info->'recipes' AS recipes FROM runs WHERE run_id = :r"),
-                     {"r": run_id}).first()
-    if run is None:
-        raise HTTPException(status_code=404, detail=f"run not found: {run_id}")
-
+def rule_candidates(db, run_id, recipes):
+    """규칙 7개를 한 런에 돌린다."""
     sensors = db.execute(text("""
         SELECT ts, mode, disp_valve_open, disp_pressure_kpa, fixture_vac_kpa
         FROM sensor_trend WHERE run_id = :r ORDER BY ts
@@ -32,34 +26,138 @@ def analyze_run(run_id: str, method: Literal["rule", "anomaly"] = "rule", db: Se
         SELECT start_time, recipe, bead_width_mm, bead_offset_mm, disp_pressure_kpa, ng_reason
         FROM production WHERE run_id = :r ORDER BY start_time
     """), {"r": run_id}).mappings().all()
-    recipe_changes = db.execute(text("""
+    changes = db.execute(text("""
         SELECT ts, attrs FROM events
         WHERE run_id = :r AND unit = 'HMI' AND message LIKE 'Recipe parameter changed%' ORDER BY ts
     """), {"r": run_id}).mappings().all()
+    return (rules.detect_air_supply_drop(run_id, sensors)
+            + rules.detect_vacuum_leak(run_id, sensors)
+            + rules.detect_nozzle_clog(run_id, parts)
+            + rules.detect_recipe_error(run_id, changes, recipes)
+            + rules.detect_air_bubble(run_id, parts)
+            + rules.detect_needle_offset(run_id, parts)
+            + rules.detect_needle_tip_buildup(run_id, parts, changes, recipes))
 
-    if method == "anomaly":
-        profile = anomaly.load_profile()
-        if not profile:
-            raise HTTPException(status_code=503, detail="평소 모습이 아직 없음: app.train_anomaly를 먼저 실행")
-        candidates = anomaly.detect_anomaly(run_id, parts, sensors, profile)
+
+def _require_run(db, run_id):
+    if not db.execute(text("SELECT 1 FROM runs WHERE run_id = :r"), {"r": run_id}).first():
+        raise HTTPException(status_code=404, detail=f"run not found: {run_id}")
+
+
+def _require_profile():
+    profile = anomaly.load_profile()
+    if not profile:
+        raise HTTPException(status_code=503, detail="평소 모습이 아직 없음: app.train_anomaly를 먼저 실행")
+    return profile
+
+
+def _require_model():
+    model = classify.load_model()
+    if not model:
+        raise HTTPException(status_code=503, detail="분류 모델이 아직 없음: app.train_classifier를 먼저 실행")
+    return model
+
+
+@router.post("/runs/{run_id}")
+def analyze_run(run_id: str, method: Literal["rule", "anomaly", "classify"] = "rule", db: Session = Depends(get_db)):
+    """런 하나를 분석해 고장 후보를 찾고 analysis_results에 저장한다.
+    method=rule은 규칙 7개(고장 이름까지), method=anomaly는 이상 탐지(평소와 다른 값만),
+    method=classify는 이상 탐지가 울린 순간을 결정 트리가 분류(고장 이름까지).
+    같은 런을 같은 방법으로 다시 분석하면 이전 결과는 지우고 새로 쓴다."""
+    _require_run(db, run_id)
+    if method == "rule":
+        ctx = classify.load_context(db, run_id)
+        candidates = rule_candidates(db, run_id, ctx["recipes"])
     else:
-        candidates = (rules.detect_air_supply_drop(run_id, sensors)
-                      + rules.detect_vacuum_leak(run_id, sensors)
-                      + rules.detect_nozzle_clog(run_id, parts)
-                      + rules.detect_recipe_error(run_id, recipe_changes, run.recipes or {})
-                      + rules.detect_air_bubble(run_id, parts)
-                      + rules.detect_needle_offset(run_id, parts)
-                      + rules.detect_needle_tip_buildup(run_id, parts, recipe_changes, run.recipes or {}))
+        profile = _require_profile()
+        ctx = classify.load_context(db, run_id)
+        if method == "anomaly":
+            candidates = anomaly.detect_anomaly(run_id, ctx["parts"], ctx["sensors"], profile)
+        else:
+            candidates = classify.classify_run(ctx, profile, _require_model())
     candidates.sort(key=lambda c: c["detected_at"])
 
     db.execute(text("DELETE FROM analysis_results WHERE run_id = :r AND method = :m"),
                {"r": run_id, "m": method})
     for c in candidates:
         db.execute(text("""
-            INSERT INTO analysis_results (run_id, method, predicted_cause, detected_at, evidence)
-            VALUES (:r, :m, :cause, :at, CAST(:evidence AS jsonb))
-        """), {"r": run_id, "m": method, "cause": c["fault_type"],
-               "at": c["detected_at"], "evidence": json.dumps(c["evidence"])})
+            INSERT INTO analysis_results (run_id, method, predicted_cause, detected_at, confidence, evidence)
+            VALUES (:r, :m, :cause, :at, :confidence, CAST(:evidence AS jsonb))
+        """), {"r": run_id, "m": method, "cause": c["fault_type"], "at": c["detected_at"],
+               "confidence": c.get("confidence"), "evidence": json.dumps(c["evidence"])})
     db.commit()
 
     return {"run_id": run_id, "method": method, "count": len(candidates), "candidates": candidates}
+
+
+def _incidents(db, run_id):
+    """규칙·경비원 경보를 사건으로 묶고, 첫 경보 순간의 분류 의견과 코드가 정한 원인을 붙인다."""
+    _require_run(db, run_id)
+    profile = _require_profile()
+    ctx = classify.load_context(db, run_id)
+    guard = anomaly.detect_anomaly(run_id, ctx["parts"], ctx["sensors"], profile)
+    incidents = foreman.incidents(rule_candidates(db, run_id, ctx["recipes"]), guard)
+
+    model = classify.load_model()
+    if model:
+        pairs = classify.alert_snapshots(ctx, profile)
+        for incident in incidents:
+            first = next((row for alert, row in pairs if alert["detected_at"] >= incident["started_at"]
+                          and alert["detected_at"] <= incident["last_at"]), None)
+            if first:
+                name, confidence = classify.predict(model, first)
+                incident["tree_guess"] = name if confidence >= classify.MIN_CONFIDENCE else classify.UNKNOWN
+                incident["tree_confidence"] = round(confidence, 2)
+    for incident in incidents:
+        incident["cause"], incident["basis"] = foreman.decide(ctx, incident, incident.get("tree_guess"))
+        incident["cause_label"] = foreman.FAULT_NAMES[incident["cause"]]
+    return ctx, incidents
+
+
+@router.get("/runs/{run_id}/incidents")
+def list_incidents(run_id: str, db: Session = Depends(get_db)):
+    """이 런의 사건 목록과 이미 쓴 반장 보고서."""
+    _, incidents = _incidents(db, run_id)
+    saved = db.execute(text("""
+        SELECT detected_at, predicted_cause, report, evidence, model, created_at FROM analysis_results
+        WHERE run_id = :r AND method = 'foreman'
+    """), {"r": run_id}).mappings().all()
+    by_time = {s["detected_at"]: s for s in saved}
+    for incident in incidents:
+        s = by_time.get(incident["started_at"])
+        incident["report"] = _saved_view(s) if s else None
+    return {"run_id": run_id, "incidents": incidents}
+
+
+def _saved_view(saved):
+    return {**saved["evidence"], "cause": saved["predicted_cause"], "report": saved["report"],
+            "model": saved["model"], "written_at": saved["created_at"]}
+
+
+@router.post("/runs/{run_id}/incidents/report")
+def write_report(run_id: str, at: datetime, db: Session = Depends(get_db)):
+    """사건 하나의 기록을 반장(LLM)이 조회해 설명을 쓰고 저장한다. 1분 안팎 걸린다. at은 사건의 첫 경보 시각.
+    원인은 코드가 이미 정했으며 LLM이 바꾸지 못한다."""
+    ctx, incidents = _incidents(db, run_id)
+    incident = next((i for i in incidents if i["started_at"] == at), None)
+    if incident is None:
+        raise HTTPException(status_code=404, detail=f"그 시각에 시작한 사건이 없음: {at}")
+    db.commit()   # LLM을 기다리는 동안 읽기 트랜잭션을 열어 두지 않는다
+
+    try:
+        result = foreman.run(db, ctx, incident)
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
+        # 반장이 없어도 규칙·경비원 결과는 그대로 볼 수 있다. 이 요청만 실패로 돌려준다.
+        raise HTTPException(status_code=503, detail=f"반장이 답하지 못함: {type(e).__name__}") from None
+
+    db.execute(text("DELETE FROM analysis_results WHERE run_id = :r AND method = 'foreman' AND detected_at = :at"),
+               {"r": run_id, "at": at})
+    evidence = {k: result[k] for k in ("cause_label", "basis", "reasoning", "doubts", "actions", "tools_called",
+                                       "manual_sections", "unverified_numbers", "other_causes")}
+    db.execute(text("""
+        INSERT INTO analysis_results (run_id, method, predicted_cause, detected_at, evidence, report, model)
+        VALUES (:r, 'foreman', :cause, :at, CAST(:evidence AS jsonb), :report, :model)
+    """), {"r": run_id, "cause": result["cause"], "at": at, "evidence": json.dumps(evidence, ensure_ascii=False),
+           "report": result["report"], "model": result["model"]})
+    db.commit()
+    return {"run_id": run_id, "started_at": at, **result}

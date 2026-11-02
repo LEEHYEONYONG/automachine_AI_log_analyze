@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -11,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from faults import FAULT_TYPES
-from server.runner import SimRunner
+from server.runner import STALL_S, SimRunner
 from server.session import AccessDenied, HmiSession
 from simulator.alarms import ALARMS
 from simulator.manual import InterlockError
@@ -20,6 +21,34 @@ from simulator.operator import ACTION_MINUTES
 
 ROOT = Path(__file__).resolve().parent.parent
 MAINTENANCE_ACTIONS = [a for a in ACTION_MINUTES if a not in ("check", "none", "model_change")]
+SEND_TIMEOUT_S = 1.0   # a browser that takes longer than this to read one frame is disconnected
+
+log = logging.getLogger("uvicorn.error")
+
+
+async def _disconnect(ws: WebSocket) -> None:
+    """Ask a slow client to go away. The browser reconnects by itself when it wakes up."""
+    with contextlib.suppress(Exception):
+        await asyncio.wait_for(ws.close(code=1013), SEND_TIMEOUT_S)
+
+
+async def broadcast_to(clients: set[WebSocket], state: dict, timeout: float = SEND_TIMEOUT_S) -> None:
+    """Send one frame to every browser. The simulation loop waits for this, so without the timeout one
+    tab that stops reading (frozen page, sleeping PC) stops the whole machine while HTTP keeps answering."""
+    async def send(ws: WebSocket) -> None:
+        try:
+            await asyncio.wait_for(ws.send_json(state), timeout)
+        except Exception:
+            clients.discard(ws)
+            await _disconnect(ws)
+
+    await asyncio.gather(*(send(ws) for ws in list(clients)))
+
+
+def _log_if_failed(task: asyncio.Task) -> None:
+    """Without this, an error in the simulation loop stops the machine and leaves no trace in the log."""
+    if not task.cancelled() and task.exception():
+        log.error("simulation loop stopped", exc_info=task.exception())
 
 
 class MaintenanceRequest(BaseModel):
@@ -101,16 +130,14 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
     clients: set[WebSocket] = set()
 
     async def broadcast(state: dict) -> None:
-        for ws in list(clients):
-            try:
-                await ws.send_json(state)
-            except Exception:
-                clients.discard(ws)
+        await broadcast_to(clients, state)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         runner.new_run()
         task = asyncio.create_task(runner.run_forever(broadcast)) if live else None
+        if task:
+            task.add_done_callback(_log_if_failed)
         yield
         if task:
             task.cancel()
@@ -122,6 +149,14 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
     app.state.runner = runner
 
     # All handlers are async so they run on the same event loop as the simulation; no locking needed.
+
+    @app.get("/api/live")
+    async def live_check():
+        """k8s liveness: is the machine still moving? A restart loses the live state, but a stopped loop has lost it already."""
+        if runner.loop_stalled():
+            log.error("simulation loop has not run for %.0f s", STALL_S)
+            raise HTTPException(503, "simulation loop stopped")
+        return {"status": "ok"}
 
     @app.get("/api/state")
     async def get_state():

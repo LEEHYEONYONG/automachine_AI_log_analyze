@@ -54,9 +54,10 @@ spec:
             periodSeconds: 2
             failureThreshold: 30
           # A restart loses the running machine's state, so be slow to decide it is dead.
+          # /api/state keeps answering after the simulation loop stops; /api/live checks the loop itself.
           livenessProbe:
             httpGet:
-              path: /api/state
+              path: /api/live
               port: 8000
             periodSeconds: 20
             timeoutSeconds: 5
