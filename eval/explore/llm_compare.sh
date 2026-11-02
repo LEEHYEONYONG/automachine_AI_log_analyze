@@ -3,6 +3,7 @@
 #   bash eval/explore/llm_compare.sh hermes3:8b qwen2.5:7b-instruct-q4_K_M
 #   LIMIT=2 bash eval/explore/llm_compare.sh hermes3:8b   # 모델마다 2건만 시험
 # 결과는 ~/llm_compare/<모델>.jsonl에 쌓이고, 끊겨도 다시 실행하면 이어서 돈다. 메모리 기록은 ~/llm_compare/memory.log
+# claude-로 시작하는 모델은 ~/llm_compare/anthropic.env의 키를 쓰고, MAX_USD(기본 8달러)를 넘으면 멈춘다.
 cd "$(dirname "$0")/../.." || exit 1
 OUT=$HOME/llm_compare
 mkdir -p "$OUT"
@@ -19,7 +20,8 @@ sleep 3
 in_container() {
   docker run --rm -i --network host --user "$(id -u):$(id -g)" -v "$PWD/analysis:/app" -v "$OUT:/out" \
     -e DB_USER="$DB_USER" -e DB_PASS="$DB_PASS" -e DB_NAME="$DB_NAME" -e DB_HOST=127.0.0.1 -e DB_PORT=15432 \
-    -e OLLAMA_URL=http://127.0.0.1:11434 -e LIMIT="${LIMIT:-0}" "$IMAGE" "$@"
+    -e OLLAMA_URL=http://127.0.0.1:11434 -e LIMIT="${LIMIT:-0}" -e MAX_USD="${MAX_USD:-8}" \
+    ${ENV_FILE:+--env-file "$ENV_FILE"} "$IMAGE" "$@"
 }
 
 # 런 하나씩 빼고 배운 분류 의견은 모델 비교에서 공통이므로 한 번만 만든다.
@@ -29,5 +31,12 @@ fi
 
 for model in "$@"; do
   echo "== $model"
-  in_container python -m app.llm_compare "$model" "/out/${model%%:*}.jsonl" < "$OUT/fair.json" || echo "failed: $model"
+  if [[ $model == claude-* ]]; then
+    # 키는 이 실행에만 넘기고, SDK도 제품 이미지에 넣지 않는다.
+    ENV_FILE=$OUT/anthropic.env in_container sh -c \
+      'pip install -q --no-cache-dir --target /tmp/pkgs anthropic==2.3.0 && PYTHONPATH=/tmp/pkgs python -m app.llm_compare "$0" "$1"' \
+      "$model" "/out/$model.jsonl" < "$OUT/fair.json" || echo "failed: $model"
+  else
+    in_container python -m app.llm_compare "$model" "/out/${model%%:*}.jsonl" < "$OUT/fair.json" || echo "failed: $model"
+  fi
 done

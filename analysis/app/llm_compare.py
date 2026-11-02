@@ -93,14 +93,24 @@ def ask(db, ctx, incident, guess):
 def main():
     model, out = sys.argv[1], Path(sys.argv[2])
     limit = int(os.environ.get("LIMIT", 0))
+    max_usd = float(os.environ.get("MAX_USD", 0))   # 클라우드 모델의 이 파일 누적 비용 상한. 넘으면 멈춘다
     foreman.LLM_MODEL = model
+    if model.startswith("claude-"):
+        from . import llm_compare_claude    # 비교할 때만 필요한 패키지라 여기서 읽는다
+
+        def answer(db, ctx, incident, guess):
+            return llm_compare_claude.ask(db, ctx, incident, guess, model)
+    else:
+        answer = ask
     fair = json.load(sys.stdin)
     profile = anomaly.load_profile()
 
     done = set()
+    spent = 0.0
     if out.exists():
         for line in out.read_text(encoding="utf-8").splitlines():
             row = json.loads(line)
+            spent += row.get("cost_usd", 0)
             if not row.get("error"):       # 오류가 난 사건은 다시 돌린다
                 done.add((row["run_id"], row["at"]))
 
@@ -118,13 +128,17 @@ def main():
                     continue
                 if limit and count >= limit:
                     return
+                if max_usd and spent >= max_usd:
+                    print(f"비용 상한 ${max_usd}에 도달해 멈춤 (누적 ${spent:.2f})", flush=True)
+                    return
                 count += 1
                 guess = fair_guess(answers, incident)
                 row = {"model": model, "run_id": run_id, "at": at, "tree": guess,
                        "rule": incident["rule_names"][0] if incident["rule_names"] else None}
                 started = time.time()
                 try:
-                    row.update(ask(db, ctx, incident, guess))
+                    row.update(answer(db, ctx, incident, guess))
+                    spent += row.get("cost_usd", 0)
                 except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
                     row["error"] = f"{type(e).__name__}: {e}"[:200]
                 row["seconds"] = round(time.time() - started, 1)

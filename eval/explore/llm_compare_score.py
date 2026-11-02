@@ -58,3 +58,6 @@ for model, rows in results.items():
     if seconds:
         print(f"- 사건당 시간 중앙값 {seconds[len(seconds) // 2]}초, 최대 {seconds[-1]}초")
     print(f"- 고른 이름: {dict(Counter(r['cause'] for r in good).most_common())}")
+    if any("cost_usd" in r for r in good):
+        print(f"- 계산 비용 ${sum(r.get('cost_usd', 0) for r in good):.2f} (실제 청구는 Console 기준), "
+              f"실제 답한 모델 {dict(Counter(m for r in good for m in r.get('served_by', [])))}")
