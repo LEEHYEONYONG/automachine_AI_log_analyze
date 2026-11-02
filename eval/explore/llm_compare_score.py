@@ -12,13 +12,15 @@ sys.path.insert(0, "eval")
 from score import load_runs            # noqa: E402
 from score_foreman import active_faults, right   # noqa: E402
 
-truths = {t["run_id"]: t for t in load_runs("dev")[0]}
+SPLIT = "test" if any(name.endswith(".test.jsonl") for name in sys.argv[1:]) else "dev"
+truths = {t["run_id"]: t for t in load_runs(SPLIT)[0]}
+print(f"[{SPLIT}]")
 results = {}
 for name in sys.argv[1:]:
     rows = {}
     for line in Path(name).read_text(encoding="utf-8").splitlines():
         row = json.loads(line)
-        if row["run_id"] in truths:    # dev가 아닌 런이 섞이면 뺀다
+        if row["run_id"] in truths:    # 다른 split의 런이 섞이면 뺀다
             rows[(row["run_id"], row["at"])] = row
     results[Path(name).stem] = rows
 
