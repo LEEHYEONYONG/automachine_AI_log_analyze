@@ -1,0 +1,12 @@
+# Everything both environments share. The differences live in k8s/overlays/<env>; deploy.sh builds one of them.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - db.yaml
+  - sim.yaml
+  - analysis.yaml
+  - web.yaml
+  - ops.yaml
+  - backup.yaml
+  - auto-eval.yaml

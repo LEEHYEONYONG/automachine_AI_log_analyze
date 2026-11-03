@@ -1,0 +1,8 @@
+# Day-to-day development: the shared settings as they are, one pod each, daily scoring on.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../app
+labels:
+  - pairs:
+      automachine/env: dev

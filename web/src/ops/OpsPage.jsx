@@ -8,6 +8,7 @@ const STORAGE_MS = 30000; // sizes change slowly, and adding up the logs reads e
 const DEPLOYMENTS_MS = 3000;
 const AUTOSCALE_MS = 2000;
 const TRAFFIC_MS = 15000; // the API reads Traefik this often, so asking more often shows nothing new
+const SCORES_MS = 5000; // to see a started run finish; the files are small
 const BACKUP_STALE_S = 36 * 3600; // a daily backup, plus room for the PC having been off
 const WATCH_MS = 500; // while a kill is being followed
 
@@ -251,10 +252,14 @@ function VersionTag({ version }) {
   );
 }
 
-function DeploymentsPanel({ data, error }) {
+function DeploymentsPanel({ data, error, onAction }) {
   return (
     <section className="panel">
       <h2>배포 현황</h2>
+      <p className="hint">
+        재시작은 같은 버전의 새 파드로 하나씩 교체하고, 되돌리기는 직전 버전으로 다시 배포합니다. 웹 화면과 AI 분석만 할 수 있고, 교체하는
+        동안 옛 파드가 계속 응답합니다.
+      </p>
       {!data && <p className="hint">{error ?? "불러오는 중…"}</p>}
       {data && (
         <div className="table-wrap">
@@ -266,6 +271,7 @@ function DeploymentsPanel({ data, error }) {
                 <th>새 버전 준비</th>
                 <th>마지막 변경</th>
                 <th>현재 버전과 이력</th>
+                <th>조작</th>
               </tr>
             </thead>
             <tbody>
@@ -298,6 +304,25 @@ function DeploymentsPanel({ data, error }) {
                       </details>
                     )}
                   </td>
+                  <td>
+                    {d.can_change ? (
+                      <div className="ops-actions">
+                        <button className="btn-text" disabled={d.state !== "완료"} onClick={() => onAction({ kind: "restart", deployment: d })}>
+                          재시작
+                        </button>
+                        <button
+                          className="btn-text"
+                          disabled={d.state !== "완료" || !d.rollback_to}
+                          title={d.rollback_to ? `#${d.rollback_to.revision} ${d.rollback_to.version}` : "이전 버전이 없음"}
+                          onClick={() => onAction({ kind: "rollback", deployment: d })}
+                        >
+                          되돌리기
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="muted small">-</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -305,6 +330,152 @@ function DeploymentsPanel({ data, error }) {
         </div>
       )}
     </section>
+  );
+}
+
+const METHOD_NAME = { rule: "규칙", anomaly: "경비원 (이름 없음)", classify: "경비원 + 분류" };
+const JOB_TONE = { 성공: "ok", "실행 중": "warn", 대기: "warn", 실패: "ng" };
+
+function ratio(a, b) {
+  return b ? `${a}/${b}` : "-";
+}
+
+/** Daily scores from the auto-eval CronJob. Each day is new runs the analyzer has never seen. */
+function ScoresPanel({ data, error, onRun }) {
+  if (!data) return <section className="panel"><h2>매일 자동 채점</h2><p className="hint">{error ?? "불러오는 중…"}</p></section>;
+  const { days, totals, runs, schedule } = data;
+  const job = schedule.last_job;
+  return (
+    <section className="panel">
+      <div className="ops-panel-head">
+        <h2>매일 자동 채점</h2>
+        <button className="btn" disabled={schedule.running} onClick={onRun}>
+          {schedule.running ? "채점 중…" : "지금 채점"}
+        </button>
+      </div>
+      <p className="hint">
+        매일 {schedule.schedule === "0 13 * * *" ? "13:00" : schedule.schedule}에 처음 보는 런 3개를 새로 만들어 적재하고 채점합니다. PC가 꺼져
+        있었으면 켜진 뒤 6시간 안에 실행됩니다. 원인은 코드가 정하므로 LLM은 채점에 쓰지 않습니다.
+      </p>
+      {schedule.error && <p className="hint analysis-error">{schedule.error}</p>}
+      {job && (
+        <p className="small">
+          마지막 실행: <span className={`ops-dot ops-${JOB_TONE[job.state] ?? "warn"}`} /> {job.state} · {age(job.age_s)} 전
+          {job.manual && " · 손으로 실행"}
+        </p>
+      )}
+      {days.length === 0 ? (
+        <p className="hint">아직 채점 결과가 없습니다.</p>
+      ) : (
+        <>
+          <h3 className="ops-subhead">누적 {days.length}일, 런 {runs}개</h3>
+          <div className="table-wrap">
+            <table className="alarm-table">
+              <thead>
+                <tr>
+                  <th>방법</th>
+                  <th>찾은 고장</th>
+                  <th>오탐</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(METHOD_NAME).map(([key, label]) => (
+                  <tr key={key}>
+                    <td>{label}</td>
+                    <td className="mono">{ratio(totals[key].found, totals[key].total)}</td>
+                    <td className="mono">{totals[key].false_alarms}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="small">
+            사건 {totals.cause.incidents}개의 원인: 코드 판단 {totals.cause.decision}개, 규칙의 첫 이름 {totals.cause.rule_first}개 맞힘
+          </p>
+          <h3 className="ops-subhead">날짜별</h3>
+          <div className="table-wrap">
+            <table className="alarm-table">
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th>시나리오</th>
+                  <th>규칙</th>
+                  <th>경비원</th>
+                  <th>원인 (코드)</th>
+                  <th>놓친 고장</th>
+                </tr>
+              </thead>
+              <tbody>
+                {days.map((d) => (
+                  <tr key={d.day}>
+                    <td className="mono">{d.day}</td>
+                    <td className="small">{d.scenarios.join(", ")}</td>
+                    <td className="mono">
+                      {ratio(d.detection.rule.found, d.detection.rule.total)} · 오탐 {d.detection.rule.false_alarms}
+                    </td>
+                    <td className="mono">
+                      {ratio(d.detection.anomaly.found, d.detection.anomaly.total)} · 오탐 {d.detection.anomaly.false_alarms}
+                    </td>
+                    <td className="mono">{ratio(d.cause.decision, d.cause.incidents)}</td>
+                    <td className="small">{Object.keys(d.detection.rule.missed).join(", ") || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+const ACTION_TEXT = {
+  restart: (a) => ({
+    title: `${SERVICE_LABEL[a.deployment.name] ?? a.deployment.name}를 재시작할까요?`,
+    text: "같은 버전의 새 파드를 띄운 뒤 옛 파드를 내립니다. 교체하는 동안 옛 파드가 응답합니다.",
+    confirm: "재시작",
+  }),
+  rollback: (a) => ({
+    title: `${SERVICE_LABEL[a.deployment.name] ?? a.deployment.name}를 되돌릴까요?`,
+    text: `현재 ${a.deployment.version}에서 직전 버전 #${a.deployment.rollback_to.revision} ${a.deployment.rollback_to.version}로 다시 배포합니다. 한 번 더 누르면 지금 버전으로 돌아옵니다.`,
+    confirm: "되돌리기",
+  }),
+  score: () => ({
+    title: "지금 채점할까요?",
+    text: "오늘 날짜의 런 3개를 만들고(이미 있으면 그대로 사용) 적재한 뒤 채점합니다. 1분쯤 걸립니다.",
+    confirm: "채점 시작",
+  }),
+};
+
+function TokenDialog({ action, onCancel, onConfirm, busy, error }) {
+  const [token, setToken] = useState("");
+  const { title, text, confirm } = ACTION_TEXT[action.kind](action);
+  return (
+    <div className="dialog-backdrop">
+      <form
+        className="dialog"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onConfirm(token);
+        }}
+      >
+        <h2>{title}</h2>
+        <p className="hint">{text}</p>
+        <label className="field">
+          운영 토큰
+          <input id="ops-action-token" type="password" value={token} autoFocus autoComplete="off" onChange={(e) => setToken(e.target.value)} />
+        </label>
+        {error && <p className="hint analysis-error">{error}</p>}
+        <div className="dialog-actions">
+          <button type="button" className="btn-text" onClick={onCancel}>
+            취소
+          </button>
+          <button className="btn" disabled={!token || busy}>
+            {busy ? "요청 중…" : confirm}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -684,6 +855,11 @@ export function OpsPage() {
   const { data: rollouts, error: rolloutsError } = usePolling(`${API}/deployments`, DEPLOYMENTS_MS);
   const { data: autoscale, error: autoscaleError } = usePolling(`${API}/autoscale`, AUTOSCALE_MS);
   const { data: traffic, error: trafficError } = usePolling(`${API}/traffic`, TRAFFIC_MS);
+  const { data: scores, error: scoresError } = usePolling(`${API}/scores`, SCORES_MS);
+  const [action, setAction] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionDone, setActionDone] = useState(null);
   const [loadDialog, setLoadDialog] = useState(false);
   const [loadBusy, setLoadBusy] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -720,6 +896,36 @@ export function OpsPage() {
     setStopError("멈추지 못했습니다. 다시 눌러 보세요. 시간이 다 되면 저절로 끝납니다.");
   };
 
+  const openAction = (next) => {
+    setActionError(null);
+    setActionDone(null);
+    setAction(next);
+  };
+
+  const runAction = async (token) => {
+    const path =
+      action.kind === "score" ? `${API}/scores/run` : `${API}/services/${action.deployment.name}/${action.kind}`;
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch(path, { method: "POST", headers: { "X-Ops-Token": token } });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail ?? `응답 ${res.status}`);
+      setActionDone(
+        action.kind === "score"
+          ? `채점 작업 ${body.job}을 시작했습니다. 끝나면 아래 표에 나타납니다.`
+          : action.kind === "restart"
+            ? `${SERVICE_LABEL[body.restarted] ?? body.restarted} 재시작을 시작했습니다. 배포 현황에서 진행을 볼 수 있습니다.`
+            : `${SERVICE_LABEL[body.rolled_back] ?? body.rolled_back}를 #${body.to_revision} ${body.version}로 되돌리는 중입니다.`,
+      );
+      setAction(null);
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const startLoad = async (token) => {
     setLoadBusy(true);
     setLoadError(null);
@@ -738,7 +944,9 @@ export function OpsPage() {
   return (
     <main className="console">
       {overviewError && overview && <p className="hint analysis-error">최신 상태를 가져오지 못했습니다: {overviewError}</p>}
+      {actionDone && <p className="hint ops-done">{actionDone}</p>}
       <InfraPanel infra={infra} error={infraError} />
+      <ScoresPanel data={scores} error={scoresError} onRun={() => openAction({ kind: "score" })} />
       <StoragePanel storage={storage} error={storageError} />
       <ServicesPanel
         overview={overview}
@@ -762,7 +970,7 @@ export function OpsPage() {
         }}
         onStop={stopLoad}
       />
-      <DeploymentsPanel data={rollouts} error={rolloutsError} />
+      <DeploymentsPanel data={rollouts} error={rolloutsError} onAction={openAction} />
       {logsPod && <LogsPanel pod={logsPod} onClose={() => setLogsPod(null)} />}
       <EventsPanel events={overview?.events} />
       {loadDialog && (
@@ -773,6 +981,9 @@ export function OpsPage() {
           onCancel={() => setLoadDialog(false)}
           onConfirm={startLoad}
         />
+      )}
+      {action && (
+        <TokenDialog action={action} busy={actionBusy} error={actionError} onCancel={() => setAction(null)} onConfirm={runAction} />
       )}
       {killing && (
         <KillDialog service={killing} busy={busy} error={killError} onCancel={() => setKilling(null)} onConfirm={kill} />

@@ -652,6 +652,12 @@ details ul { margin: 6px 0 0; padding-left: 18px; }
 .ops-history { margin-top: 4px; font-size: 12px; }
 .ops-history summary { cursor: pointer; color: var(--muted); }
 .ops-history .ops-list { margin: 4px 0 0; }
+.ops-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.ops-actions .btn-text { align-self: auto; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; }
+.ops-actions .btn-text:disabled { color: var(--muted); opacity: 0.5; cursor: not-allowed; }
+.ops-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ops-subhead { margin: 12px 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.ops-done { color: var(--ok); }
 .ops-rescales li { justify-content: flex-start; }
 .btn.ops-kill { padding: 3px 10px; font-size: 12px; background: var(--ng); }
 .ops-steps { margin: 0; padding-left: 20px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }

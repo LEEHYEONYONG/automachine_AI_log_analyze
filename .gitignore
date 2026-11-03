@@ -9,6 +9,9 @@ ground_truth/
 # made by the db-backup CronJob
 backups/
 
+# made by the auto-eval CronJob
+scores/
+
 # vendor manuals: reference only, do not redistribute
 docs/references/*
 !docs/references/README.md

@@ -6,6 +6,7 @@ web
 logs
 ground_truth
 backups
+scores
 docs/references
 .env
 k8s

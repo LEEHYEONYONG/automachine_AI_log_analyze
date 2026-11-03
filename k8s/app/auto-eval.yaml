@@ -1,0 +1,80 @@
+# Every day: make new runs, load them, then score the analyzer against their answers. Results go to scores/ on this PC.
+# Only the first and last steps see ground_truth/; the step that runs the analyzer's code never does.
+# Run it now: kubectl -n automachine create job --from=cronjob/auto-eval auto-eval-$(date +%m%d%H%M)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: auto-eval
+  namespace: automachine
+spec:
+  # After the 12:30 backup. The PC is often off at night, so a night schedule would rarely run.
+  schedule: "0 13 * * *"
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 21600
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # Every step can safely run again: existing runs are skipped, loading replaces rows, the score file is rewritten.
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          # Init containers run one after another, each only if the one before succeeded.
+          initContainers:
+            - name: make-runs
+              image: localhost:5000/automachine-sim:dev
+              command: [python, eval/auto_runs.py, /work/run_ids]
+              resources:
+                requests: { cpu: 200m, memory: 64Mi }
+                limits: { cpu: "1", memory: 256Mi }
+              volumeMounts:
+                - { name: logs, mountPath: /app/logs }
+                - { name: ground-truth, mountPath: /app/ground_truth }
+                - { name: work, mountPath: /work }
+            - name: wait-for-db
+              image: pgvector/pgvector:pg17
+              command: [sh, -c, "until pg_isready -q -U postgres -h db -p 5432; do sleep 2; done"]
+            - name: ingest
+              image: localhost:5000/automachine-analysis:dev
+              command: [sh, -c, "python -m app.ingest $(cat /work/run_ids)"]
+              envFrom:
+                - configMapRef: { name: analysis-config }
+                - secretRef: { name: db-credentials }
+              resources:
+                requests: { cpu: 200m, memory: 128Mi }
+                limits: { cpu: "2", memory: 1Gi }
+              volumeMounts:
+                - { name: logs, mountPath: /logs, readOnly: true }
+                - { name: work, mountPath: /work, readOnly: true }
+          containers:
+            - name: score
+              image: localhost:5000/automachine-sim:dev
+              command: [python, eval/auto_score.py, /work/run_ids, /app/scores]
+              env:
+                - { name: ANALYSIS_API, value: "http://analysis:8000/api/analysis/runs/" }
+                - { name: PYTHONPATH, value: /app/eval }
+              resources:
+                requests: { cpu: 100m, memory: 64Mi }
+                limits: { cpu: "1", memory: 256Mi }
+              volumeMounts:
+                - { name: logs, mountPath: /app/logs, readOnly: true }
+                - { name: ground-truth, mountPath: /app/ground_truth, readOnly: true }
+                - { name: work, mountPath: /work, readOnly: true }
+                - { name: scores, mountPath: /app/scores }
+          volumes:
+            - name: work
+              emptyDir: {}
+            - name: logs
+              hostPath: { path: /home/lhy/projects/automachine_AI_log_analyze/logs, type: Directory }
+            - name: ground-truth
+              hostPath: { path: /home/lhy/projects/automachine_AI_log_analyze/ground_truth, type: Directory }
+            - name: scores
+              hostPath: { path: /home/lhy/projects/automachine_AI_log_analyze/scores, type: Directory }

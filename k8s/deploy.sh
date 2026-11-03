@@ -1,10 +1,17 @@
 #!/bin/bash
-# Builds the images, pushes them to the local registry and applies everything in k8s/app.
-#   bash k8s/deploy.sh          build and deploy
+# Builds the images, pushes them to the local registry and applies one environment (k8s/overlays/<env>).
+#   bash k8s/deploy.sh          build and deploy the development settings
+#   bash k8s/deploy.sh demo     build and deploy the presentation settings
 #   bash k8s/deploy.sh images   only build and push
 # Back to the previous version: kubectl -n automachine rollout undo deploy/analysis
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+ENV=${1:-dev}
+if [ "$ENV" != images ] && [ ! -f "k8s/overlays/$ENV/kustomization.yaml" ]; then
+  echo "unknown environment: $ENV (choose: $(ls k8s/overlays | xargs))" >&2
+  exit 2
+fi
 
 REGISTRY=localhost:5000
 
@@ -29,7 +36,7 @@ docker build -q -t $REGISTRY/automachine-ops:$TAG ops
 for name in sim analysis web ops; do
   docker push -q $REGISTRY/automachine-$name:$TAG
 done
-[ "${1:-}" = images ] && exit 0
+[ "$ENV" = images ] && exit 0
 
 kubectl apply -f k8s/app/namespace.yaml
 
@@ -48,13 +55,13 @@ fi
 if ! kubectl -n automachine get secret ops-db >/dev/null 2>&1; then
   kubectl -n automachine create secret generic ops-db --from-literal=password="$(openssl rand -hex 16)"
 fi
-# Must exist before the backup job's hostPath volume is mounted, and belong to this user rather than root.
-mkdir -p backups
+# Must exist before the jobs' hostPath volumes are mounted, and belong to this user rather than root.
+mkdir -p backups scores
 
-# The files say :dev; each deployment fills in its own version, and the changed tag starts the rolling update.
-for f in k8s/app/*.yaml; do
-  sed "s#\(localhost:5000/automachine-[a-z]*\):dev#\1:$TAG#" "$f" | kubectl apply -f -
-done
+# Kustomize joins the shared settings with this environment's differences. The files say :dev;
+# each deployment fills in its own version, and the changed tag starts the rolling update.
+echo "environment: $ENV"
+kubectl kustomize "k8s/overlays/$ENV" | sed "s#\(localhost:5000/automachine-[a-z]*\):dev#\1:$TAG#" | kubectl apply -f -
 kubectl -n automachine annotate deploy sim analysis web ops gpu-metrics kubernetes.io/change-cause="$TAG" --overwrite
 
 kubectl -n automachine rollout status statefulset/db --timeout=180s
