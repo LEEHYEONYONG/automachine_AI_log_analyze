@@ -1,8 +1,10 @@
-"""운영 화면용 API: 서비스 상태판, 인프라 상태, 파드 죽이기.
+"""운영 화면용 API: 서비스 상태판, 인프라 상태, 파드 죽이기, 재시작·되돌리기, 자동 채점 결과와 실행.
 
 Ingress에서 이 PC 안의 요청만 통과시키고(k8s/app/ops.yaml), 조작은 토큰까지 있어야 한다.
 """
+import copy
 import hmac
+import json
 import os
 import re
 import time
@@ -22,6 +24,8 @@ GPU_URL = os.environ.get("GPU_METRICS_URL", "http://gpu-metrics:9400")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
 DISK_PATH = os.environ.get("DISK_PATH", "/host-disk")
 BACKUP_PATH = os.environ.get("BACKUP_PATH", "/backups")
+SCORES_PATH = os.environ.get("SCORES_PATH", "/scores")
+AUTO_EVAL = "auto-eval"
 DB_HOST = os.environ.get("DB_HOST", "db")
 DB_NAME = os.environ.get("DB_NAME", "")
 OPS_DB_PASSWORD = os.environ.get("OPS_DB_PASSWORD", "")
@@ -323,6 +327,25 @@ def job_state(job):
     return "실행 중" if status.get("active") else "대기"
 
 
+def cron_status(name):
+    """CronJob의 예약과, 그것이 만든 작업 중 가장 최근 것. 손으로 실행한 작업도 같은 주인을 단다. k8s 오류는 올린다."""
+    cron = k8s.get(k8s.namespaced(f"cronjobs/{name}", "/apis/batch/v1"))
+    jobs = [j for j in k8s.get(k8s.namespaced("jobs", "/apis/batch/v1"))["items"]
+            if any(o.get("name") == name for o in j["metadata"].get("ownerReferences", []))]
+    latest = max(jobs, key=lambda j: j["metadata"]["creationTimestamp"], default=None)
+    return cron, {
+        "schedule": cron["spec"]["schedule"],
+        "time_zone": cron["spec"].get("timeZone"),
+        "last_job": latest and {
+            "name": latest["metadata"]["name"],
+            "state": job_state(latest),
+            "age_s": seconds_since(latest["metadata"]["creationTimestamp"]),
+            "manual": latest["metadata"].get("annotations", {}).get("cronjob.kubernetes.io/instantiate") == "manual",
+        },
+        "running": any(job_state(j) in ("실행 중", "대기") for j in jobs),
+    }
+
+
 def backup_status():
     # 마지막 성공 시각은 파일로 판단한다. 다 읽어 본 뒤에야 .dump 이름이 붙기 때문이다.
     try:
@@ -332,21 +355,10 @@ def backup_status():
     except OSError:
         files = []
     try:
-        cron = k8s.get(k8s.namespaced("cronjobs/db-backup", "/apis/batch/v1"))
-        jobs = [j for j in k8s.get(k8s.namespaced("jobs", "/apis/batch/v1"))["items"]
-                if any(o.get("name") == "db-backup" for o in j["metadata"].get("ownerReferences", []))]
+        _, status = cron_status("db-backup")
     except httpx.HTTPError as e:
         return {"files": files, "error": f"k8s API 오류: {type(e).__name__}"}
-    latest = max(jobs, key=lambda j: j["metadata"]["creationTimestamp"], default=None)
-    return {
-        "files": files,
-        "schedule": cron["spec"]["schedule"],
-        "time_zone": cron["spec"].get("timeZone"),
-        "last_job": latest and {
-            "state": job_state(latest),
-            "age_s": seconds_since(latest["metadata"]["creationTimestamp"]),
-        },
-    }
+    return {"files": files, **status}
 
 
 @app.get("/api/ops/storage")
@@ -355,6 +367,16 @@ def storage():
 
 
 REVISION = "deployment.kubernetes.io/revision"
+CHANGE_CAUSE = "kubernetes.io/change-cause"
+# 재시작·되돌리기는 죽이기와 같은 둘만. Role도 이 두 Deployment만 바꿀 수 있게 묶어 두었다.
+CHANGEABLE = KILLABLE
+
+
+def previous_revision(current, history):
+    """kubectl rollout undo와 같이, 지금보다 낮은 번호 중 가장 높은 ReplicaSet. history는 번호 내림차순."""
+    if current is None:
+        return None
+    return next((rs for rs in history if int(rs["metadata"].get("annotations", {}).get(REVISION, 0)) < int(current)), None)
 
 
 def image_tag(template):
@@ -383,8 +405,12 @@ def deployment_view(deployment, replica_sets):
             if any(o.get("uid") == meta["uid"] for o in rs["metadata"].get("ownerReferences", []))]
     history = sorted(mine, key=lambda rs: int(rs["metadata"].get("annotations", {}).get(REVISION, 0)), reverse=True)
     progressing = next((c for c in status.get("conditions", []) if c.get("type") == "Progressing"), {})
+    previous = previous_revision(current, history)
     return {
         "name": meta["name"],
+        "can_change": meta["name"] in CHANGEABLE,
+        "rollback_to": previous and {"revision": int(previous["metadata"]["annotations"][REVISION]),
+                                     "version": image_tag(previous["spec"]["template"])},
         "version": image_tag(deployment["spec"]["template"]),
         "state": rollout_state(deployment),
         "message": progressing.get("message"),
@@ -412,6 +438,124 @@ def deployments():
         raise HTTPException(status_code=502, detail=f"k8s API 오류: {e}") from None
     views = [deployment_view(d, replica_sets) for d in sorted(items, key=lambda d: d["metadata"]["name"])]
     return {"deployments": views}
+
+
+def require_changeable(service):
+    if service not in CHANGEABLE:
+        raise HTTPException(status_code=403, detail=f"{service}는 여기서 바꿀 수 없음")
+
+
+@app.post("/api/ops/services/{service}/restart")
+def restart(service: str, x_ops_token: str = Header(default="")):
+    """kubectl rollout restart와 같다. 파드 템플릿에 시각을 적으면 새 파드로 하나씩 교체되고, 그동안 옛 파드가 응답한다."""
+    require_token(x_ops_token)
+    require_changeable(service)
+    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    body = {"spec": {"template": {"metadata": {"annotations": {"kubectl.kubernetes.io/restartedAt": stamp}}}}}
+    try:
+        k8s.patch(k8s.namespaced(f"deployments/{service}", "/apis/apps/v1"), body, "strategic-merge-patch")
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"k8s API 오류: {e}") from None
+    print(f"restart from ops page: {service}", flush=True)
+    return {"restarted": service, "at": stamp}
+
+
+@app.post("/api/ops/services/{service}/rollback")
+def rollback(service: str, x_ops_token: str = Header(default="")):
+    """kubectl rollout undo와 같다. 직전 ReplicaSet의 파드 템플릿을 Deployment에 다시 넣는다.
+    k8s는 이것을 새 배포로 보고 번호를 하나 올리므로, 한 번 더 누르면 되돌리기 전 버전으로 돌아간다."""
+    require_token(x_ops_token)
+    require_changeable(service)
+    try:
+        deployment = k8s.get(k8s.namespaced(f"deployments/{service}", "/apis/apps/v1"))
+        replica_sets = k8s.get(k8s.namespaced("replicasets", "/apis/apps/v1"))["items"]
+        uid = deployment["metadata"]["uid"]
+        mine = sorted((rs for rs in replica_sets
+                       if any(o.get("uid") == uid for o in rs["metadata"].get("ownerReferences", []))),
+                      key=lambda rs: int(rs["metadata"].get("annotations", {}).get(REVISION, 0)), reverse=True)
+        target = previous_revision(deployment["metadata"].get("annotations", {}).get(REVISION), mine)
+        if target is None:
+            raise HTTPException(status_code=409, detail="되돌릴 이전 버전이 없음")
+        template = copy.deepcopy(target["spec"]["template"])
+        template["metadata"].get("labels", {}).pop("pod-template-hash", None)   # ReplicaSet이 붙인 표시라 빼야 한다
+        ops = [{"op": "replace", "path": "/spec/template", "value": template}]
+        cause = target["metadata"].get("annotations", {}).get(CHANGE_CAUSE)
+        if cause:
+            ops.append({"op": "add", "path": "/metadata/annotations/kubernetes.io~1change-cause", "value": cause})
+        k8s.patch(k8s.namespaced(f"deployments/{service}", "/apis/apps/v1"), ops, "json-patch")
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"k8s API 오류: {e}") from None
+    revision = int(target["metadata"]["annotations"][REVISION])
+    print(f"rollback from ops page: {service} to revision {revision}", flush=True)
+    return {"rolled_back": service, "to_revision": revision, "version": image_tag(template)}
+
+
+def score_files():
+    """auto-eval이 남긴 날짜별 결과. 최근 날짜가 앞."""
+    days = []
+    try:
+        files = sorted(Path(SCORES_PATH).glob("auto_*.json"), reverse=True)
+    except OSError:
+        return days
+    for f in files:
+        try:
+            days.append(json.loads(f.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            continue    # 쓰는 도중의 파일은 다음에 읽는다
+    return days
+
+
+def score_view(day):
+    detection = day["detection"]
+    return {
+        "day": day["day"],
+        "scenarios": [r["scenario"] for r in day["runs"]],
+        "detection": {m: {k: detection[m][k] for k in ("found", "total", "false_alarms", "delay_median_min", "missed")}
+                      for m in detection},
+        "cause": {k: day["cause"][k] for k in ("incidents", "rule_first", "decision")},
+    }
+
+
+@app.get("/api/ops/scores")
+def scores():
+    days = [score_view(d) for d in score_files()]
+    totals = {m: {k: sum(d["detection"][m][k] for d in days) for k in ("found", "total", "false_alarms")}
+              for m in ("rule", "anomaly", "classify")}
+    totals["cause"] = {k: sum(d["cause"][k] for d in days) for k in ("incidents", "rule_first", "decision")}
+    try:
+        _, schedule = cron_status(AUTO_EVAL)
+    except httpx.HTTPError as e:
+        schedule = {"error": f"k8s API 오류: {type(e).__name__}"}
+    return {"days": days, "totals": totals, "runs": sum(len(d["scenarios"]) for d in days), "schedule": schedule}
+
+
+@app.post("/api/ops/scores/run")
+def run_scores(x_ops_token: str = Header(default="")):
+    """kubectl create job --from=cronjob/auto-eval과 같다. 예약된 작업의 설정을 그대로 복사하고, 다른 것은 만들지 않는다."""
+    require_token(x_ops_token)
+    try:
+        cron, status = cron_status(AUTO_EVAL)
+        if status["running"]:
+            raise HTTPException(status_code=409, detail="이미 채점 중")
+        template = cron["spec"]["jobTemplate"]
+        name = f"{AUTO_EVAL}-manual-{datetime.now(timezone.utc):%m%d%H%M%S}"
+        job = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {
+                "name": name,
+                "labels": template.get("metadata", {}).get("labels", {}),
+                "annotations": {"cronjob.kubernetes.io/instantiate": "manual"},
+                "ownerReferences": [{"apiVersion": "batch/v1", "kind": "CronJob", "name": AUTO_EVAL,
+                                     "uid": cron["metadata"]["uid"]}],
+            },
+            "spec": template["spec"],
+        }
+        k8s.post(k8s.namespaced("jobs", "/apis/batch/v1"), job)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"k8s API 오류: {e}") from None
+    print(f"auto-eval started from ops page: {name}", flush=True)
+    return {"job": name}
 
 
 def hpa_view(hpa):

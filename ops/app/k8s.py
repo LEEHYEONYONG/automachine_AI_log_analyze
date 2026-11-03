@@ -9,9 +9,9 @@ API = "https://kubernetes.default.svc"
 NAMESPACE = "automachine"
 
 
-def _request(method, path, **kwargs):
+def _request(method, path, headers=None, **kwargs):
     # 토큰은 k8s가 주기적으로 바꾸므로 매번 읽는다
-    headers = {"Authorization": f"Bearer {(ACCOUNT / 'token').read_text()}"}
+    headers = {"Authorization": f"Bearer {(ACCOUNT / 'token').read_text()}", **(headers or {})}
     res = httpx.request(method, f"{API}{path}", headers=headers, verify=str(ACCOUNT / "ca.crt"), timeout=5, **kwargs)
     res.raise_for_status()
     return res
@@ -27,6 +27,15 @@ def get_text(path, **params):
 
 def delete(path):
     return _request("DELETE", path).json()
+
+
+def post(path, body):
+    return _request("POST", path, json=body).json()
+
+
+def patch(path, body, content_type):
+    """content_type: 바꿀 칸만 보내면 합쳐 주는 strategic-merge-patch, 또는 경로를 짚어 바꾸는 json-patch."""
+    return _request("PATCH", path, json=body, headers={"Content-Type": f"application/{content_type}+json"}).json()
 
 
 def namespaced(resource, group="/api/v1"):

@@ -5,8 +5,11 @@ metadata:
   name: ops
   namespace: automachine
 ---
-# What the API may do in this namespace. No Secrets, no exec, no changing workloads.
-# Deleting pods is the one write; the code only allows it for web and analysis.
+# What the API may do in this namespace. No Secrets, no exec.
+# Writes: deleting pods (the code allows web and analysis), restarting or rolling back the web and analysis
+# Deployments (k8s itself limits this to those two names), and creating Jobs for "score now".
+# Job creation cannot be limited by name in k8s, so a stolen account could start any Job here.
+# The code only copies the auto-eval CronJob's template, and the API answers only this PC and needs the token.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -22,9 +25,16 @@ rules:
   - apiGroups: [apps]
     resources: [deployments, statefulsets, replicasets]
     verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [web, analysis]
+    verbs: [patch]
   - apiGroups: [batch]
     resources: [cronjobs, jobs]
     verbs: [get, list]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create]
   - apiGroups: [autoscaling]
     resources: [horizontalpodautoscalers]
     verbs: [get, list]
@@ -148,7 +158,15 @@ spec:
             - name: backups
               mountPath: /backups
               readOnly: true
+            # Only to read the daily scores from auto-eval.
+            - name: scores
+              mountPath: /scores
+              readOnly: true
       volumes:
+        - name: scores
+          hostPath:
+            path: /home/lhy/projects/automachine_AI_log_analyze/scores
+            type: Directory
         - name: disk
           hostPath:
             path: /home/lhy/projects/automachine_AI_log_analyze/logs
