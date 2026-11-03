@@ -1,0 +1,26 @@
+# The presentation: two web and at least two analysis pods, so killing one on stage leaves the site answering,
+# and no daily scoring job taking CPU and the database during the talk.
+# Back to development afterwards: bash k8s/deploy.sh dev
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../app
+labels:
+  - pairs:
+      automachine/env: demo
+patches:
+  - target: { kind: Deployment, name: web }
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target: { kind: HorizontalPodAutoscaler, name: analysis }
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+  - target: { kind: CronJob, name: auto-eval }
+    patch: |-
+      - op: add
+        path: /spec/suspend
+        value: true

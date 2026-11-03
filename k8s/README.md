@@ -3,9 +3,10 @@
 발표와 배포용 k3s 설정입니다. 개발은 계속 Docker Compose로 합니다.
 
 ```
-k8s/cluster/   클러스터에 한 번만 적용 (medi-info와 공유)
-k8s/app/       automachine 서비스 (네임스페이스 automachine)
-k8s/deploy.sh  이미지 빌드 → 로컬 저장소에 등록 → 적용
+k8s/cluster/    클러스터에 한 번만 적용 (medi-info와 공유)
+k8s/app/        automachine 서비스의 공통 설정 (네임스페이스 automachine)
+k8s/overlays/   환경별 차이: dev(개발), demo(발표)
+k8s/deploy.sh   이미지 빌드 → 로컬 저장소에 등록 → 한 환경 적용
 ```
 
 ## 처음 한 번
@@ -25,11 +26,31 @@ WSL 메모리가 8GB라서 둘을 동시에 띄우지 않습니다. 부팅해도
 ```bash
 docker compose stop            # Compose 끄기 (데이터는 유지)
 sudo systemctl start k3s       # k3s 켜기
-bash k8s/deploy.sh             # 코드를 바꿨을 때 다시 배포
+bash k8s/deploy.sh             # 코드를 바꿨을 때 다시 배포 (개발용 설정)
 sudo k3s-killall.sh            # k3s 끄기 (systemctl stop만으로는 파드가 남음)
 ```
 
 주소는 http://127.0.0.1 입니다. Windows에서 `localhost`의 IPv6 경로는 막혀 있어서, 안 열리면 `127.0.0.1`로 접속합니다.
+
+## 개발용과 발표용 설정 (Kustomize)
+
+`k8s/app/`이 공통 설정이고, `k8s/overlays/<환경>/`이 그 위에 덮는 차이입니다. `deploy.sh`가 둘을 합쳐 적용합니다.
+
+```bash
+bash k8s/deploy.sh demo        # 발표 전에
+bash k8s/deploy.sh dev         # 발표 뒤에 (인자 없이 실행해도 dev)
+kubectl kustomize k8s/overlays/demo   # 실제로 적용될 설정을 미리 보기
+```
+
+| | dev | demo | 이유 |
+|---|---|---|---|
+| 웹 화면 파드 | 1개 | 2개 | 발표 중 파드를 죽여도 화면이 끊기지 않게 |
+| AI 분석 최소 파드 (HPA) | 1개 | 2개 | 같은 이유. 부하가 오면 둘 다 3개까지 늘어남 |
+| 매일 자동 채점 | 켜짐 | 일시 정지 | 13:00 채점이 발표 중에 CPU와 DB를 쓰지 않게 |
+
+- 모든 리소스에 `automachine/env` 라벨이 붙어 지금 환경을 알 수 있습니다: `kubectl -n automachine get deploy -L automachine/env`
+- 파드가 늘어도 메모리는 웹 약 10MB, AI 분석 약 100MB씩만 더 씁니다.
+- 11/3 시험: 웹 파드 2개일 때 하나를 지워도 0.5초마다 16번 요청이 모두 200이었습니다. dev로 돌아오면 파드 수와 채점 예약도 원래대로 돌아왔습니다.
 
 ## 버전과 되돌리기
 
@@ -104,16 +125,25 @@ kubectl -n automachine exec deploy/analysis -- python -m app.manual
 
 ## 운영 화면
 
-http://127.0.0.1/#ops 에서 노드, GPU, LLM 상태와 서비스 상태판, 배포 현황, 이벤트, 로그를 봅니다. "파드 죽이기"를 누르면 복구 과정이 기록됩니다.
+http://127.0.0.1/#ops 에서 노드, GPU, LLM 상태와 서비스 상태판, 매일 자동 채점 결과, 배포 현황, 이벤트, 로그를 봅니다. "파드 죽이기"를 누르면 복구 과정이 기록됩니다.
 
 ```bash
-# 파드 죽이기에 필요한 운영 토큰 보기
+# 버튼에 필요한 운영 토큰 보기
 kubectl -n automachine get secret ops-token -o jsonpath='{.data.token}' | base64 -d; echo
 ```
 
+| 버튼 | 같은 명령 | 대상 |
+|---|---|---|
+| 파드 죽이기 | `kubectl delete pod` | web, analysis |
+| 재시작 | `kubectl rollout restart` | web, analysis |
+| 되돌리기 | `kubectl rollout undo` | web, analysis |
+| 지금 채점 | `kubectl create job --from=cronjob/auto-eval` | auto-eval |
+
 - 이 PC 안에서만 열립니다. 다른 주소로 들어오면 Traefik이 403을 돌려주고, Tailscale Funnel 요청은 ops가 거절합니다.
-- 죽일 수 있는 건 web과 analysis뿐입니다. db는 전체가 멈추고, sim은 돌던 장비 상태가 사라지기 때문입니다.
-- ops 계정(`k8s/app/ops.yaml`)은 Secret을 읽거나 Deployment를 바꿀 수 없고, 파드 삭제만 쓰기 권한입니다.
+- 바꿀 수 있는 건 web과 analysis뿐입니다. db는 전체가 멈추고, sim은 돌던 장비 상태가 사라지기 때문입니다.
+- 재시작도 새 배포 번호를 하나 만듭니다. 그래서 재시작 직후의 되돌리기는 재시작 전과 같은 버전으로 돌아갑니다.
+- ops 계정(`k8s/app/ops.yaml`)은 Secret을 읽거나 exec할 수 없습니다. 쓰기 권한은 파드 삭제, web과 analysis Deployment 변경, 작업(Job) 생성입니다.
+  작업 생성은 k8s에서 이름으로 제한할 수 없어, 계정이 털리면 이 네임스페이스에 아무 작업이나 만들 수 있습니다. 코드는 auto-eval 설정만 복사합니다.
 - GPU 수집기(`gpu-metrics`)는 WSL 제약으로 특권 파드입니다. 그래서 ops와 분리했고 k8s 계정을 주지 않았습니다.
 - 메모리 값은 k8s 측정값이라 캐시 일부가 포함되어, `free`의 used보다 크게 나옵니다. Windows 전체 메모리는 보이지 않습니다.
 
