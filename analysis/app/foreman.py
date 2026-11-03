@@ -332,4 +332,5 @@ def run(db, ctx, incident):
         "unverified_numbers": unverified_numbers(answer["reasoning"] + answer["doubts"], tools.results),
         "other_causes": other_causes_mentioned(answer["reasoning"], incident["cause"]),
         "model": LLM_MODEL,
+        "tool_results": tools.results,   # 설명 품질 채점이 "사건 전 A → 사건 중 B"의 순서를 확인할 때 쓴다. 저장하지 않는다
     }
