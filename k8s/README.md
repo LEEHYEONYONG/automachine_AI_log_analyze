@@ -132,6 +132,27 @@ analysis는 파드 평균 CPU가 요청량(100m)의 50%를 넘으면 최대 3개
 
 부하 시험은 가벼운 `/api/analysis/live`만 호출합니다. 확장 동작을 보여 주기 위한 것으로, 실제 분석 작업의 성능 측정이 아닙니다.
 
+## 매일 자동 채점
+
+CronJob `auto-eval`이 매일 13:00(한국 시각)에 새 런 3개를 만들어 적재하고 채점합니다. 결과는 이 PC의 `scores/auto_<날짜>.json`에 남습니다.
+k3s가 꺼져 있다가 6시간 안에 켜지면 늦게라도 실행됩니다.
+
+| 단계 | 이미지 | 하는 일 | 정답지 |
+|---|---|---|---|
+| make-runs | sim | 시나리오 11개 중 그날의 3개를 날짜로 정한 시드로 생성 (`eval/auto_runs.py`) | 씀 |
+| ingest | analysis | 새 런을 DB에 적재 | 연결 안 함 |
+| score | sim | 분석 API의 답을 정답지와 비교 (`eval/auto_score.py`) | 읽기만 |
+
+```bash
+# 지금 바로 실행 (같은 날 다시 실행하면 런은 새로 만들지 않고 채점만 다시 함)
+kubectl -n automachine create job --from=cronjob/auto-eval auto-eval-$(date +%m%d%H%M)
+kubectl -n automachine logs job/<위 이름> -c score
+```
+
+- 한 번에 약 50초, 런 하나는 로그 약 30MB, DB 약 30MB입니다. 로그와 DB는 자동으로 지우지 않습니다.
+- 규칙, 경비원, 경비원 + 분류, 코드 판단만 채점합니다. LLM은 GPU를 오래 써서 부르지 않고, 원인 점수에도 영향이 없습니다.
+- 이 런들은 `eval/runs.csv`에 없어서 dev/test 채점에는 섞이지 않습니다. 규칙과 기준을 만든 뒤에 생긴 런이므로 처음 보는 시험으로 볼 수 있습니다.
+
 ## DB 백업
 
 `db-backup` CronJob이 매일 12:30(KST)에 `backups/db_날짜_시각.dump`를 만들고 최근 3개만 남깁니다. k3s가 꺼져 있어 놓쳐도 6시간 안에 켜면 실행됩니다. 결과는 운영 화면의 "저장 공간과 백업"에서 봅니다.
