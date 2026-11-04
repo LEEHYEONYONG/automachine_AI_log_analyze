@@ -17,7 +17,6 @@ from sqlalchemy import text
 
 from . import anomaly, classify, foreman
 from .database import SessionLocal
-from .routes.analysis import rule_candidates
 
 SHIFT_STARTS = (clock(8, 0), clock(20, 0))     # config/machine.json plant.shifts
 OPEN_MIN = 30                                   # 교대 끝 30분 안에도 경보가 있으면 다음 조가 이어 볼 일이다
@@ -166,12 +165,38 @@ def check(body, items, source):
     }
 
 
+MIN_SHIFT = timedelta(hours=1)     # 1시간이 안 되는 자투리 교대는 넘기지 않는다
+
+
+def load_alarms(db, run_id):
+    return db.execute(text("SELECT code, set_ts, message, detail FROM alarms WHERE run_id = :r ORDER BY set_ts"),
+                      {"r": run_id}).mappings().all()
+
+
 def load(db, run_id, profile, model):
+    from .routes.analysis import rule_candidates    # routes가 이 모듈을 쓰므로 여기서 읽는다
     ctx = classify.load_context(db, run_id)
-    alarms = db.execute(text("SELECT code, set_ts, message, detail FROM alarms WHERE run_id = :r ORDER BY set_ts"),
-                        {"r": run_id}).mappings().all()
     found = foreman.judge(ctx, rule_candidates(db, run_id, ctx["recipes"]), profile, model)
-    return ctx, alarms, found
+    return ctx, load_alarms(db, run_id), found
+
+
+def shift_list(ctx, alarms, incidents):
+    """런의 교대마다 (교대 시작, 구간 시작, 구간 끝, 사실 목록). API와 실험이 같은 함수를 쓴다."""
+    if not ctx["parts"]:
+        return []
+    out = []
+    for shift_start, lo, hi in shifts(ctx["parts"][0]["start_time"], ctx["parts"][-1]["start_time"]):
+        if hi - lo >= MIN_SHIFT:
+            out.append((shift_start, lo, hi, facts(ctx, alarms, incidents, lo, hi)))
+    return out
+
+
+def write_summary(shift_start, lo, hi, items):
+    """LLM 요약과 코드의 검사 결과. 제품 API가 쓴다."""
+    summary, todo, source = summarize(shift_start, lo, hi, items)
+    must = priorities(items)
+    return {"summary": summary, "todo": todo, "must": [f["text"] for f in must],
+            **check("\n".join(summary + todo), must, source), "model": foreman.LLM_MODEL}
 
 
 def main():
@@ -189,12 +214,9 @@ def main():
         try:
             ctx, alarms, found = load(db, run_id, profile, model)
             db.commit()
-            if not ctx["parts"]:
-                continue
-            for shift_start, lo, hi in shifts(ctx["parts"][0]["start_time"], ctx["parts"][-1]["start_time"]):
-                if hi - lo < timedelta(hours=1) or (run_id, shift_start.isoformat()) in done:
+            for shift_start, lo, hi, items in shift_list(ctx, alarms, found):
+                if (run_id, shift_start.isoformat()) in done:
                     continue
-                items = facts(ctx, alarms, found, lo, hi)
                 must = priorities(items)
                 row = {"run_id": run_id, "shift": shift_start.isoformat(), "facts": [f["text"] for f in items],
                        "must": [f["text"] for f in must], "has_open": any(f.get("open") for f in items)}

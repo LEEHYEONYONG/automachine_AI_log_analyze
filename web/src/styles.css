@@ -331,6 +331,7 @@ button:disabled { cursor: not-allowed; opacity: 0.4; }
 .report h4 { margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
 .report p, .report ul { margin: 0; }
 .report ul { padding-left: 18px; }
+.handover-facts { margin: 6px 0 0; padding-left: 18px; color: var(--text); }
 
 .form-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 select, input {
