@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from ..config import LOGS_DIR
 from ..database import engine, get_db
-from .. import anomaly, classify, foreman, ingest, rules
+from .. import anomaly, classify, foreman, handover, ingest, rules
 
 router = APIRouter(
     prefix="/api/analysis",
@@ -128,6 +128,33 @@ def list_incidents(run_id: str, db: Session = Depends(get_db)):
         s = by_time.get(incident["started_at"])
         incident["report"] = _saved_view(s) if s else None
     return {"run_id": run_id, "incidents": incidents}
+
+
+def _shifts(db, run_id):
+    ctx, incidents = _incidents(db, run_id)
+    return handover.shift_list(ctx, handover.load_alarms(db, run_id), incidents)
+
+
+@router.get("/runs/{run_id}/handover")
+def list_handover(run_id: str, db: Session = Depends(get_db)):
+    """교대마다 코드가 모은 인수인계 사실(빠짐 없는 전체 기록). LLM은 쓰지 않는다."""
+    return {"run_id": run_id, "shifts": [
+        {"shift": s.isoformat(), "from": lo.isoformat(), "to": hi.isoformat(),
+         "facts": [{"text": f["text"], "open": bool(f.get("open"))} for f in items]}
+        for s, lo, hi, items in _shifts(db, run_id)]}
+
+
+@router.post("/runs/{run_id}/handover/summary")
+def write_handover_summary(run_id: str, shift: datetime, db: Session = Depends(get_db)):
+    """교대 하나의 맨 위 요약을 LLM이 쓴다. 몇 초 걸린다. 수치·코드·시각을 지어냈는지와 꼭 담을 것을 코드가 검사한다."""
+    found = next(((s, lo, hi, items) for s, lo, hi, items in _shifts(db, run_id) if s == shift), None)
+    if found is None:
+        raise HTTPException(status_code=404, detail=f"그 시각에 시작한 교대가 없음: {shift}")
+    db.commit()
+    try:
+        return {"run_id": run_id, "shift": shift, **handover.write_summary(*found)}
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
+        raise HTTPException(status_code=503, detail=f"요약을 쓰지 못함: {type(e).__name__}") from None
 
 
 def _saved_view(saved):

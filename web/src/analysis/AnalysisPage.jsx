@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { anomalyText, evidenceText, FEATURE, faultName, time } from "./evidence";
+import { HandoverPanel } from "./Handover";
 import { LivePanel } from "./LiveWatch";
 import { Report } from "./Report";
 
@@ -212,6 +213,7 @@ export function AnalysisPage() {
       )}
 
       {result && <ForemanPanel key={result.run_id} runId={result.run_id} />}
+      {result && <HandoverPanel key={`handover-${result.run_id}`} runId={result.run_id} />}
     </main>
   );
 }
