@@ -1,25 +1,27 @@
-export const MODE_LABEL = {
+import { localized } from "./prefs";
+
+export const MODE_LABEL = localized({
   RUNNING: "운전 중",
   STOPPED: "정지",
   ALARM: "알람",
-};
+});
 
-export const STATION_STATE_LABEL = {
+export const STATION_STATE_LABEL = localized({
   IDLE: "대기",
   BUSY: "작업 중",
   DONE: "배출 대기",
   ALARM: "알람",
-};
+});
 
-export const STATION_LABEL = {
+export const STATION_LABEL = localized({
   INFEED: "투입",
   VISION: "비전 정렬",
   DISPENSER: "디스펜싱",
   INSPECTION: "도포 검사",
   OUTFEED: "배출",
-};
+});
 
-export const ACTION_LABEL = {
+export const ACTION_LABEL = localized({
   empty_ng_buffer: "NG 버퍼 비우기",
   remove_part: "제품 제거",
   vision_check: "비전 점검",
@@ -31,25 +33,25 @@ export const ACTION_LABEL = {
   replace_syringe: "시린지 교체",
   air_check: "에어 공급 확인",
   call_engineer: "엔지니어 점검",
-};
+});
 
 /** Labels for actions that only the simulated operator takes. */
-export const OPERATOR_ONLY_ACTION_LABEL = {
+export const OPERATOR_ONLY_ACTION_LABEL = localized({
   model_change: "모델 체인지",
   none: "조치 없이 리셋",
   "self: bubbles dispensed out": "저절로 해소 (기포 소진)",
   "self: plant air recovered": "저절로 해소 (에어 회복)",
-};
+});
 
-export const OPERATOR_PHASE_LABEL = {
+export const OPERATOR_PHASE_LABEL = localized({
   idle: "대기",
   ack: "알람 확인 중",
   work: "조치 중",
   break: "휴식 중",
   changeover_wait: "모델 체인지 준비",
-};
+});
 
-export const FAULT_LABEL = {
+export const FAULT_LABEL = localized({
   nozzle_clog: "노즐 막힘",
   vacuum_leak: "진공 지그 패드 누설",
   temp_sensor_drift: "온도 센서 드리프트",
@@ -59,9 +61,9 @@ export const FAULT_LABEL = {
   air_supply_drop: "공장 에어 공급압 저하",
   recipe_pressure_error: "레시피 압력 오입력",
   recipe_retract_error: "레시피 dwell 오입력",
-};
+});
 
-export const FAULT_PARAM_LABEL = {
+export const FAULT_PARAM_LABEL = localized({
   ramp_min: "최대치까지 걸리는 시간 (분)",
   min_open_ratio: "최소 노즐 개방률 (0~1)",
   max_leak_ratio: "최대 누설률 (0~1)",
@@ -75,15 +77,15 @@ export const FAULT_PARAM_LABEL = {
   hold_min: "저하 유지 시간 (분)",
   wrong_pressure_kpa: "잘못 입력된 압력 (kPa)",
   wrong_retract_delay_s: "잘못 입력된 dwell (초)",
-};
+});
 
-export const FAULT_STATE_LABEL = {
+export const FAULT_STATE_LABEL = localized({
   pending: "예약됨",
   active: "진행 중",
   resolved: "해결됨",
-};
+});
 
-export const SCENARIO_LABEL = {
+export const SCENARIO_LABEL = localized({
   normal: "정상 가동",
   nozzle_clog: "노즐 막힘",
   vacuum_leak: "진공 지그 누설",
@@ -94,7 +96,7 @@ export const SCENARIO_LABEL = {
   air_supply_drop: "에어 공급압 저하",
   recipe_error: "레시피 오입력",
   realistic_day: "현실적인 하루 (12시간 복합)",
-};
+});
 
 /** Maintenance actions in the order they appear on the HMI. */
 export const MAINTENANCE_ACTIONS = Object.keys(ACTION_LABEL);

@@ -1,3 +1,4 @@
+import { tr } from "../prefs";
 function Row({ label, value, unit, digits = 1 }) {
   return (
     <div className="sensor-row">
@@ -13,12 +14,12 @@ function Row({ label, value, unit, digits = 1 }) {
 export function SensorPanel({ sensors }) {
   return (
     <section className="panel">
-      <h2>센서</h2>
-      <Row label="지그 흡착 진공" value={sensors.fixture_vac_kpa} unit="kPa" />
-      <Row label="토출 압력" value={sensors.disp_pressure_kpa} unit="kPa" />
-      <Row label="시린지 온도" value={sensors.disp_temp_c} unit="°C" digits={2} />
+      <h2>{tr("센서")}</h2>
+      <Row label={tr("지그 흡착 진공")} value={sensors.fixture_vac_kpa} unit="kPa" />
+      <Row label={tr("토출 압력")} value={sensors.disp_pressure_kpa} unit="kPa" />
+      <Row label={tr("시린지 온도")} value={sensors.disp_temp_c} unit="°C" digits={2} />
       <div className="sensor-row">
-        <span>토출 밸브</span>
+        <span>{tr("토출 밸브")}</span>
         <span className={`valve ${sensors.disp_valve_open ? "open" : ""}`}>{sensors.disp_valve_open ? "OPEN" : "CLOSE"}</span>
       </div>
     </section>

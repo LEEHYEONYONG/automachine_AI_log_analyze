@@ -1,8 +1,9 @@
+import { localized, tr } from "../../prefs";
 import { api } from "../../api";
 import { ACTION_LABEL } from "../../labels";
 import { LEVEL_LABEL, atLeast } from "../hmiLabels";
 
-const GROUPS = [
+const GROUPS = localized([
   {
     title: "디스펜서",
     actions: [
@@ -34,7 +35,7 @@ const GROUPS = [
       { id: "call_engineer", note: "엔지니어가 센서 교정, 레시피 확인, 니들 캘리브레이션을 포함해 전체 점검합니다." },
     ],
   },
-];
+]);
 
 export function MaintenancePage({ state, run }) {
   const running = state.mode === "RUNNING";
@@ -43,8 +44,8 @@ export function MaintenancePage({ state, run }) {
     <div className="page">
       <p className={`notice ${running ? "notice-warn" : ""}`}>
         {running
-          ? "운전 중에는 유지보수를 할 수 없습니다. CYCLE STOP 또는 STOP으로 정지한 뒤 진행하세요."
-          : "조치가 끝나면 알람이 있을 경우 RESET, 그다음 START로 재가동합니다."}
+          ? tr("운전 중에는 유지보수를 할 수 없습니다. CYCLE STOP 또는 STOP으로 정지한 뒤 진행하세요.")
+          : tr("조치가 끝나면 알람이 있을 경우 RESET, 그다음 START로 재가동합니다.")}
       </p>
       <div className="maint-groups">
         {GROUPS.map((g) => (
@@ -61,7 +62,7 @@ export function MaintenancePage({ state, run }) {
                 </button>
                 <span className="hint">
                   {a.note}
-                  {need(a.id) !== "OPERATOR" && ` (${LEVEL_LABEL[need(a.id)]} 이상)`}
+                  {need(a.id) !== "OPERATOR" && tr(" ({level} 이상)", { level: LEVEL_LABEL[need(a.id)] })}
                 </span>
               </div>
             ))}

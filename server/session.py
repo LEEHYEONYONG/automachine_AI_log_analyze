@@ -103,6 +103,7 @@ class HmiSession:
             "permissions": {a: self.allowed(a) for a in REQUIRED},
             "users": [{"id": u["id"], "name": u["name"], "level": u["level"]} for u in self.users.values()],
             "maintenance_level": MAINTENANCE_LEVEL,
+            "auto_logout_min": round(self.auto_logout_min),
         }
 
     def _check_timeout(self) -> None:

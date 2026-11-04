@@ -1,3 +1,4 @@
+import { tr } from "../../prefs";
 import { api } from "../../api";
 import { STATION_LABEL } from "../../labels";
 
@@ -15,18 +16,18 @@ export function ManualPage({ state, run }) {
     return (
       <div className="page">
         <section className="panel">
-          <h2>수동 조작</h2>
+          <h2>{tr("수동 조작")}</h2>
           <p className="hint">
             {allowed
-              ? "수동 조작은 MANUAL 모드에서만 할 수 있습니다. 장비를 정지한 뒤 하단의 모드 스위치를 MANUAL로 바꾸세요."
-              : "수동 조작은 엔지니어 이상 권한이 필요합니다. 오른쪽 위에서 로그인하세요."}
+              ? tr("수동 조작은 MANUAL 모드에서만 할 수 있습니다. 장비를 정지한 뒤 하단의 모드 스위치를 MANUAL로 바꾸세요.")
+              : tr("수동 조작은 엔지니어 이상 권한이 필요합니다. 오른쪽 위에서 로그인하세요.")}
           </p>
           <button
             className="btn"
             disabled={state.mode === "RUNNING" || !allowed || state.op_mode === "MANUAL"}
             onClick={() => run(() => api.setOpMode("MANUAL"))}
           >
-            MANUAL로 전환
+            {tr("MANUAL로 전환")}
           </button>
         </section>
       </div>
@@ -42,17 +43,17 @@ export function ManualPage({ state, run }) {
     <div className="page">
       <section className="panel manual-head">
         <div>
-          <h2>수동 조작</h2>
+          <h2>{tr("수동 조작")}</h2>
           <p className="hint">
-            동작 전에 주변을 확인하세요. 위험한 조작은 인터록으로 막히고 이유가 표시됩니다.
-            모든 조작은 로그에 기록됩니다.
+            {tr("동작 전에 주변을 확인하세요. 위험한 조작은 인터록으로 막히고 이유가 표시됩니다.")}
+            {tr("모든 조작은 로그에 기록됩니다.")}
           </p>
         </div>
         <div className="manual-ready">
           <span className={`lamp ${notReady.length ? "lamp-warn" : "lamp-ok"}`} />
-          {notReady.length ? `자동 운전 원위치 아님 (${notReady.length}개)` : "자동 운전 원위치"}
+          {notReady.length ? tr("자동 운전 원위치 아님 ({n}개)", { n: notReady.length }) : tr("자동 운전 원위치")}
           <button className="btn" onClick={() => run(() => api.homeAll())}>
-            전체 원위치
+            {tr("전체 원위치")}
           </button>
         </div>
       </section>
@@ -106,16 +107,16 @@ function DeviceRow({ d, run }) {
           <>
             <Lamp on={d.home_sensor} label={label.off} />
             <Lamp on={d.work_sensor} label={label.on} />
-            {moving && <span className="tag warn">동작 중</span>}
+            {moving && <span className="tag warn">{tr("동작 중")}</span>}
           </>
         )}
         {d.kind === "vacuum" && (
           <>
             <span className="mono">{(d.kpa ?? 0).toFixed(1)} kPa</span>
-            <Lamp on={(d.kpa ?? 0) <= VACUUM_OK_KPA} label="진공 스위치" />
+            <Lamp on={(d.kpa ?? 0) <= VACUUM_OK_KPA} label={tr("진공 스위치")} />
           </>
         )}
-        {d.kind === "belt" && <Lamp on={d.position >= 1} label="구동" />}
+        {d.kind === "belt" && <Lamp on={d.position >= 1} label={tr("구동")} />}
       </div>
     </div>
   );
@@ -128,7 +129,7 @@ function AxisCard({ a, run }) {
       <div className="axis-head">
         <strong>{AXIS_LABEL[a.id] ?? a.id}</strong>
         <span className="mono axis-pos">{a.position.toFixed(2)} mm</span>
-        {a.moving && <span className="tag warn">이동 중 → {a.target.toFixed(2)}</span>}
+        {a.moving && <span className="tag warn">{tr("이동 중 → {target}", { target: a.target.toFixed(2) })}</span>}
       </div>
       <div className="axis-track" aria-hidden>
         <div className="axis-marker" style={{ left: `${pct}%` }} />

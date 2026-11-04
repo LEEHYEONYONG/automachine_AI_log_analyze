@@ -1,3 +1,4 @@
+import { tr } from "../prefs";
 import { useState } from "react";
 import { api } from "../api";
 
@@ -26,21 +27,21 @@ export function LoginControl({ state, run }) {
         <>
           <span className="muted">{hmi.user.name} ({hmi.user.id})</span>
           <button className="btn-text" onClick={() => run(() => api.logout())}>
-            로그아웃
+            {tr("로그아웃")}
           </button>
         </>
       ) : (
         <button className="btn" onClick={() => setOpen(true)}>
-          로그인
+          {tr("로그인")}
         </button>
       )}
 
       {open && (
         <div className="dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="login-title">
           <form className="dialog" onSubmit={submit}>
-            <h2 id="login-title">HMI 로그인</h2>
+            <h2 id="login-title">{tr("HMI 로그인")}</h2>
             <label className="field">
-              <span>사용자</span>
+              <span>{tr("사용자")}</span>
               <select value={user} onChange={(e) => setUser(e.target.value)}>
                 {hmi.users.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -53,13 +54,13 @@ export function LoginControl({ state, run }) {
               <span>PIN</span>
               <input type="password" inputMode="numeric" autoFocus value={pin} onChange={(e) => setPin(e.target.value)} />
             </label>
-            <p className="hint">시뮬레이터 기본 PIN은 config/hmi_users.json에 있습니다. 10분 동안 조작이 없으면 자동으로 로그아웃됩니다.</p>
+            <p className="hint">{tr("시뮬레이터 기본 PIN은 config/hmi_users.json에 있습니다. {min}분 동안 조작이 없으면 자동으로 로그아웃됩니다.", { min: hmi.auto_logout_min })}</p>
             <div className="dialog-actions">
               <button type="button" className="btn-text" onClick={() => setOpen(false)}>
-                취소
+                {tr("취소")}
               </button>
               <button type="submit" className="btn" disabled={!pin}>
-                로그인
+                {tr("로그인")}
               </button>
             </div>
           </form>

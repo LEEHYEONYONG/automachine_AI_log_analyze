@@ -1,3 +1,4 @@
+import { tr } from "../prefs";
 import { useEffect, useRef, useState } from "react";
 
 const HEIGHT = 160;
@@ -91,12 +92,12 @@ export function TrendChart({ title, unit, digits, minSpan, points, limits, since
   };
 
   const limitLines = [
-    limits.lo !== undefined && { v: limits.lo, label: "하한" },
-    limits.hi !== undefined && { v: limits.hi, label: "상한" },
+    limits.lo !== undefined && { v: limits.lo, label: tr("하한") },
+    limits.hi !== undefined && { v: limits.hi, label: tr("상한") },
   ].filter(Boolean) ;
 
   const fmt = (v) => v.toFixed(digits);
-  const summary = last ? `${title} 추세, 최근값 ${fmt(last[1])}${unit}` : `${title} 추세, 데이터 없음`;
+  const summary = last ? tr("{title} 추세, 최근값 {value}{unit}", { title, value: fmt(last[1]), unit }) : tr("{title} 추세, 데이터 없음", { title });
 
   return (
     <div className="trend-card">
@@ -109,7 +110,7 @@ export function TrendChart({ title, unit, digits, minSpan, points, limits, since
         tabIndex={0}
         onKeyDown={onKeyDown}
         onBlur={() => setHoverT(null)}
-        aria-label={`${summary}. 좌우 화살표로 값을 확인할 수 있습니다.`}
+        aria-label={tr("{summary}. 좌우 화살표로 값을 확인할 수 있습니다.", { summary })}
       >
         <svg width={width} height={HEIGHT} role="img" aria-label={summary}>
           {yTicks.map((v) => (
@@ -162,7 +163,7 @@ export function TrendChart({ title, unit, digits, minSpan, points, limits, since
 
           {points.length === 0 && (
             <text className="axis" x={M.left + innerW / 2} y={M.top + innerH / 2} textAnchor="middle">
-              아직 데이터가 없습니다
+              {tr("아직 데이터가 없습니다")}
             </text>
           )}
 
@@ -192,12 +193,12 @@ export function TrendChart({ title, unit, digits, minSpan, points, limits, since
       </div>
 
       <details className="trend-table">
-        <summary>표 보기 (최근 10개)</summary>
+        <summary>{tr("표 보기 (최근 10개)")}</summary>
         <table>
           <thead>
             <tr>
-              <th>시각</th>
-              <th>값 ({unit})</th>
+              <th>{tr("시각")}</th>
+              <th>{tr("값 ({unit})", { unit })}</th>
             </tr>
           </thead>
           <tbody>

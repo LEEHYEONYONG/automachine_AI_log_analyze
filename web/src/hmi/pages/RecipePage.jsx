@@ -1,3 +1,4 @@
+import { tr } from "../../prefs";
 import { useCallback, useEffect, useState } from "react";
 
 import { LEVEL_LABEL } from "../hmiLabels";
@@ -47,7 +48,7 @@ export function RecipePage({ state, run }) {
   }
   const resetDraft = () => setDraft(toDraft(recipe));
 
-  if (!data || !recipe) return <p className="hint">불러오는 중…</p>;
+  if (!data || !recipe) return <p className="hint">{tr("불러오는 중…")}</p>;
 
   const parsed = Object.fromEntries(
     Object.entries(draft).map(([k, parts]) => {
@@ -76,32 +77,32 @@ export function RecipePage({ state, run }) {
             onClick={() => setSelected(r)}
           >
             <strong>{r}</strong>
-            <span>{r === data.current ? "현재 로드됨" : "대기"}</span>
+            <span>{r === data.current ? tr("현재 로드됨") : tr("대기")}</span>
           </button>
         ))}
       </div>
 
       <section className="panel">
         <div className="panel-head">
-          <h2>{name} 파라미터</h2>
+          <h2>{tr("{name} 파라미터", { name })}</h2>
           <div className="recipe-actions">
             {!isCurrent && (
               <button
                 className="btn"
                 disabled={!canLoad}
-                title={canLoad ? "" : "엔지니어 이상 권한, 정지한 AUTO 상태에서 로드할 수 있습니다"}
+                title={canLoad ? "" : tr("엔지니어 이상 권한, 정지한 AUTO 상태에서 로드할 수 있습니다")}
                 onClick={() => run(async () => setData(await call(`/api/recipes/${name}/load`)))}
               >
-                이 레시피 로드 (모델 체인지)
+                {tr("이 레시피 로드 (모델 체인지)")}
               </button>
             )}
             {canEdit && (
               <>
                 <button className="btn-text" disabled={!dirty} onClick={resetDraft}>
-                  되돌리기
+                  {tr("되돌리기")}
                 </button>
                 <button className="btn" disabled={!dirty} onClick={save}>
-                  저장 ({Object.keys(edits).length})
+                  {tr("저장 ({n})", { n: Object.keys(edits).length })}
                 </button>
               </>
             )}
@@ -109,17 +110,17 @@ export function RecipePage({ state, run }) {
         </div>
         <p className="hint">
           {canEdit
-            ? "값을 바꾸고 저장하면 범위를 확인한 뒤 적용됩니다. 로드된 레시피라면 운전 설정값도 바로 바뀌고 다음 도포 전에 weight check를 합니다."
-            : `레시피 편집은 ${LEVEL_LABEL.MAKER} 권한이 필요합니다. 지금은 보기만 할 수 있습니다.`}
+            ? tr("값을 바꾸고 저장하면 범위를 확인한 뒤 적용됩니다. 로드된 레시피라면 운전 설정값도 바로 바뀌고 다음 도포 전에 weight check를 합니다.")
+            : tr("레시피 편집은 {level} 권한이 필요합니다. 지금은 보기만 할 수 있습니다.", { level: LEVEL_LABEL.MAKER })}
         </p>
         <div className="table-wrap">
           <table className="seq-table recipe-table">
             <thead>
               <tr>
-                <th>항목</th>
-                <th>범위</th>
-                <th>레시피 값</th>
-                {isCurrent && <th>운전 설정값</th>}
+                <th>{tr("항목")}</th>
+                <th>{tr("범위")}</th>
+                <th>{tr("레시피 값")}</th>
+                {isCurrent && <th>{tr("운전 설정값")}</th>}
               </tr>
             </thead>
             <tbody>
@@ -128,7 +129,7 @@ export function RecipePage({ state, run }) {
                 return (
                   <tr key={key} className={key in edits ? "edited" : mismatch ? "slow" : ""}>
                     <td>
-                      {spec.label}
+                      {tr(spec.label)}
                       <div className="io-id mono">{key}</div>
                     </td>
                     <td className="mono">
@@ -145,7 +146,7 @@ export function RecipePage({ state, run }) {
                               min={spec.min}
                               max={spec.max}
                               value={v}
-                              aria-label={`${spec.label} ${i ? "상한" : ""}`}
+                              aria-label={`${tr(spec.label)} ${i ? tr("상한") : ""}`}
                               onChange={(e) => {
                                 const next = [...draft[key]];
                                 next[i] = e.target.value;
@@ -164,7 +165,7 @@ export function RecipePage({ state, run }) {
                     {isCurrent && (
                       <td className="mono">
                         {show(data.setpoints[key])} {spec.unit}
-                        {mismatch && <span className="tag warn">레시피와 다름</span>}
+                        {mismatch && <span className="tag warn">{tr("레시피와 다름")}</span>}
                       </td>
                     )}
                   </tr>
@@ -176,9 +177,9 @@ export function RecipePage({ state, run }) {
       </section>
 
       <section className="panel">
-        <h2>변경 이력</h2>
+        <h2>{tr("변경 이력")}</h2>
         {data.history.length === 0 ? (
-          <p className="hint">변경 이력이 없습니다.</p>
+          <p className="hint">{tr("변경 이력이 없습니다.")}</p>
         ) : (
           <div className="log-box">
             {data.history.map((e, i) => (

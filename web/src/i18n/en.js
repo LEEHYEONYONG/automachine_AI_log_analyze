@@ -3,7 +3,10 @@
  * server); a missing entry shows the Korean, so screens can be translated one at a time.
  * {name} placeholders must match the Korean key.
  */
+import { EN_HMI } from "./en_hmi";
+
 export const EN = {
+  ...EN_HMI,
   // ---- app frame ----
   "HMI": "HMI",
   "엔지니어 콘솔": "Engineer console",

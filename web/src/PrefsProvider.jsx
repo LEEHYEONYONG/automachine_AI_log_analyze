@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { loadPrefs, PrefsContext, STORAGE_KEY, TEXT_ZOOM, translate } from "./prefs";
+import { loadPrefs, PrefsContext, setCurrentLang, STORAGE_KEY, TEXT_ZOOM, translate } from "./prefs";
 
 function systemDark() {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
@@ -37,6 +37,7 @@ export function PrefsProvider({ children }) {
     });
   }, []);
 
+  setCurrentLang(prefs.lang);   // before the children render, so label tables match t()
   const t = useCallback((text, vars) => translate(prefs.lang, text, vars), [prefs.lang]);
   const value = useMemo(() => ({ prefs, setPref, t }), [prefs, setPref, t]);
   return <PrefsContext.Provider value={value}>{children}</PrefsContext.Provider>;

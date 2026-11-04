@@ -1,11 +1,12 @@
+import { localized, tr } from "../../prefs";
 import { useEffect, useState } from "react";
 import { STATION_LABEL } from "../../labels";
 
-const KINDS = [
+const KINDS = localized([
   { id: "event", label: "이벤트" },
   { id: "alarm", label: "알람" },
   { id: "production", label: "생산" },
-];
+]);
 const UNITS = ["", "MACHINE", "INFEED", "VISION", "DISPENSER", "INSPECTION", "OUTFEED", "OPERATOR", "MAINT", "HMI"];
 const LEVELS = ["DEBUG", "INFO", "WARN", "ALARM"];
 
@@ -52,30 +53,30 @@ export function LogPage() {
             ))}
           </div>
           {kind === "event" && (
-            <select value={level} onChange={(e) => setLevel(e.target.value)} aria-label="최소 레벨">
+            <select value={level} onChange={(e) => setLevel(e.target.value)} aria-label={tr("최소 레벨")}>
               {LEVELS.map((l) => (
                 <option key={l} value={l}>
-                  {l} 이상
+                  {tr("{level} 이상", { level: l })}
                 </option>
               ))}
             </select>
           )}
           {kind !== "production" && (
-            <select value={unit} onChange={(e) => setUnit(e.target.value)} aria-label="유닛">
+            <select value={unit} onChange={(e) => setUnit(e.target.value)} aria-label={tr("유닛")}>
               {UNITS.map((u) => (
                 <option key={u} value={u}>
-                  {u ? STATION_LABEL[u] ?? u : "전체 유닛"}
+                  {u ? STATION_LABEL[u] ?? u : tr("전체 유닛")}
                 </option>
               ))}
             </select>
           )}
-          <input type="search" placeholder="검색 (예: wp 번호, vac, E3005)" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input type="search" placeholder={tr("검색 (예: wp 번호, vac, E3005)")} value={q} onChange={(e) => setQ(e.target.value)} />
           <label className="toggle">
             <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
-            자동 갱신
+            {tr("자동 갱신")}
           </label>
         </div>
-        <p className="hint">최근 기록 {items.length}건 (최신순). 전체 기록은 로그 파일에 있습니다: <span className="mono">{logDir}</span></p>
+        <p className="hint">{tr("최근 기록 {n}건 (최신순). 전체 기록은 로그 파일에 있습니다:", { n: items.length })} <span className="mono">{logDir}</span></p>
 
         <div className="table-wrap log-table-wrap">
           {kind === "event" && <EventTable rows={items } />}
@@ -92,10 +93,10 @@ function EventTable({ rows }) {
     <table className="log-table">
       <thead>
         <tr>
-          <th>시각</th>
-          <th>레벨</th>
-          <th>유닛</th>
-          <th>내용</th>
+          <th>{tr("시각")}</th>
+          <th>{tr("레벨")}</th>
+          <th>{tr("유닛")}</th>
+          <th>{tr("내용")}</th>
         </tr>
       </thead>
       <tbody>
@@ -117,12 +118,12 @@ function AlarmTable({ rows }) {
     <table className="log-table">
       <thead>
         <tr>
-          <th>시각</th>
-          <th>구분</th>
-          <th>코드</th>
-          <th>유닛</th>
-          <th>내용</th>
-          <th>상세</th>
+          <th>{tr("시각")}</th>
+          <th>{tr("구분")}</th>
+          <th>{tr("코드")}</th>
+          <th>{tr("유닛")}</th>
+          <th>{tr("내용")}</th>
+          <th>{tr("상세")}</th>
         </tr>
       </thead>
       <tbody>
@@ -141,7 +142,7 @@ function AlarmTable({ rows }) {
   );
 }
 
-const PRODUCTION_COLUMNS = [
+const PRODUCTION_COLUMNS = localized([
   ["end_time", "완료"],
   ["wp_id", "제품"],
   ["recipe", "레시피"],
@@ -152,7 +153,7 @@ const PRODUCTION_COLUMNS = [
   ["bead_offset_mm", "위치 오차"],
   ["judge", "판정"],
   ["ng_reason", "NG 사유"],
-];
+]);
 
 function ProductionTable({ rows }) {
   return (
