@@ -1,0 +1,56 @@
+/* AM 시리즈 부품 설명서 공용 스타일. 레이아웃: 제조사 취급설명서, 한 단 본문, 장 번호, 명판·표·주의 상자 */
+:root {
+  --bg: #f6f7f8; --paper: #ffffff; --fg: #1d2329; --muted: #5d6873; --line: #d5dbe1;
+  --accent: #1f5f8b; --accent-soft: #e5eef5; --caution: #b26a00; --caution-soft: #fff4e0;
+  --danger: #b3261e; --ok: #2e7d4f;
+  --font-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --font-mono: "IBM Plex Mono", "Consolas", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161a; --paper: #1a2026; --fg: #e3e8ed; --muted: #9aa6b2; --line: #333d47;
+  --accent: #6fb0e0; --accent-soft: #1d2d3b; --caution: #f0b04a; --caution-soft: #2e2615;
+  --danger: #ef7a72; --ok: #6cc690; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161a; --paper: #1a2026; --fg: #e3e8ed; --muted: #9aa6b2; --line: #333d47;
+  --accent: #6fb0e0; --accent-soft: #1d2d3b; --caution: #f0b04a; --caution-soft: #2e2615;
+  --danger: #ef7a72; --ok: #6cc690; color-scheme: dark }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 64px; }
+main { max-width: 860px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.3; margin: 0; }
+h1 { font-size: 30px; font-weight: 700; }
+h2 { font-size: 21px; display: flex; gap: 12px; align-items: baseline; padding-bottom: 8px; border-bottom: 2px solid var(--fg); }
+h2 .no { font-family: var(--font-mono); color: var(--accent); font-size: 17px; }
+h3 { font-size: 16px; }
+p { margin: 0; max-width: 68ch; }
+section { display: grid; gap: 14px; }
+.mono, td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.back { font-size: 14px; color: var(--accent); text-decoration: none; }
+.back:hover { text-decoration: underline; }
+.virtual { font-size: 13px; color: var(--muted); border: 1px dashed var(--line); padding: 8px 12px; }
+.plate { background: var(--paper); border: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 20px; }
+.plate .brand { font-family: var(--font-mono); letter-spacing: .12em; font-size: 12px; color: var(--muted); text-transform: uppercase; }
+.plate .sub { color: var(--muted); }
+.plate dl { margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 14px; font-size: 13px; align-self: end; }
+.plate dt { color: var(--muted); } .plate dd { margin: 0; font-family: var(--font-mono); }
+@media (max-width: 560px) { .plate { grid-template-columns: 1fr; } }
+.toc { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; }
+.toc a, td a { color: var(--accent); text-decoration: none; }
+.toc a:hover, td a:hover { text-decoration: underline; }
+.table-wrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--line); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--accent-soft); font-weight: 500; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.note { border-left: 4px solid var(--caution); background: var(--caution-soft); padding: 10px 14px; display: grid; gap: 4px; }
+.note b:first-child { color: var(--caution); letter-spacing: .04em; }
+.formula { font-family: var(--font-mono); background: var(--paper); border: 1px solid var(--line); padding: 12px 16px; overflow-x: auto; white-space: pre; font-size: 14px; }
+figure { margin: 0; background: var(--paper); border: 1px solid var(--line); padding: 16px; display: grid; gap: 10px; }
+figure svg { width: 100%; height: auto; max-width: 100%; color: var(--fg); }
+figcaption { font-size: 13px; color: var(--muted); }
+.code { font-family: var(--font-mono); font-weight: 500; color: var(--danger); white-space: nowrap; }
+.good { color: var(--ok); } .bad { color: var(--danger); }
+ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

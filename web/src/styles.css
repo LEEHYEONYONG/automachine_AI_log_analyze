@@ -11,6 +11,7 @@
   --ng: #e5484d;
   --idle: #4a5866;
   --engineer: #b07cf2;
+  --ai: #2bb5a6; /* AI alerts: not the red of equipment alarms */
   --series-1: #3987e5; /* validated against the dark panel surface */
   --radius: 8px;
   --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -652,6 +653,15 @@ details ul { margin: 6px 0 0; padding-left: 18px; }
 .ops-history { margin-top: 4px; font-size: 12px; }
 .ops-history summary { cursor: pointer; color: var(--muted); }
 .ops-history .ops-list { margin: 4px 0 0; }
+.live-bar { display: flex; align-items: center; gap: 4px; margin: 0 16px 8px; border: 1px solid var(--ai); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ai) 14%, var(--panel)); }
+.live-bar-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 8px 12px;
+  background: none; border: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.live-bar-tag { font-size: 12px; font-weight: 700; color: var(--ai); letter-spacing: 0.04em; }
+.live-bar-evidence { color: var(--muted); font-size: 13px; min-width: 0; }
+.live-bar-lead { font-size: 13px; font-weight: 600; color: var(--ai); }
+.live-report-btn { align-self: auto; color: var(--ai); border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; white-space: nowrap; }
+.live-report-btn:disabled { color: var(--muted); opacity: 0.6; cursor: not-allowed; }
 .ops-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .ops-actions .btn-text { align-self: auto; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; }
 .ops-actions .btn-text:disabled { color: var(--muted); opacity: 0.5; cursor: not-allowed; }

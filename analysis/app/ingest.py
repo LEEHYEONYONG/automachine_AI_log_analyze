@@ -90,6 +90,8 @@ def load_csv(cur, run_id, path, table, expected, rename=None):
         count = 0
         with cur.copy(f"COPY {table} ({columns}) FROM STDIN") as copy:
             for row in reader:
+                if len(row) != len(header):
+                    continue    # 돌고 있는 런은 마지막 줄이 쓰이는 도중일 수 있다
                 copy.write_row([run_id] + [v if v != "" else None for v in row])
                 count += 1
     return count

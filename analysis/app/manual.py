@@ -23,6 +23,16 @@ def split_sections(markdown):
     return sections
 
 
+def actions_from_file(cause):
+    """고장 이름으로 안내서 파일에서 그 절의 조치 문장을 바로 찾는다. DB와 Ollama 없이 쓴다 (실시간 감시용)."""
+    for path in sorted(MANUAL_DIR.glob("*.md")):
+        for title, body in split_sections(path.read_text(encoding="utf-8")):
+            if f"({cause})" in title:
+                steps = next((line for line in body.splitlines() if line.startswith("조치:")), "")
+                return {"section": title, "source": path.name, "steps": steps.removeprefix("조치:").strip()}
+    return None
+
+
 def embed(texts):
     res = httpx.post(f"{OLLAMA_URL}/api/embed", json={"model": EMBED_MODEL, "input": texts}, timeout=120)
     res.raise_for_status()

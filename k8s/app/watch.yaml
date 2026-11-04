@@ -1,0 +1,98 @@
+# Real-time watch: follows the simulator's current run and keeps a list of AI alerts (app/watch.py).
+# Exactly one pod: the alerts live in its memory, and two pods would each keep their own list.
+apiVersion: v1
+kind: Service
+metadata:
+  name: watch
+  namespace: automachine
+spec:
+  selector:
+    app: watch
+  ports:
+    - port: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watch
+  namespace: automachine
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  # Two watchers must never overlap, and a restart rebuilds the list from the log files anyway.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: watch
+  template:
+    metadata:
+      labels:
+        app: watch
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: watch
+          image: localhost:5000/automachine-analysis:dev
+          imagePullPolicy: IfNotPresent
+          command: [uvicorn, app.watch:app, --host, 0.0.0.0, --port, "8000"]
+          env:
+            - name: SIM_URL
+              value: http://sim:8000
+          # It does not use the database, but the shared code reads these settings when it loads.
+          envFrom:
+            - configMapRef:
+                name: analysis-config
+            - secretRef:
+                name: db-credentials
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /api/analysis/watch/live
+              port: 8000
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/analysis/watch/live
+              port: 8000
+            periodSeconds: 5
+          volumeMounts:
+            - name: logs
+              mountPath: /logs
+              readOnly: true
+      # Like analysis: logs only, read-only, and never ground_truth/.
+      volumes:
+        - name: logs
+          hostPath:
+            path: /home/lhy/projects/automachine_AI_log_analyze/logs
+            type: Directory
+---
+# A longer path than /api/analysis, so Traefik sends these requests here first.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: watch
+  namespace: automachine
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/analysis/watch
+            pathType: Prefix
+            backend:
+              service:
+                name: watch
+                port:
+                  number: 8000

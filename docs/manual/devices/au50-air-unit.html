@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-AU50 공압 조합 유닛</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Air Service Unit</span>
+        <h1>AM-AU50 공압 조합 유닛</h1>
+        <span class="sub">메인 공기 입구·필터·압력 스위치 · 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-AU50</dd>
+        <dt>공급 기준</dt><dd>550 kPa</dd>
+        <dt>압력 스위치</dt><dd>300 kPa</dd>
+        <dt>설치 위치</dt><dd>장비 뒷면 공기 입구</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 사양</a><a href="#c3">3 공기를 쓰는 장치</a><a href="#c4">4 공급 압력별 영향</a><a href="#c5">5 관련 알람</a><a href="#c6">6 고장 진단</a><a href="#c7">7 점검</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-AU50은 공장 압축 공기를 장비로 들여보내는 입구 유닛입니다. 공기를 거르고, 압력이 너무 낮으면 압력 스위치로 장비를 멈춥니다. 장비 안의 공압 장치는 모두 이 한 곳의 공기를 나눠 씁니다. 그래서 공장 공기가 약해지면 <b>여러 장치에서 동시에</b> 증상이 나타납니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>사양</h2>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>값</th><th>비고</th></tr>
+      <tr><td>공급 압력 기준</td><td class="num">550 kPa</td><td>평소에도 ±10 kPa 안팎에서 천천히 흔들림</td></tr>
+      <tr><td>압력 스위치</td><td class="num">300 kPa</td><td>운전 중 이 아래로 내려가면 <span class="code">E9001</span>, 장비 정지</td></tr>
+      <tr><td>장치가 제 성능을 내는 공급 압력</td><td class="num">450 kPa 이상</td><td>진공 이젝터·공압 실린더 기준</td></tr>
+      <tr><td>공급 압력 기록</td><td>장비 로그에 직접 남지 않음</td><td>4장의 간접 증상으로 판단</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>공기를 쓰는 장치</h2>
+    <figure>
+      <svg viewBox="0 0 800 240" role="img" aria-label="공장 공기가 공압 조합 유닛을 거쳐 디스펜서 컨트롤러, 진공 이젝터, 공압 실린더로 나뉜다">
+        <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="20" y="90" width="120" height="60" rx="4"/>
+          <rect x="200" y="90" width="150" height="60" rx="4" stroke="var(--accent)" stroke-width="2.5"/>
+          <rect x="460" y="15" width="320" height="56" rx="4"/>
+          <rect x="460" y="92" width="320" height="56" rx="4"/>
+          <rect x="460" y="169" width="320" height="56" rx="4"/>
+          <line x1="140" y1="120" x2="198" y2="120" marker-end="url(#ar)"/>
+          <path d="M350,120 L400,120 L400,43 L458,43" marker-end="url(#ar)"/>
+          <line x1="400" y1="120" x2="458" y2="120" marker-end="url(#ar)"/>
+          <path d="M400,120 L400,197 L458,197" marker-end="url(#ar)"/>
+        </g>
+        <g fill="currentColor" font-size="13" font-family="IBM Plex Sans KR, Malgun Gothic, sans-serif">
+          <text x="80" y="116" text-anchor="middle">공장 공기</text><text x="80" y="134" text-anchor="middle">550 kPa</text>
+          <text x="275" y="116" text-anchor="middle">AM-AU50</text><text x="275" y="134" text-anchor="middle">스위치 300 kPa</text>
+          <text x="474" y="39">디스펜서 컨트롤러 (AM-DP300)</text><text x="474" y="58" font-size="12">출력 ≤ 공급 − 120 kPa</text>
+          <text x="474" y="116">진공 이젝터 (AM-VF100)</text><text x="474" y="135" font-size="12">450 kPa 미만이면 비례해 약해짐</text>
+          <text x="474" y="193">공압 실린더 (스토퍼·리프트·푸셔·픽커)</text><text x="474" y="212" font-size="12">450 kPa 미만이면 동작 시간 증가</text>
+        </g>
+      </svg>
+      <figcaption>그림 3-1. 공기 하나를 세 종류 장치가 나눠 씀. 공기가 약해지면 셋이 같은 시각에 함께 나빠집니다.</figcaption>
+    </figure>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>공급 압력별 영향</h2>
+    <p>아래 표는 레시피 A(토출 압력 250 kPa) 기준입니다. 압력 스위치가 울리기 훨씬 전부터 증상이 나타납니다.</p>
+    <div class="table-wrap"><table>
+      <tr><th>공급 압력</th><th>토출 압력</th><th>흡착 진공 (기준 −60)</th><th>실린더 동작 시간</th><th>알람</th></tr>
+      <tr><td class="num">550 kPa</td><td class="num good">250 kPa</td><td class="num good">−85 kPa</td><td class="num">기준 (리프트 0.40 s)</td><td>없음</td></tr>
+      <tr><td class="num">450 kPa</td><td class="num good">250 kPa</td><td class="num good">−85 kPa</td><td class="num">기준</td><td>없음</td></tr>
+      <tr><td class="num">400 kPa</td><td class="num good">250 kPa</td><td class="num good">−76 kPa</td><td class="num">×1.13 (0.45 s)</td><td>없음</td></tr>
+      <tr><td class="num">370 kPa</td><td class="num good">250 kPa</td><td class="num good">−70 kPa</td><td class="num">×1.22 (0.49 s)</td><td>없음</td></tr>
+      <tr><td class="num">330 kPa</td><td class="num bad">210 kPa</td><td class="num">−62 kPa (간신히)</td><td class="num">×1.36 (0.55 s)</td><td>토출량 부족 시 <span class="code">E3005</span></td></tr>
+      <tr><td class="num">300 kPa 미만</td><td class="num bad">180 kPa 이하</td><td class="num bad">−57 kPa 이하</td><td class="num">×1.5 이상</td><td><span class="code">E9001</span></td></tr>
+    </table></div>
+    <p>실린더 동작 시간은 이벤트 로그의 단계 시간(예: LIFT_UP, PUSH_ALIGN, 스토퍼)으로 보입니다. 단계 시간은 평소에도 ±5 % 흔들리므로 여러 개의 평균으로 봅니다.</p>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>관련 알람</h2>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>장비 메시지</th><th>뜻</th></tr>
+      <tr><td class="code">E9001</td><td>Main air pressure low</td><td>공급 300 kPa 미만. 리셋은 공기가 돌아온 뒤에</td></tr>
+      <tr><td class="code">E3001</td><td>Fixture vacuum not reached</td><td>공기 저하로 진공이 약해졌을 수 있음</td></tr>
+      <tr><td class="code">E3005</td><td>Weight check out of spec</td><td>공기 저하로 토출 압력이 깎였을 수 있음</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c6">
+    <h2><span class="no">6</span>고장 진단</h2>
+    <div class="table-wrap"><table>
+      <tr><th>증상</th><th>확인할 것</th><th>가능한 원인</th><th>조치</th></tr>
+      <tr><td>토출 압력(밸브 닫힘)이 설정보다 낮고, 진공도 같이 약해짐</td><td>실린더 단계 시간 증가 여부</td><td>공장 공기 저하</td><td>공장 공기 계통 확인. 장비 설정은 바꾸지 않음</td></tr>
+      <tr><td>위 증상이 수십 분 뒤 저절로 사라짐</td><td>공장 다른 설비의 공기 사용</td><td>일시적인 공장 공기 부족</td><td>기록만 남김. 반복되면 공장 설비 담당에 알림</td></tr>
+      <tr><td>한 장치만 나빠짐</td><td>나머지 두 장치가 정상인지</td><td>공기 문제가 아님</td><td>해당 장치 설명서 참고</td></tr>
+    </table></div>
+    <div class="note"><b>주의</b><p>공기 저하 중에 토출 압력 설정을 올리거나 진공 패드를 바꾸지 마십시오. 원인은 장비 밖에 있고, 공기가 돌아오면 올린 설정 때문에 과다 토출이 됩니다.</p></div>
+  </section>
+
+  <section id="c7">
+    <h2><span class="no">7</span>점검</h2>
+    <div class="table-wrap"><table>
+      <tr><th>주기</th><th>점검</th><th>기준</th></tr>
+      <tr><td>매일</td><td>입구 압력계</td><td class="num">450 kPa 이상 (권장 550 kPa)</td></tr>
+      <tr><td>매주</td><td>필터 배수·오염</td><td>물·이물 없음</td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>

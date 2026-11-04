@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DSP-CELL-01 장비 설명서</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Adhesive Dispensing Cell</span>
+        <h1>DSP-CELL-01 접착제 디스펜싱 셀</h1>
+        <span class="sub">장비 취급·운전 설명서 1.0판 (2026-11)</span>
+      </div>
+      <dl>
+        <dt>장비 번호</dt><dd>DSP-CELL-01</dd>
+        <dt>대상</dt><dd>리어 하우징 A·B</dd>
+        <dt>스테이션</dt><dd>5개 직렬</dd>
+        <dt>사이클</dt><dd>약 6.4 s (A)</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비의 <b>가상</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터(<span class="mono">simulator/</span>, <span class="mono">config/machine.json</span>)의 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 배치</a><a href="#c3">3 공정 흐름</a><a href="#c4">4 레시피</a><a href="#c5">5 운전</a><a href="#c6">6 안전</a><a href="#c7">7 알람 목록</a><a href="#c8">8 표준 조치</a><a href="#c9">9 기록 파일</a><a href="#c10">10 부품 목차</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>DSP-CELL-01은 앞 설비에서 들어온 리어 하우징에 접착제 비드를 한 줄 그리고, 비드를 검사해 합격품은 뒤 설비로, 불량품은 NG 버퍼로 보내는 자동 셀입니다. 제품은 투입 → 정렬 → 도포 → 검사 → 배출의 다섯 스테이션을 차례로 지납니다. 품질을 정하는 핵심은 도포 스테이션(DISPENSER)이며, 이 스테이션이 사이클 시간도 정합니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>배치</h2>
+    <figure>
+      <svg viewBox="0 0 820 330" role="img" aria-label="위에서 본 배치. 왼쪽 앞 설비에서 오른쪽 뒤 설비로 다섯 스테이션이 일렬로 놓이고, 디스펜서 위에 갠트리, 옆에 저울, 배출부 앞에 NG 버퍼, 앞면에 안전 도어 두 개, 뒷면에 공기 입구가 있다">
+        <g fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="60" y="40" width="700" height="250" rx="6"/>
+          <rect x="70" y="140" width="680" height="40" stroke="var(--muted)"/>
+          <rect x="85" y="125" width="110" height="70" rx="3"/>
+          <rect x="215" y="125" width="110" height="70" rx="3"/>
+          <rect x="345" y="110" width="140" height="100" rx="3" stroke="var(--accent)" stroke-width="2.5"/>
+          <rect x="505" y="125" width="110" height="70" rx="3"/>
+          <rect x="635" y="125" width="110" height="70" rx="3"/>
+          <rect x="350" y="60" width="130" height="18" rx="2" stroke-dasharray="5 3"/>
+          <rect x="420" y="232" width="50" height="34" rx="3"/>
+          <rect x="650" y="232" width="80" height="40" rx="3"/>
+          <rect x="1" y="140" width="56" height="40" rx="3" stroke-dasharray="5 3"/>
+          <rect x="763" y="140" width="56" height="40" rx="3" stroke-dasharray="5 3"/>
+          <circle cx="740" cy="58" r="10"/>
+        </g>
+        <g stroke="var(--caution)" stroke-width="4">
+          <line x1="110" y1="290" x2="330" y2="290"/><line x1="430" y1="290" x2="640" y2="290"/>
+        </g>
+        <g fill="currentColor" font-size="12" text-anchor="middle" font-family="IBM Plex Sans KR, Malgun Gothic, sans-serif">
+          <text x="140" y="118">INFEED</text><text x="140" y="214">코드 리더</text>
+          <text x="270" y="118">VISION</text><text x="270" y="214">카메라·푸셔</text>
+          <text x="415" y="103">DISPENSER</text><text x="415" y="73" font-size="11">갠트리 X·Y·Z</text>
+          <text x="445" y="254" font-size="11">저울</text>
+          <text x="560" y="118">INSPECTION</text><text x="560" y="214">비드 검사</text>
+          <text x="690" y="118">OUTFEED</text><text x="690" y="256">NG 버퍼 24</text>
+          <text x="29" y="200" font-size="11">앞 설비</text><text x="791" y="200" font-size="11">뒤 설비</text>
+          <text x="740" y="84" font-size="11">공기 입구</text>
+          <text x="220" y="310" fill="var(--caution)">안전 도어 FRONT_LEFT</text><text x="535" y="310" fill="var(--caution)">안전 도어 FRONT_RIGHT</text>
+          <text x="410" y="164" font-size="11" fill="var(--muted)">진공 지그·히터·니들</text>
+          <text x="410" y="30" font-size="12" fill="var(--muted)">뒷면</text>
+        </g>
+      </svg>
+      <figcaption>그림 2-1. 위에서 본 개략 배치 (축척 아님). 제품은 왼쪽에서 오른쪽으로 흐릅니다. 파란 테두리가 도포 스테이션입니다.</figcaption>
+    </figure>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>공정 흐름</h2>
+    <div class="table-wrap"><table>
+      <tr><th>스테이션</th><th>하는 일</th><th>주요 단계 (표준 시간)</th><th>쓰는 부품</th></tr>
+      <tr><td class="mono">INFEED</td><td>앞 설비에서 받기, 제품 번호 읽기</td><td class="mono">WAIT_UPSTREAM, TRANSFER_IN 1.0, STOPPER 0.15, ID_READ 0.3</td><td>컨베이어, 실린더, 코드 리더</td></tr>
+      <tr><td class="mono">VISION</td><td>기준 핀 정렬, 남은 위치 차 측정</td><td class="mono">LIFT_UP 0.4, PUSH_ALIGN 0.4, SETTLE 0.2, CAPTURE 0.3, PROCESS 0.2, RELEASE 0.3, LIFT_DOWN 0.4</td><td>비전, 실린더</td></tr>
+      <tr><td class="mono">DISPENSER</td><td>진공 고정, 높이 확인, 비드 도포. 정기 중량 검사</td><td class="mono">(중량 검사) LIFT_UP 0.4, VACUUM_ON 0.3, APPROACH 0.8, HEIGHT_MEASURE 0.5, DISPENSE 2.0, DWELL 0.3, RETRACT 0.5, VACUUM_OFF 0.2, LIFT_DOWN 0.4</td><td>컨트롤러, 히터, 니들, 시린지, 진공 지그, 저울, 높이 레이저, 서보</td></tr>
+      <tr><td class="mono">INSPECTION</td><td>비드 폭·위치·결함 판정</td><td class="mono">SCAN 1.2, SCAN_RETURN 0.5</td><td>비드 검사 센서, 서보</td></tr>
+      <tr><td class="mono">OUTFEED</td><td>합격품 넘기기, 불량품 NG 버퍼로</td><td class="mono">합격: STOPPER_DOWN 0.15, TRANSFER_OUT 1.0 / 불량: PICK_DOWN … RETURN 약 2.7 s</td><td>컨베이어, 실린더, 서보</td></tr>
+    </table></div>
+    <p>스테이션은 동시에 서로 다른 제품을 처리합니다. 가장 오래 걸리는 도포 스테이션(레시피 A, 이송 포함 약 6.4 s)이 사이클 시간을 정합니다. 중량 검사가 있는 제품은 약 8 s가 더 걸립니다.</p>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>레시피</h2>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>REAR_HOUSING_ADH_A</th><th>REAR_HOUSING_ADH_B</th><th>설정 범위</th></tr>
+      <tr><td>토출 압력</td><td class="num">250 kPa</td><td class="num">220 kPa</td><td class="num">100–400</td></tr>
+      <tr><td>토출 시간</td><td class="num">2.0 s</td><td class="num">1.6 s</td><td class="num">0.5–5.0</td></tr>
+      <tr><td>토출 후 대기</td><td class="num">0.3 s</td><td class="num">0.3 s</td><td class="num">0–2.0</td></tr>
+      <tr><td>시린지 온도</td><td class="num">35.0 °C</td><td class="num">35.0 °C</td><td class="num">20–50</td></tr>
+      <tr><td>도포 갭</td><td class="num">0.15 mm</td><td class="num">0.12 mm</td><td class="num">0.05–0.5</td></tr>
+      <tr><td>목표 토출량</td><td class="num">12.0 mg ±10 %</td><td class="num">8.5 mg ±10 %</td><td class="num">1–30</td></tr>
+      <tr><td>기준 비드 폭 (합격 범위)</td><td class="num">0.80 (0.68–0.92) mm</td><td class="num">0.65 (0.55–0.75) mm</td><td class="num">0.2–2.0</td></tr>
+    </table></div>
+    <div class="note"><b>주의</b><p>공정은 처음 검증한 레시피 값을 기준으로 맞춰져 있으므로, 값을 바꾸면 토출량과 비드 폭이 실제로 바뀝니다. 바꾸는 방법은 두 가지이고 기록이 다릅니다. 지금 운전 중인 설정값만 바꾸면 "Recipe parameter changed param=… old=… new=…"가 남고, 정비 담당 조치나 모델 변경 때 저장된 레시피 값으로 돌아갑니다. 저장된 레시피 자체를 고치면 "Recipe edited param=… old=… new=…"가 남고, 다시 고칠 때까지 그대로 유지됩니다.</p></div>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>운전</h2>
+    <div class="table-wrap"><table>
+      <tr><th>조작</th><th>내용</th></tr>
+      <tr><td>원점 복귀</td><td>전원 투입·비상 정지·수동 조작 뒤 자동 운전 전에 필요. 순서는 서보 축 설명서 3장</td></tr>
+      <tr><td>START / STOP</td><td>AUTO 모드, 원점 복귀 완료, 알람 없음, 안전 조건 충족일 때만 START</td></tr>
+      <tr><td>사이클 정지</td><td>새 제품을 받지 않고 라인이 빌 때 멈춤. 휴식과 모델 변경 때 사용</td></tr>
+      <tr><td>AUTO / MANUAL</td><td>정지 중에만 MANUAL로. MANUAL에서 장치를 하나씩 움직임. 돌아갈 때 원점 복귀</td></tr>
+      <tr><td>모델 변경</td><td>레시피 교체, 새 로트, 다음 제품 중량 검사</td></tr>
+    </table></div>
+    <h3>교대와 휴식</h3>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>시간</th></tr>
+      <tr><td>주간 조 (OP-A, OP-B)</td><td class="num">08:00 시작</td></tr>
+      <tr><td>야간 조 (OP-C, OP-D)</td><td class="num">20:00 시작</td></tr>
+      <tr><td>휴식 (사이클 정지)</td><td class="num">10:00–10:10, 12:00–13:00, 15:00–15:10, 22:00–22:10, 00:00–01:00, 03:00–03:10</td></tr>
+    </table></div>
+    <p>휴식 중에는 장비가 멈춰도 시린지 장착 시간(가사 시간)은 계속 흐르고, 히터는 온도를 유지합니다.</p>
+  </section>
+
+  <section id="c6">
+    <h2><span class="no">6</span>안전</h2>
+    <div class="table-wrap"><table>
+      <tr><th>장치</th><th>동작</th><th>알람</th></tr>
+      <tr><td>비상 정지 버튼</td><td>모든 동작 정지, 토출 밸브·진공 꺼짐, 서보 전원 차단 → 원점 복귀 필요</td><td class="code">E9100</td></tr>
+      <tr><td>앞면 안전 도어 2개 (FRONT_LEFT, FRONT_RIGHT)</td><td>운전 중 열면 정지. 열린 동안 리셋·시작 불가</td><td class="code">E9101</td></tr>
+      <tr><td>메인 공기 압력 스위치</td><td>300 kPa 미만이면 정지, 원점 복귀도 불가</td><td class="code">E9001</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c7">
+    <h2><span class="no">7</span>알람 목록</h2>
+    <p>리셋하면 어떻게 되는지는 알람마다 정해져 있습니다. 다시 시도: 그 스테이션 순서를 처음부터 다시 함. 제품 제거: 그 제품을 불량으로 빼고 다음 제품. 계속: 그 제품은 이미 판정을 마쳐 그대로 내보냄.</p>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>스테이션</th><th>메시지</th><th>리셋하면</th><th>부품 설명서</th></tr>
+      <tr><td class="code">E1001</td><td>INFEED</td><td>2D code read fail</td><td>제품 제거</td><td><a href="cr10-code-reader.html">코드 리더</a></td></tr>
+      <tr><td class="code">E2001</td><td>VISION</td><td>Align mark not found</td><td>제품 제거</td><td><a href="vc200-vision.html">정렬 비전</a></td></tr>
+      <tr><td class="code">E2002</td><td>VISION</td><td>Align offset out of range</td><td>제품 제거</td><td><a href="vc200-vision.html">정렬 비전</a></td></tr>
+      <tr><td class="code">E3001</td><td>DISPENSER</td><td>Fixture vacuum not reached (retry exceeded)</td><td>다시 시도</td><td><a href="vf100-vacuum-fixture.html">진공 지그</a>, <a href="au50-air-unit.html">공압 유닛</a></td></tr>
+      <tr><td class="code">E3002</td><td>DISPENSER</td><td>Syringe temperature out of range</td><td>다시 시도</td><td><a href="th200-syringe-heater.html">시린지 히터</a></td></tr>
+      <tr><td class="code">E3003</td><td>DISPENSER</td><td>Syringe level low</td><td>다시 시도</td><td><a href="sy30-syringe.html">시린지</a></td></tr>
+      <tr><td class="code">E3005</td><td>DISPENSER</td><td>Weight check out of spec</td><td>다시 시도</td><td><a href="ws10-scale.html">저울</a>, <a href="dp300-controller.html">컨트롤러</a></td></tr>
+      <tr><td class="code">E3006</td><td>DISPENSER</td><td>Material pot life expired</td><td>다시 시도</td><td><a href="sy30-syringe.html">시린지</a></td></tr>
+      <tr><td class="code">E4001</td><td>INSPECTION</td><td>Consecutive bead NG</td><td>계속</td><td><a href="bi300-bead-inspection.html">비드 검사</a></td></tr>
+      <tr><td class="code">E5001</td><td>OUTFEED</td><td>NG buffer full</td><td>다시 시도</td><td><a href="cv500-conveyor.html">컨베이어</a></td></tr>
+      <tr><td class="code">E9001</td><td>MACHINE</td><td>Main air pressure low</td><td>다시 시도</td><td><a href="au50-air-unit.html">공압 유닛</a></td></tr>
+      <tr><td class="code">E9100</td><td>MACHINE</td><td>Emergency stop</td><td>원점 복귀 뒤 시작</td><td><a href="sv100-servo.html">서보 축</a></td></tr>
+      <tr><td class="code">E9101</td><td>MACHINE</td><td>Safety door open</td><td>도어 닫은 뒤</td><td>6장</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c8">
+    <h2><span class="no">8</span>표준 조치</h2>
+    <p>작업자는 알람마다 아래 순서로 조치합니다. 같은 문제가 90분 안에 다시 오면 다음 단계로 넘어갑니다. 조치는 이벤트 로그에 "Maintenance start action=…"으로 남습니다.</p>
+    <div class="table-wrap"><table>
+      <tr><th>알람</th><th>조치 순서</th></tr>
+      <tr><td class="code">E3001</td><td>진공 점검 → 진공 점검 → 진공 패드 교체</td></tr>
+      <tr><td class="code">E3002</td><td>정비 담당 호출</td></tr>
+      <tr><td class="code">E3003 E3006</td><td>시린지 교체</td></tr>
+      <tr><td class="code">E3005</td><td>니들 청소 → 시린지 교체 → 정비 담당 호출</td></tr>
+      <tr><td class="code">E4001</td><td>불량 이유별: 기본 니들 청소 → 니들 청소 → 정비 담당 / BEAD_VOID 퍼지 → 시린지 교체 → 정비 담당 / STRINGING 니들 청소 → 정비 담당 / BEAD_OFFSET·WIDTH_HIGH 니들 위치 교정 → 정비 담당</td></tr>
+      <tr><td class="code">E9001</td><td>공기 점검 → 공기 점검 → 정비 담당 호출</td></tr>
+      <tr><td class="code">E1001 E2001 E2002</td><td>제품 제거 (E2002가 반복되면 비전 점검)</td></tr>
+      <tr><td class="code">E5001</td><td>NG 버퍼 비우기</td></tr>
+    </table></div>
+    <div class="table-wrap"><table>
+      <tr><th>조치</th><th>걸리는 시간</th><th>장비에 바뀌는 것</th></tr>
+      <tr><td>니들 청소</td><td class="num">5–10 분</td><td>니들 막힘·끝 오염 제거, 다음 제품 중량 검사</td></tr>
+      <tr><td>니들 위치 교정</td><td class="num">5–10 분</td><td>니들 위치를 교시값으로</td></tr>
+      <tr><td>시린지 교체</td><td class="num">8–15 분</td><td>새 시린지 (기포가 새로 갇힐 수 있음)</td></tr>
+      <tr><td>퍼지</td><td class="num">2–4 분</td><td>기포 제거, 접착제 0.3 ml 소모</td></tr>
+      <tr><td>진공 패드 교체</td><td class="num">10–20 분</td><td>패드 누설 없어짐</td></tr>
+      <tr><td>진공 점검, 공기 점검, 비전 점검</td><td class="num">3–15 분</td><td>눈으로 확인만 함. 부품은 바뀌지 않음</td></tr>
+      <tr><td>정비 담당 호출 (ENG-01)</td><td class="num">30–60 분</td><td>열전대 교정, 니들 청소·위치 교정, 레시피 표준값 복원</td></tr>
+      <tr><td>NG 버퍼 비우기</td><td class="num">2–4 분</td><td>버퍼 0개</td></tr>
+    </table></div>
+    <div class="note"><b>주의</b><p>공장 공기 저하는 장비 안의 조치로 고쳐지지 않습니다. 공기가 돌아오면 저절로 사라집니다. 진공 점검만으로는 패드 마모가 고쳐지지 않으므로, 같은 알람이 반복되면 점검을 반복하지 말고 패드를 바꿉니다.</p></div>
+  </section>
+
+  <section id="c9">
+    <h2><span class="no">9</span>기록 파일</h2>
+    <p>장비는 운전 한 번(런)마다 폴더 하나에 기록을 남깁니다. 시각은 모두 "YYYY-MM-DD HH:MM:SS.mmm"입니다.</p>
+    <div class="table-wrap"><table>
+      <tr><th>파일</th><th>내용</th><th>간격</th></tr>
+      <tr><td class="mono">event.log</td><td>단계 완료, 경고, 조작, 정비, 레시피 변경 등 모든 사건. "시각 등급 스테이션 메시지 키=값"</td><td>사건마다</td></tr>
+      <tr><td class="mono">alarm.log</td><td>알람 발생(SET)과 해제(CLEAR), 상세 내용</td><td>알람마다</td></tr>
+      <tr><td class="mono">sensor_trend.csv</td><td>모드, 흡착 진공, 토출 압력, 밸브 열림, 시린지 온도, 잔량</td><td>1초</td></tr>
+      <tr><td class="mono">production.csv</td><td>제품마다 번호, 로트, 레시피, 사이클 시간, 정렬값, 진공, 압력, 온도, 높이, 비드 폭·위치, 판정</td><td>제품마다</td></tr>
+      <tr><td class="mono">io_trace.csv</td><td>입출력 신호 변화</td><td>변화마다</td></tr>
+      <tr><td class="mono">machine_info.json</td><td>장비 번호, 시작·끝 시각, 레시피, 예정 휴식, 입출력 지도</td><td>주기적으로 갱신</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c10">
+    <h2><span class="no">10</span>부품 목차</h2>
+    <div class="table-wrap"><table>
+      <tr><th>스테이션</th><th>부품 설명서</th></tr>
+      <tr><td class="mono">INFEED</td><td><a href="cr10-code-reader.html">AM-CR10 2D 코드 리더</a></td></tr>
+      <tr><td class="mono">VISION</td><td><a href="vc200-vision.html">AM-VC200 정렬 비전</a></td></tr>
+      <tr><td class="mono">DISPENSER</td><td><a href="dp300-controller.html">AM-DP300 컨트롤러</a> · <a href="th200-syringe-heater.html">AM-TH200 히터</a> · <a href="nd10-needle.html">AM-ND10 니들</a> · <a href="sy30-syringe.html">AM-SY30 시린지</a> · <a href="vf100-vacuum-fixture.html">AM-VF100 진공 지그</a> · <a href="ws10-scale.html">AM-WS10 저울</a> · <a href="hl05-height-laser.html">AM-HL05 높이 레이저</a></td></tr>
+      <tr><td class="mono">INSPECTION</td><td><a href="bi300-bead-inspection.html">AM-BI300 비드 검사 센서</a></td></tr>
+      <tr><td class="mono">OUTFEED</td><td><a href="cv500-conveyor.html">AM-CV500 컨베이어 (NG 배출)</a></td></tr>
+      <tr><td>장비 전체</td><td><a href="au50-air-unit.html">AM-AU50 공압 조합 유닛</a> · <a href="pc40-air-cylinder.html">AM-PC40 공압 실린더</a> · <a href="sv100-servo.html">AM-SV100 서보 축</a> · <a href="cv500-conveyor.html">AM-CV500 컨베이어</a></td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>

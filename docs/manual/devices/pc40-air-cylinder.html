@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-PC40 공압 실린더</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Pneumatic Cylinder</span>
+        <h1>AM-PC40 공압 실린더</h1>
+        <span class="sub">스토퍼·리프트·푸셔·픽커 실린더와 위치 센서 · 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-PC40 계열</dd>
+        <dt>구동</dt><dd>복동 공압</dd>
+        <dt>위치 센서</dt><dd>원점·작업 2점</dd>
+        <dt>설치</dt><dd>장비 전체 10개</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 설치 목록</a><a href="#c3">3 공기와 동작 시간</a><a href="#c4">4 수동 조작 인터록</a><a href="#c5">5 고장 진단</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-PC40은 압축 공기로 앞뒤로만 움직이는 실린더입니다. 장비에서는 제품을 세우는 스토퍼, 제품을 들어 올리는 리프트, 기준 핀에 미는 푸셔, NG 제품을 집는 픽커에 쓰입니다. 양 끝에 원점 센서와 작업 센서가 있어 도착을 확인합니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>설치 목록</h2>
+    <div class="table-wrap"><table>
+      <tr><th>장치 이름</th><th>스테이션</th><th>표준 동작 시간</th><th>자동 운전 대기 위치</th><th>자동 운전 단계</th></tr>
+      <tr><td class="mono">*_STOPPER (5개)</td><td>각 스테이션</td><td class="num">0.15 s</td><td>올라감 (제품을 막음)</td><td class="mono">STOPPER, STOPPER_DOWN</td></tr>
+      <tr><td class="mono">VISION_LIFT</td><td>VISION</td><td class="num">0.4 s</td><td>내려감</td><td class="mono">LIFT_UP, LIFT_DOWN</td></tr>
+      <tr><td class="mono">VISION_PUSH_X / _Y</td><td>VISION</td><td class="num">0.4 s</td><td>후진</td><td class="mono">PUSH_ALIGN, RELEASE</td></tr>
+      <tr><td class="mono">DISP_LIFT</td><td>DISPENSER</td><td class="num">0.4 s</td><td>내려감</td><td class="mono">LIFT_UP, RESEAT, LIFT_DOWN</td></tr>
+      <tr><td class="mono">NG_PICK_Z</td><td>OUTFEED</td><td class="num">0.3 s</td><td>올라감</td><td class="mono">PICK_DOWN, PICK_UP, PLACE</td></tr>
+    </table></div>
+    <p>자동 운전에서 단계마다 이벤트 로그에 "Step … done t=…s"가 남습니다. 단계 시간은 평소에도 ±5 % 정도 흔들립니다.</p>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>공기와 동작 시간</h2>
+    <div class="formula">동작 시간 = 표준 시간 × max(1, 450 kPa ÷ 공급 공기)</div>
+    <div class="table-wrap"><table>
+      <tr><th>공급 공기</th><th>배율</th><th>리프트 (표준 0.40 s)</th><th>스토퍼 (표준 0.15 s)</th></tr>
+      <tr><td class="num">450 kPa 이상</td><td class="num">×1.00</td><td class="num">0.40 s</td><td class="num">0.15 s</td></tr>
+      <tr><td class="num">400 kPa</td><td class="num">×1.13</td><td class="num">0.45 s</td><td class="num">0.17 s</td></tr>
+      <tr><td class="num">330 kPa</td><td class="num">×1.36</td><td class="num">0.55 s</td><td class="num">0.20 s</td></tr>
+      <tr><td class="num">300 kPa</td><td class="num">×1.50</td><td class="num">0.60 s</td><td class="num">0.23 s</td></tr>
+    </table></div>
+    <p>모든 실린더가 같은 공기를 쓰므로, 여러 실린더 단계가 <b>같이</b> 느려지면 실린더가 아니라 공장 공기 문제입니다. 서보 축과 컨베이어 이동 시간은 공기와 관계없으므로 비교 기준으로 씁니다.</p>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>수동 조작 인터록</h2>
+    <div class="table-wrap"><table>
+      <tr><th>막는 조작</th><th>조건</th></tr>
+      <tr><td>비전 푸셔 전진</td><td>비전 리프트가 올라가 있지 않으면</td></tr>
+      <tr><td>비전 리프트 하강</td><td>푸셔가 전진해 있으면</td></tr>
+      <tr><td>디스펜서 리프트 하강</td><td>니들 Z가 30 mm보다 낮으면</td></tr>
+      <tr><td>NG 픽커 하강</td><td>픽커 Y축이 원점이나 NG 버퍼 위치가 아니면</td></tr>
+      <tr><td>벨트 구동</td><td>그 구간 리프트가 올라가 있으면</td></tr>
+    </table></div>
+    <p>막힌 조작은 이벤트 로그에 "Interlock reason=…"으로 남습니다. 수동으로 움직인 뒤 자동 운전으로 돌아가려면 원점 복귀가 필요합니다.</p>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>고장 진단</h2>
+    <div class="table-wrap"><table>
+      <tr><th>증상</th><th>확인할 것</th><th>가능한 원인</th><th>조치</th></tr>
+      <tr><td>여러 실린더 단계가 함께 느려짐</td><td>토출 압력·흡착 진공도 약한지</td><td>공장 공기 저하</td><td>공압 조합 유닛 설명서 참고</td></tr>
+      <tr><td>한 실린더만 느려짐</td><td>속도 조절 밸브, 배관 꺾임</td><td>그 실린더 계통 이상</td><td>배관·밸브 점검</td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-CR10 2D 코드 리더</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · 2D Code Reader</span>
+        <h1>AM-CR10 2D 코드 리더</h1>
+        <span class="sub">제품 식별용 고정식 리더 · 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-CR10</dd>
+        <dt>읽기 시간</dt><dd>0.3 s</dd>
+        <dt>재시도</dt><dd>1회</dd>
+        <dt>설치 위치</dt><dd>INFEED 스테이션</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 사양</a><a href="#c3">3 제품 번호</a><a href="#c4">4 관련 알람과 진단</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-CR10은 투입부에서 하우징의 2D 코드를 읽어 제품을 식별합니다. 스토퍼가 하우징을 세운 뒤 한 번 읽고, 실패하면 한 번 더 읽습니다. 읽은 제품부터 장비 기록(생산 로그, 이벤트 로그)에 제품 번호가 붙습니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>사양</h2>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>값</th><th>비고</th></tr>
+      <tr><td>읽기 시간</td><td class="num">ID_READ 0.3 s</td><td>STOPPER(0.15 s) 다음</td></tr>
+      <tr><td>읽기 실패율</td><td class="num">읽기 한 번에 약 0.3 %</td><td>실패하면 "2D code read fail attempt=1" 경고 후 재시도</td></tr>
+      <tr><td>두 번 모두 실패</td><td class="num">제품 약 10만 개에 1개</td><td><span class="code">E1001</span></td></tr>
+    </table></div>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>제품 번호</h2>
+    <div class="formula">L{연월일 6자리}-{로트 순번 3자리}-{로트 안 순번 4자리}
+예) L261104-002-0137 : 2026-11-04 두 번째 로트의 137번째 제품
+로트 크기 500개, 모델 변경 때 새 로트</div>
+    <p>읽기에 성공하면 이벤트 로그에 "Part received serial=…"이 남습니다.</p>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>관련 알람과 진단</h2>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>장비 메시지</th><th>리셋하면</th></tr>
+      <tr><td class="code">E1001</td><td>2D code read fail</td><td>그 제품을 불량(SCRAP_E1001)으로 빼고 다음 제품</td></tr>
+    </table></div>
+    <div class="table-wrap"><table>
+      <tr><th>증상</th><th>가능한 원인</th><th>조치</th></tr>
+      <tr><td>재시도 경고가 드물게</td><td>정상 범위</td><td>조치 불필요</td></tr>
+      <tr><td>재시도 경고가 갑자기 잦아짐</td><td>리더 창 오염, 코드 인쇄 불량 로트</td><td>리더 창 청소, 앞 공정에 코드 품질 확인 요청</td></tr>
+    </table></div>
+    <p>코드 리더는 토출 품질과 관계가 없습니다. 비드 불량이나 토출량 문제를 볼 때는 고려하지 않아도 됩니다.</p>
+  </section>
+</main>
+</body>
+</html>

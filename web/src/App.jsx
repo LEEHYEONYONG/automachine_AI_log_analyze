@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { AnalysisPage } from "./analysis/AnalysisPage";
+import { LiveAlertBar } from "./analysis/LiveWatch";
 import { useMachineState } from "./api";
 import { ConsolePage } from "./console/ConsolePage";
 import { Header } from "./hmi/Header";
@@ -69,7 +70,7 @@ export default function App() {
         <SimBar state={state} connected={connected} run={run} />
       </div>
       <Header state={state} run={run} />
-      {route.tab === "hmi" && <HmiShell state={state} page={route.page} onPage={(p) => go("hmi", p)} run={run} />}
+      <LiveAlertBar onOpen={() => go("analysis")} />      {route.tab === "hmi" && <HmiShell state={state} page={route.page} onPage={(p) => go("hmi", p)} run={run} />}
       {route.tab === "console" && <ConsolePage state={state} run={run} />}
       {route.tab === "3d" && (
         <Suspense fallback={<div className="loading">3D 뷰어 불러오는 중…</div>}>

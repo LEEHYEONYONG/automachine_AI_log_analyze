@@ -1,14 +1,17 @@
 import json
+import re
 
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from ..database import get_db
-from .. import anomaly, classify, foreman, rules
+from ..config import LOGS_DIR
+from ..database import engine, get_db
+from .. import anomaly, classify, foreman, ingest, rules
 
 router = APIRouter(
     prefix="/api/analysis",
@@ -30,13 +33,27 @@ def rule_candidates(db, run_id, recipes):
         SELECT ts, attrs FROM events
         WHERE run_id = :r AND unit = 'HMI' AND message LIKE 'Recipe parameter changed%' ORDER BY ts
     """), {"r": run_id}).mappings().all()
-    return (rules.detect_air_supply_drop(run_id, sensors)
-            + rules.detect_vacuum_leak(run_id, sensors)
-            + rules.detect_nozzle_clog(run_id, parts)
-            + rules.detect_recipe_error(run_id, changes, recipes)
-            + rules.detect_air_bubble(run_id, parts)
-            + rules.detect_needle_offset(run_id, parts)
-            + rules.detect_needle_tip_buildup(run_id, parts, changes, recipes))
+    return rules.run_all(run_id, sensors, parts, changes, recipes)
+
+
+RUN_ID = re.compile(r"^\d{8}_\d{4}_[0-9a-f]{6}$")
+
+
+@router.post("/runs/{run_id}/ingest")
+def ingest_run(run_id: str):
+    """돌고 있는 런을 지금 상태 그대로 DB에 적재한다. 실시간 경보에서 반장 보고서를 쓰기 전에 부른다.
+    같은 런을 다시 적재하면 이전 행을 지우고 새로 넣는다. 로그(logs/)만 읽는다."""
+    run_dir = Path(LOGS_DIR) / run_id
+    if not RUN_ID.match(run_id) or not (run_dir / "machine_info.json").is_file():
+        raise HTTPException(status_code=404, detail=f"적재할 런이 없음: {run_id}")
+    conn = engine.raw_connection()
+    try:
+        with conn.driver_connection.cursor() as cur:
+            ingest.load_run(cur, run_dir)
+        conn.commit()
+    finally:
+        conn.close()
+    return {"run_id": run_id, "loaded": True}
 
 
 def _require_run(db, run_id):
@@ -95,23 +112,7 @@ def _incidents(db, run_id):
     _require_run(db, run_id)
     profile = _require_profile()
     ctx = classify.load_context(db, run_id)
-    guard = anomaly.detect_anomaly(run_id, ctx["parts"], ctx["sensors"], profile)
-    incidents = foreman.incidents(rule_candidates(db, run_id, ctx["recipes"]), guard)
-
-    model = classify.load_model()
-    if model:
-        pairs = classify.alert_snapshots(ctx, profile)
-        for incident in incidents:
-            first = next((row for alert, row in pairs if alert["detected_at"] >= incident["started_at"]
-                          and alert["detected_at"] <= incident["last_at"]), None)
-            if first:
-                name, confidence = classify.predict(model, first)
-                incident["tree_guess"] = name if confidence >= classify.MIN_CONFIDENCE else classify.UNKNOWN
-                incident["tree_confidence"] = round(confidence, 2)
-    for incident in incidents:
-        incident["cause"], incident["basis"] = foreman.decide(ctx, incident, incident.get("tree_guess"))
-        incident["cause_label"] = foreman.FAULT_NAMES[incident["cause"]]
-    return ctx, incidents
+    return ctx, foreman.judge(ctx, rule_candidates(db, run_id, ctx["recipes"]), profile, classify.load_model())
 
 
 @router.get("/runs/{run_id}/incidents")

@@ -145,6 +145,28 @@ def decide(ctx, incident, tree_guess):
     return UNKNOWN, "규칙 경보가 없고 분류 모델도 확신하지 못함"
 
 
+def judge(ctx, rule_candidates, profile, model):
+    """규칙·경비원 경보를 사건으로 묶고, 첫 경보 순간의 분류 의견과 코드가 정한 원인을 붙인다.
+    분석 버튼(DB의 행)과 실시간 감시(파일에서 이어 읽은 행)가 같은 판단을 하도록 둘 다 이 함수를 쓴다."""
+    from . import anomaly, classify    # classify가 이 모듈을 쓰지 않도록 여기서 읽는다
+
+    guard = anomaly.detect_anomaly(ctx["run_id"], ctx["parts"], ctx["sensors"], profile)
+    found = incidents(rule_candidates, guard)
+    if model:
+        pairs = classify.alert_snapshots(ctx, profile)
+        for incident in found:
+            first = next((row for alert, row in pairs
+                          if incident["started_at"] <= alert["detected_at"] <= incident["last_at"]), None)
+            if first:
+                name, confidence = classify.predict(model, first)
+                incident["tree_guess"] = name if confidence >= classify.MIN_CONFIDENCE else classify.UNKNOWN
+                incident["tree_confidence"] = round(confidence, 2)
+    for incident in found:
+        incident["cause"], incident["basis"] = decide(ctx, incident, incident.get("tree_guess"))
+        incident["cause_label"] = FAULT_NAMES[incident["cause"]]
+    return found
+
+
 def _median(rows, key):
     values = [r[key] for r in rows if r[key] is not None]
     return round(statistics.median(values), 3) if values else None
@@ -332,4 +354,5 @@ def run(db, ctx, incident):
         "unverified_numbers": unverified_numbers(answer["reasoning"] + answer["doubts"], tools.results),
         "other_causes": other_causes_mentioned(answer["reasoning"], incident["cause"]),
         "model": LLM_MODEL,
+        "tool_results": tools.results,   # 설명 품질 채점이 "사건 전 A → 사건 중 B"의 순서를 확인할 때 쓴다. 저장하지 않는다
     }

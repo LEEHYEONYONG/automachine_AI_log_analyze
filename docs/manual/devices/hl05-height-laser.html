@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-HL05 높이 측정 레이저</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Laser Displacement Sensor</span>
+        <h1>AM-HL05 높이 측정 레이저</h1>
+        <span class="sub">도포 갭 측정용 변위 센서 · 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-HL05</dd>
+        <dt>분해능</dt><dd>0.001 mm</dd>
+        <dt>측정 시간</dt><dd>0.5 s</dd>
+        <dt>설치 위치</dt><dd>DISPENSER Z축, 니들 옆</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 사양</a><a href="#c3">3 무엇을 재는가</a><a href="#c4">4 갭과 비드 폭</a><a href="#c5">5 고장 진단</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-HL05는 도포 직전에 제품 표면까지의 높이를 재서, 니들이 레시피의 도포 갭(레시피 A 0.15 mm, B 0.12 mm)에 맞게 내려왔는지 확인하는 레이저 변위 센서입니다. 제품마다 측정값이 nozzle_height_mm로 기록됩니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>사양</h2>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>값</th><th>비고</th></tr>
+      <tr><td>분해능</td><td class="num">0.001 mm</td><td></td></tr>
+      <tr><td>반복성</td><td class="num">약 ±0.003 mm (1σ)</td><td></td></tr>
+      <tr><td>측정 단계</td><td class="num">HEIGHT_MEASURE 0.5 s</td><td>APPROACH 다음, DISPENSE 직전</td></tr>
+      <tr><td>도포 갭 설정 범위</td><td class="num">0.05–0.50 mm</td><td>레시피 항목 "도포 갭 (니들 높이)"</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>무엇을 재는가</h2>
+    <figure>
+      <svg viewBox="0 0 640 220" role="img" aria-label="레이저는 Z축 기준에서 제품 표면까지를 재고, 니들 끝의 위치는 재지 않는다">
+        <g fill="none" stroke="currentColor" stroke-width="1.5">
+          <line x1="20" y1="180" x2="620" y2="180"/>
+          <rect x="140" y="30" width="360" height="30" rx="3"/>
+          <rect x="190" y="60" width="40" height="70"/>
+          <rect x="400" y="60" width="24" height="96"/>
+        </g>
+        <line x1="210" y1="130" x2="210" y2="178" stroke="var(--danger)" stroke-width="2" stroke-dasharray="5 3"/>
+        <circle cx="210" cy="180" r="4" fill="var(--danger)"/>
+        <line x1="440" y1="156" x2="440" y2="180" stroke="var(--caution)" stroke-width="1.5"/>
+        <g fill="currentColor" font-size="13" text-anchor="middle" font-family="IBM Plex Sans KR, Malgun Gothic, sans-serif">
+          <text x="320" y="50">Z축 헤드 (기준)</text>
+          <text x="210" y="100">레이저</text>
+          <text x="412" y="80" font-size="12">니들</text>
+          <text x="210" y="205" font-size="12">레이저가 재는 곳: 제품 표면</text>
+          <text x="500" y="172" font-size="12">갭: 레이저로는 안 보임</text>
+          <text x="320" y="200" font-size="12" fill="var(--muted)">제품</text>
+        </g>
+      </svg>
+      <figcaption>그림 3-1. 레이저는 Z축 헤드에서 제품 표면까지를 잽니다. 니들 끝이 헤드에 대해 어디 있는지는 교시(위치 교정)로 정해 둔 값을 믿습니다.</figcaption>
+    </figure>
+    <div class="note"><b>주의</b><p>니들을 다시 끼우거나 부딪혀 니들 끝이 올라가거나 내려가도 <b>레이저 측정값은 정상</b>으로 나옵니다. 측정값이 정상인데 비드 폭이 한 번에 바뀌었다면 니들 위치 어긋남을 의심하고 위치 교정을 합니다.</p></div>
+    <p>측정값이 레시피 설정과 다르게 바뀌는 경우는 도포 갭 설정 자체를 바꾼 경우입니다. 이때는 측정값도, 비드 폭도 함께 바뀝니다.</p>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>갭과 비드 폭</h2>
+    <div class="formula">비드 폭 배율 = 1 − 2.5 × (실제 갭 − 레시피 검증 갭)  (mm)</div>
+    <div class="table-wrap"><table>
+      <tr><th>실제 갭 (레시피 A 기준 0.15)</th><th>폭 배율</th><th>비드 폭 (0.68–0.92 mm)</th></tr>
+      <tr><td class="num">0.11 mm (0.04 낮음)</td><td class="num">1.10</td><td class="num good">0.88 mm</td></tr>
+      <tr><td class="num">0.15 mm</td><td class="num">1.00</td><td class="num good">0.80 mm</td></tr>
+      <tr><td class="num">0.19 mm (0.04 높음)</td><td class="num">0.90</td><td class="num good">0.72 mm</td></tr>
+      <tr><td class="num">0.21 mm (0.06 높음)</td><td class="num">0.85</td><td class="num bad">0.68 mm (하한)</td></tr>
+    </table></div>
+    <p>갭은 토출량을 바꾸지 않으므로 중량 검사 결과는 정상입니다. 폭만 바뀌고 중량이 정상이면 갭(니들 위치) 쪽을 봅니다.</p>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>고장 진단</h2>
+    <div class="table-wrap"><table>
+      <tr><th>증상</th><th>확인할 것</th><th>가능한 원인</th><th>조치</th></tr>
+      <tr><td>측정값 정상, 폭이 한 번에 변함, 중량 정상</td><td>직전에 니들 청소·교체·모델 변경</td><td>니들 위치 어긋남</td><td>니들 위치 교정</td></tr>
+      <tr><td>측정값과 폭이 함께 변함</td><td>레시피 변경 이력 (도포 갭)</td><td>갭 설정 변경</td><td>레시피 표준값으로 되돌림</td></tr>
+      <tr><td>측정값이 ±0.01 mm 넘게 흔들림</td><td>렌즈 오염, 제품 표면 상태</td><td>센서 오염</td><td>렌즈 청소</td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>

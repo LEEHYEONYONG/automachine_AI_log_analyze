@@ -94,6 +94,8 @@ class Simulation:
         self.log.flush()
         self._hidden.flush()
         self._write_ground_truth()
+        # Also while running, so a live run can be loaded and analyzed before it ends. It holds no fault information.
+        self._write_machine_info()
 
     def engineer_view(self) -> dict:
         """Hidden state for the engineer console. Never shown on the HMI."""

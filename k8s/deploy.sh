@@ -62,7 +62,7 @@ mkdir -p backups scores
 # each deployment fills in its own version, and the changed tag starts the rolling update.
 echo "environment: $ENV"
 kubectl kustomize "k8s/overlays/$ENV" | sed "s#\(localhost:5000/automachine-[a-z]*\):dev#\1:$TAG#" | kubectl apply -f -
-kubectl -n automachine annotate deploy sim analysis web ops gpu-metrics kubernetes.io/change-cause="$TAG" --overwrite
+kubectl -n automachine annotate deploy sim analysis web ops gpu-metrics watch kubernetes.io/change-cause="$TAG" --overwrite
 
 kubectl -n automachine rollout status statefulset/db --timeout=180s
 # The password is hex, so it is safe inside the SQL quotes.
@@ -72,7 +72,7 @@ SELECT 'CREATE ROLE ops_reader LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHE
 ALTER ROLE ops_reader PASSWORD '$OPS_DB_PASS';
 SQL
 
-for name in sim analysis web ops gpu-metrics; do
+for name in sim analysis web ops gpu-metrics watch; do
   kubectl -n automachine rollout status deploy/$name --timeout=180s
 done
 
