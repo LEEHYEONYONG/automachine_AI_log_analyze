@@ -1,3 +1,4 @@
+import { tr } from "../prefs";
 import { Canvas } from "@react-three/fiber";
 import { useState } from "react";
 import { MODE_LABEL } from "../labels";
@@ -43,26 +44,26 @@ export default function ViewerPage({ state: live }) {
             <span className="alarm-code">{state.alarm.code}</span> {state.alarm.text}
           </div>
         )}
-        {fast && <div className="hint">배속이 높으면 동작이 건너뛰어 보입니다. ×1~×10에서 자연스럽게 보입니다.</div>}
+        {fast && <div className="hint">{tr("배속이 높으면 동작이 건너뛰어 보입니다. ×1~×10에서 자연스럽게 보입니다.")}</div>}
       </div>
       <div className="viewer-tools">
-        <div className="segmented" role="group" aria-label="시점">
+        <div className="segmented" role="group" aria-label={tr("시점")}>
           {(Object.keys(VIEWS) ).map((v) => (
             <button key={v} className={view === v ? "active" : ""} onClick={() => setView(v)}>
-              {VIEWS[v].label}
+              {tr(VIEWS[v].label)}
             </button>
           ))}
         </div>
         <label className="toggle">
           <input type="checkbox" checked={covers} onChange={(e) => setCovers(e.target.checked)} />
-          안전 커버
+          {tr("안전 커버")}
         </label>
-        <label className="toggle" title="느리면 끄세요">
+        <label className="toggle" title={tr("느리면 끄세요")}>
           <input type="checkbox" checked={effects} onChange={(e) => setEffects(e.target.checked)} />
-          그래픽 효과
+          {tr("그래픽 효과")}
         </label>
       </div>
-      <div className="viewer-help">드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동</div>
+      <div className="viewer-help">{tr("드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동")}</div>
     </main>
   );
 }

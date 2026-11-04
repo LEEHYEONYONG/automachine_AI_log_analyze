@@ -44,6 +44,22 @@ const EN_PATTERNS = [
   [/^(투입|비전|디스펜서|검사|배출) (제품 감지|스토퍼 상승 센서|스토퍼 하강 솔레노이드|컨베이어 모터)$/,
     (m) => `${en(m[1])} ${({ "제품 감지": "part sensor", "스토퍼 상승 센서": "stopper up sensor", "스토퍼 하강 솔레노이드": "stopper down solenoid", "컨베이어 모터": "conveyor motor" })[m[2]]}`],
   [/^안전 조건 미충족: (.+)$/, (m) => `Safety conditions not met: ${m[1].split(", ").map(en).join(", ")}`],
+  // why the code chose a cause (analysis/app/foreman.py decide)
+  [/^규칙 ([a-z_]+)$/, (m) => `rule ${m[1]}`],
+  [/^규칙은 노즐 막힘이지만 청소 뒤 폭이 돌아오지 않음 \((.+) → (.+) mm\)$/, (m) => `the rule says nozzle clog, but the width did not recover after cleaning (${m[1]} → ${m[2]} mm)`],
+  [/^규칙 경보 없음, 분류 모델 의견$/, () => "no rule alert; the classifier's opinion"],
+  [/^규칙 경보가 없고 분류 모델도 확신하지 못함$/, () => "no rule alert and the classifier is not sure"],
+  // shift handover facts (analysis/app/handover.py facts)
+  [/^AI 경보: (\d\d:\d\d)부터 (.+) 의심 \(코드 판단\)\.( 교대 끝까지 경보가 이어져 다음 조가 확인해야 한다\.)?$/,
+    (m) => `AI alert: ${en(m[2])} suspected from ${m[1]} (code decision).${m[3] ? " Still alerting at the end of the shift; the next shift must check it." : ""}`],
+  [/^알람 (E\d{4}) (.+) (\d+)회 \((.+)\)\.$/, (m) => `Alarm ${m[1]} ${m[2]} ${m[3]}× (${m[4].replace(" 등", " …")}).`],
+  [/^정비: (.+) (\d+)회\.$/, (m) => `Maintenance: ${en(m[1])} ${m[2]}×.`],
+  [/^설정 변경: (\d\d:\d\d) (.+) (\S+) → (\S+) \(표준 (.+)\)\.$/, (m) => `Setting change: ${m[1]} ${en(m[2])} ${m[3]} → ${m[4]} (standard ${m[5]}).`],
+  [/^생산: (\d+)개, 그중 불량 (\d+)개\.$/, (m) => `Production: ${m[1]} parts, ${m[2]} NG.`],
+  [/^불량 사유: (.+) (\d+)개\.$/, (m) => `NG reason: ${en(m[1])} ${m[2]}.`],
+  [/^장비 설정 변경: (\d\d:\d\d) (.+) (\S+) → (\S+)\.$/, (m) => `Machine setting change: ${m[1]} ${en(m[2])} ${m[3]} → ${m[4]}.`],
+  [/^운전 방식 변경: (\d\d:\d\d) (.+)\.$/, (m) => `Run mode change: ${m[1]} ${en(m[2])}.`],
+  [/^더미 런: 더미 제품 (\d+)개 \(생산 수 제외\)\.$/, (m) => `Dummy run: ${m[1]} dummy parts (not counted as production).`],
 ];
 
 function en(s) {

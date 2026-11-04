@@ -1,3 +1,4 @@
+import { localized } from "../prefs";
 // Scene layout in arbitrary units: x runs along the conveyor, y is up, z is depth (negative = back).
 
 export const STATION_X = {
@@ -73,13 +74,13 @@ export function beadPoint(f) {
 }
 
 // Camera presets for the view buttons.
-export const VIEWS = {
+export const VIEWS = localized({
   overview: { label: "전체", position: [2.5, 5.8, 14.5], target: [0, 0.3, -0.3] },
   infeed: { label: "투입부", position: [STATION_X.INFEED - 1.2, 1.6, 2.6], target: [STATION_X.INFEED - 0.6, 0.3, -0.2] },
   vision: { label: "비전 정렬", position: [STATION_X.VISION + 0.9, 1.0, 1.6], target: [STATION_X.VISION, 0.2, 0] },
   dispenser: { label: "디스펜서", position: [1.4, 1.3, 2.2], target: [0, 0.35, -0.2] },
   outfeed: { label: "배출부", position: [STATION_X.OUTFEED + 0.6, 2.0, 3.2], target: [STATION_X.OUTFEED + 0.3, 0.4, -0.5] },
-};
+});
 
 export const TRAY_PITCH = 0.065;
 export const MAX_TRAYS = 12;

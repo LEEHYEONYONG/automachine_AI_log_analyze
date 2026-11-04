@@ -48,6 +48,24 @@ class Facts(unittest.TestCase):
         items = handover.facts(ctx(changes=[change]), [], [], at(8), at(20))
         self.assertIn("설정 변경: 11:00 토출 압력 250.0 → 205.0 (표준 250.0).", [f["text"] for f in items])
 
+    def test_dummy_parts_are_kept_apart_from_production(self):
+        parts = [{"start_time": at(9), "ng_reason": None, "lot_id": "L1"},
+                 {"start_time": at(10), "ng_reason": "WIDTH_LOW", "lot_id": "DUMMY"},
+                 {"start_time": at(10, 1), "ng_reason": None, "lot_id": "DUMMY"}]
+        texts = [f["text"] for f in handover.facts(ctx(parts), [], [], at(8), at(20))]
+        self.assertIn("생산: 1개, 그중 불량 0개.", texts)
+        self.assertIn("더미 런: 더미 제품 2개 (생산 수 제외).", texts)
+        self.assertFalse(any(t.startswith("불량 사유") for t in texts))   # the dummy NG is not a production defect
+
+    def test_machine_setting_and_run_mode_changes(self):
+        events = [{"ts": at(9), "message": "Setting changed", "attrs": {"param": "weight_check_interval", "old": "100", "new": "20"}},
+                  {"ts": at(9, 30), "message": "Run mode change", "attrs": {"run_mode": "DRY"}}]
+        c = ctx()
+        c["machine_events"] = events
+        texts = [f["text"] for f in handover.facts(c, [], [], at(8), at(20))]
+        self.assertIn("장비 설정 변경: 09:00 중량 검사 주기 100 → 20.", texts)
+        self.assertIn("운전 방식 변경: 09:30 드라이 런.", texts)
+
 
 class Priorities(unittest.TestCase):
     def test_open_first_then_latest_alert(self):

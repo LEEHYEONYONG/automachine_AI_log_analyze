@@ -4,8 +4,10 @@
  * {name} placeholders must match the Korean key.
  */
 import { EN_HMI } from "./en_hmi";
+import { EN_REST } from "./en_rest";
 
 export const EN = {
+  ...EN_REST,
   ...EN_HMI,
   // ---- app frame ----
   "HMI": "HMI",

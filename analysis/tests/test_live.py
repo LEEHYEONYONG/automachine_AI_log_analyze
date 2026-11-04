@@ -34,6 +34,16 @@ class Tail(unittest.TestCase):
         run.update()
         self.assertEqual([s["ts"].second for s in run.sensors], [1, 2])
 
+    def test_reads_setting_and_run_mode_changes(self):
+        run = live.LiveRun(self.dir, {})
+        self.write("event.log",
+                   "2026-11-03 09:00:00.000 INFO  HMI        Setting changed param=weight_check_interval old=100 new=20 by=ENG01\n"
+                   "2026-11-03 09:01:00.000 INFO  MACHINE    Run mode change run_mode=DUMMY dummy_count=5 no_motion=0 by=ENG01\n"
+                   "2026-11-03 09:02:00.000 INFO  MACHINE    Mode change mode=RUNNING by=ENG01\n")
+        run.update()
+        events = run.context()["machine_events"]
+        self.assertEqual([e["attrs"].get("param") or e["attrs"].get("run_mode") for e in events], ["weight_check_interval", "DUMMY"])
+
     def test_missing_files_are_fine(self):
         run = live.LiveRun(self.dir, {})
         self.assertEqual(run.update(), 0)

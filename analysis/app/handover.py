@@ -33,6 +33,16 @@ NG_LABEL = {
     "SCRAP_E1001": "코드 읽기 실패로 제거", "SCRAP_E2001": "정렬 마크 없음으로 제거",
     "SCRAP_E2002": "정렬 위치 초과로 제거", "SCRAP_INIT": "원점 복귀 때 제거",
 }
+RUN_MODE_LABEL = {"PRODUCTION": "자동 운전", "DRY": "드라이 런", "DUMMY": "더미 런"}
+# simulator/settings.py SPEC labels (the analysis image does not include the simulator)
+SETTING_LABEL = {
+    "lot_size": "로트 크기", "production_target": "생산 목표 (0이면 끔)", "weight_check_interval": "중량 검사 주기",
+    "vacuum_threshold_kpa": "진공 판정 기준", "max_vacuum_retries": "진공 재시도", "temp_alarm_band_c": "온도 감시 폭 (±)",
+    "syringe_low_pct": "시린지 잔량 경고", "pot_life_h": "가사 시간", "vision_score_threshold": "정렬 점수 기준",
+    "vision_max_offset_mm": "정렬 허용 위치 차", "bead_max_offset_mm": "비드 위치 허용", "max_consecutive_ng": "연속 불량 정지 수",
+    "auto_logout_min": "자동 로그아웃",
+}
+DUMMY_LOT = "DUMMY"
 PARAM_LABEL = {
     "dispense_pressure_kpa": "토출 압력", "dispense_time_s": "토출 시간", "retract_delay_s": "토출 후 대기",
     "syringe_temp_c": "시린지 온도", "nozzle_height_mm": "도포 갭",
@@ -85,7 +95,23 @@ def facts(ctx, alarms, incidents, lo, hi):
             out.append({"text": f"설정 변경: {_hm(c['ts'])} {label} {v['old']} → {v['new']} (표준 {standard}).",
                         "need": [label, str(v["new"])]})
 
-    parts = [p for p in ctx["parts"] if lo <= p["start_time"] < hi]
+    for e in ctx.get("machine_events", []):
+        if not lo <= e["ts"] < hi:
+            continue
+        v = e["attrs"]
+        if e["message"].startswith("Setting changed"):
+            label = SETTING_LABEL.get(v.get("param"), v.get("param"))
+            out.append({"text": f"장비 설정 변경: {_hm(e['ts'])} {label} {v.get('old')} → {v.get('new')}.",
+                        "need": [label, str(v.get("new"))]})
+        elif e["message"].startswith("Run mode change"):
+            label = RUN_MODE_LABEL.get(v.get("run_mode"), v.get("run_mode"))
+            out.append({"text": f"운전 방식 변경: {_hm(e['ts'])} {label}.", "need": [label]})
+
+    in_shift = [p for p in ctx["parts"] if lo <= p["start_time"] < hi]
+    dummies = [p for p in in_shift if p.get("lot_id") == DUMMY_LOT]
+    parts = [p for p in in_shift if p.get("lot_id") != DUMMY_LOT]
+    if dummies:
+        out.append({"text": f"더미 런: 더미 제품 {len(dummies)}개 (생산 수 제외).", "need": ["더미", f"{len(dummies)}개"]})
     ng = Counter(p["ng_reason"] for p in parts if p["ng_reason"])
     total_ng = sum(ng.values())
     out.append({"text": f"생산: {len(parts)}개, 그중 불량 {total_ng}개.", "need": [str(len(parts)), str(total_ng)]})

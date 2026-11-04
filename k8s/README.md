@@ -98,6 +98,10 @@ docker compose exec -T db sh -c 'pg_dump -Fc --data-only --disable-triggers -U "
   | kubectl -n automachine exec -i db-0 -- sh -c 'pg_restore --data-only --disable-triggers --exit-on-error -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
+## HMI 설정
+
+HMI의 [설정] 메뉴에서 바꾼 장비 설정(로트 크기, 중량 검사 주기, 진공 기준 등)과 자동 로그아웃 시간은 이 PC의 `state/machine_settings.json`에 저장돼, 시뮬레이터 파드를 다시 띄워도 남습니다. 표준값과 다른 것만 적고, 파일을 지우면 출하값으로 돌아갑니다. 평가용 런(`eval/make_runs.py`, 매일 자동 채점)은 이 파일을 읽지 않습니다. 운전 방식(드라이·더미 런)은 저장하지 않으므로 재시작하면 자동 운전입니다. 화면 설정(언어, 테마, 글자 크기)은 각 브라우저에만 저장됩니다.
+
 ## 채점
 
 ```bash
