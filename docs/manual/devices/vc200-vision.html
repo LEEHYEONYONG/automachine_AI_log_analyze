@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-VC200 정렬 비전</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Alignment Vision</span>
+        <h1>AM-VC200 정렬 비전</h1>
+        <span class="sub">비전 카메라·링 조명 · 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-VC200</dd>
+        <dt>판정 점수</dt><dd>0.70 이상</dd>
+        <dt>허용 위치 차</dt><dd>±0.15 mm</dd>
+        <dt>설치 위치</dt><dd>VISION 스테이션</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 사양</a><a href="#c3">3 동작 순서</a><a href="#c4">4 관련 알람</a><a href="#c5">5 고장 진단</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-VC200은 하우징을 기준 핀에 밀어 붙인 뒤 남은 위치 차이를 카메라로 재는 정렬 비전입니다. 링 조명 아래에서 하우징의 정렬 마크를 찍고, 마크가 얼마나 잘 맞는지를 점수로, 남은 위치 차이를 dx·dy로 냅니다. 디스펜서는 이 dx·dy만큼 도포 경로를 옮겨 그립니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>사양</h2>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>값</th><th>비고</th></tr>
+      <tr><td>정렬 점수</td><td class="num">정상 약 0.93 (±0.015)</td><td>0.70 미만이면 다시 찍음</td></tr>
+      <tr><td>촬영 횟수</td><td class="num">최대 2회</td><td>둘 다 0.70 미만이면 <span class="code">E2001</span></td></tr>
+      <tr><td>위치 차이</td><td class="num">보통 ±0.03 mm (1σ)</td><td>±0.15 mm를 넘으면 <span class="code">E2002</span></td></tr>
+      <tr><td>순간 오인식</td><td class="num">촬영 약 0.3 %</td><td>반사·먼지. 다시 찍으면 대부분 정상</td></tr>
+      <tr><td>마크 불량 제품</td><td class="num">제품 약 0.08 %</td><td>마크 손상·오염. 다시 찍어도 실패</td></tr>
+      <tr><td>기록</td><td class="mono">align_dx_mm, align_dy_mm, align_score</td><td>이벤트 로그 "Align OK"</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>동작 순서</h2>
+    <div class="table-wrap"><table>
+      <tr><th>단계</th><th>시간</th><th>내용</th></tr>
+      <tr><td>LIFT_UP</td><td class="num">0.4 s</td><td>리프트 실린더로 하우징을 벨트에서 들어 올림</td></tr>
+      <tr><td>PUSH_ALIGN</td><td class="num">0.4 s</td><td>X·Y 푸셔 실린더로 기준 핀에 밀어 붙임</td></tr>
+      <tr><td>SETTLE</td><td class="num">0.2 s</td><td>진동이 가라앉을 때까지 대기</td></tr>
+      <tr><td>CAPTURE · PROCESS</td><td class="num">0.3 s + 0.2 s</td><td>촬영과 처리. 점수가 낮으면 "Align mark low score"를 남기고 한 번 더</td></tr>
+      <tr><td>RELEASE · LIFT_DOWN</td><td class="num">0.3 s + 0.4 s</td><td>푸셔 해제, 벨트로 내려놓음</td></tr>
+    </table></div>
+    <p>LIFT_UP, PUSH_ALIGN, RELEASE, LIFT_DOWN은 공압 실린더 동작이라 공장 공기가 약하면 느려집니다(공압 실린더 설명서).</p>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>관련 알람</h2>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>장비 메시지</th><th>리셋하면</th></tr>
+      <tr><td class="code">E2001</td><td>Align mark not found</td><td>그 제품을 불량(SCRAP_E2001)으로 빼고 다음 제품</td></tr>
+      <tr><td class="code">E2002</td><td>Align offset out of range</td><td>그 제품을 불량(SCRAP_E2002)으로 빼고 다음 제품</td></tr>
+    </table></div>
+    <div class="note"><b>참고</b><p>비전이 낸 위치 차이는 디스펜서가 경로를 옮겨 보정합니다. 그래서 비드 검사의 위치 벗어남(BEAD_OFFSET)은 보통 비전이 아니라 니들 수평 위치 쪽 문제입니다.</p></div>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>고장 진단</h2>
+    <div class="table-wrap"><table>
+      <tr><th>증상</th><th>확인할 것</th><th>가능한 원인</th><th>조치</th></tr>
+      <tr><td><span class="code">E2001</span>이 가끔 한 번</td><td>그 제품의 마크</td><td>마크 손상·오염 제품</td><td>리셋. 조치 불필요</td></tr>
+      <tr><td>"low score" 경고가 자주, 점수 평균이 내려감</td><td>렌즈·조명 오염, 조명 밝기</td><td>카메라·조명 오염</td><td>렌즈·조명 청소</td></tr>
+      <tr><td>정렬 단계가 느려짐</td><td>다른 공압 동작도 느린지</td><td>공장 공기 저하</td><td>공압 조합 유닛 설명서 참고</td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>

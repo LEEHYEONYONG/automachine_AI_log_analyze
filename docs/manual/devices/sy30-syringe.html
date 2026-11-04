@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-SY30 시린지·접착제</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Syringe &amp; Adhesive</span>
+        <h1>AM-SY30 시린지·접착제</h1>
+        <span class="sub">30 ml 시린지와 충전 접착제 취급 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-SY30</dd>
+        <dt>용량</dt><dd>30 ml</dd>
+        <dt>가사 시간</dt><dd>6 h</dd>
+        <dt>설치 위치</dt><dd>DISPENSER 히터 안</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 사양</a><a href="#c3">3 사용 중 변화</a><a href="#c4">4 기포</a><a href="#c5">5 교체·퍼지</a><a href="#c6">6 관련 알람</a><a href="#c7">7 고장 진단</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-SY30은 접착제가 채워진 30 ml 일회용 시린지입니다. 시린지 히터 안에 끼워 35 °C로 데워 쓰고, 뒤쪽으로 들어오는 공기 압력에 밀려 접착제가 니들로 나갑니다. 접착제는 장착한 뒤 시간이 지나면 조금씩 굳어 점도가 올라갑니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>사양</h2>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>값</th><th>비고</th></tr>
+      <tr><td>용량</td><td class="num">30 ml</td><td>잔량은 센서 로그 syringe_level_pct</td></tr>
+      <tr><td>접착제 밀도</td><td class="num">1.2 g/ml</td><td>레시피 A 한 번(12 mg) ≈ 0.01 ml, 한 시린지로 약 2,800개 (잔량 경고까지)</td></tr>
+      <tr><td>잔량 경고</td><td class="num">5 % (1.5 ml)</td><td>미만이면 토출 전에 <span class="code">E3003</span></td></tr>
+      <tr><td>가사 시간</td><td class="num">장착 후 6 h</td><td>넘으면 토출 전에 <span class="code">E3006</span></td></tr>
+      <tr><td>점도 상승</td><td class="num">장착 후 1시간마다 약 1 %</td><td>35 °C 기준</td></tr>
+      <tr><td>로트 간 점도 차이</td><td class="num">약 ±2 % (1σ)</td><td>시린지마다 조금씩 다름</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>사용 중 변화</h2>
+    <div class="table-wrap"><table>
+      <tr><th>장착 후 시간</th><th>점도</th><th>레시피 A 토출량 (10.8–13.2 mg)</th></tr>
+      <tr><td class="num">0 h</td><td class="num">1.00</td><td class="num good">12.0 mg</td></tr>
+      <tr><td class="num">3 h</td><td class="num">1.03</td><td class="num good">11.7 mg</td></tr>
+      <tr><td class="num">6 h</td><td class="num">1.06</td><td class="num good">11.3 mg</td></tr>
+    </table></div>
+    <p>가사 시간 안에서는 점도 상승만으로 중량 검사에 떨어지지 않습니다. 장착 후 몇 시간 안에 토출량이 크게 줄었다면 시린지보다 니들 막힘이나 온도를 먼저 봅니다.</p>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>기포</h2>
+    <p>시린지를 바꿀 때 공기가 함께 갇히는 일이 있습니다. 갇힌 공기 덩어리는 토출 때 하나씩 섞여 나오며, 그 토출은 약 15 % 적게 나오고 비드에 빈 곳(BEAD_VOID)이 생깁니다. 기포는 토출할수록 빠져나가므로 시간이 지나면 저절로 사라지기도 합니다.</p>
+    <div class="table-wrap"><table>
+      <tr><th>모양</th><th>기포</th><th>니들 막힘</th></tr>
+      <tr><td>시작 시점</td><td>시린지 교체 직후</td><td>교체와 관계없이 서서히</td></tr>
+      <tr><td>비드 불량</td><td>BEAD_VOID가 띄엄띄엄</td><td>폭 감소, BEAD_BREAK</td></tr>
+      <tr><td>중량 검사</td><td>들쭉날쭉, 가끔 크게 낮음</td><td>꾸준히 낮아짐</td></tr>
+      <tr><td>없어지는 때</td><td>퍼지, 시린지 교체, 또는 다 빠져나간 뒤</td><td>니들 청소</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>교체·퍼지</h2>
+    <div class="table-wrap"><table>
+      <tr><th>작업</th><th>효과</th><th>비고</th></tr>
+      <tr><td>시린지 교체</td><td>잔량 100 %, 장착 시간 0, 기포 없음, 새 로트 점도</td><td>다음 제품에서 중량 검사 자동 실행. 교체 때 기포가 새로 갇힐 수 있음</td></tr>
+      <tr><td>퍼지</td><td>갇힌 기포를 밀어냄</td><td>접착제 약 0.3 ml 소모, 다음 제품에서 중량 검사</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c6">
+    <h2><span class="no">6</span>관련 알람</h2>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>장비 메시지</th><th>조치</th></tr>
+      <tr><td class="code">E3003</td><td>Syringe level low</td><td>시린지 교체</td></tr>
+      <tr><td class="code">E3006</td><td>Material pot life expired</td><td>잔량과 관계없이 시린지 교체</td></tr>
+      <tr><td class="code">E3005</td><td>Weight check out of spec</td><td>교체 직후라면 기포 의심 → 퍼지</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c7">
+    <h2><span class="no">7</span>고장 진단</h2>
+    <div class="table-wrap"><table>
+      <tr><th>증상</th><th>확인할 것</th><th>가능한 원인</th><th>조치</th></tr>
+      <tr><td>교체 직후 BEAD_VOID가 띄엄띄엄</td><td>폭·압력은 정상인지</td><td>기포</td><td>퍼지</td></tr>
+      <tr><td>시린지를 바꿨는데 토출량이 그대로 낮음</td><td>표시 온도, 니들 상태</td><td>시린지가 원인이 아님</td><td>시린지 히터·니들 설명서 참고</td></tr>
+      <tr><td>교체 뒤 토출량이 조금(몇 %) 바뀜</td><td>중량 검사 범위 안인지</td><td>로트 간 점도 차이</td><td>범위 안이면 조치 불필요</td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>

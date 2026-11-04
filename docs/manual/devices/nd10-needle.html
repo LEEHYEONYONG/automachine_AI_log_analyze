@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-ND10 디스펜싱 니들</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Dispensing Needle</span>
+        <h1>AM-ND10 디스펜싱 니들</h1>
+        <span class="sub">니들·노즐 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-ND10</dd>
+        <dt>종류</dt><dd>금속 니들, 시린지 체결형</dd>
+        <dt>도포 갭</dt><dd>0.05–0.50 mm</dd>
+        <dt>설치 위치</dt><dd>DISPENSER Z축</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 니들 상태 세 가지</a><a href="#c3">3 위치와 비드</a><a href="#c4">4 관련 알람</a><a href="#c5">5 고장 진단</a><a href="#c6">6 청소·교정</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>니들은 시린지 끝에 끼워 접착제를 제품 위로 내보내는 관입니다. 니들은 소모품이며, 상태가 나빠지는 방식이 세 가지입니다. 안쪽이 막히는 것, 바깥 끝에 접착제가 묻는 것, 끼운 위치가 바뀌는 것입니다. 증상이 서로 달라 구분할 수 있습니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>니들 상태 세 가지</h2>
+    <div class="table-wrap"><table>
+      <tr><th>상태</th><th>일어나는 일</th><th>토출량·폭</th><th>비드 불량</th><th>토출 중 압력</th></tr>
+      <tr><td><b>안쪽 막힘</b><br>니들 안에서 접착제가 굳음</td><td>흐름 통로가 좁아짐 (개방률 1.0 → 작아짐)</td><td>개방률에 비례해 감소, 서서히</td><td>개방률 0.8 미만부터 끊김(BEAD_BREAK) 발생, 0.7이면 약 5 %</td><td>강하가 작아짐 (DP300 설명서 6장)</td></tr>
+      <tr><td><b>끝 오염</b><br>바깥 끝에 접착제가 쌓임</td><td>니들을 들 때 접착제가 실처럼 끌려 나옴</td><td>정상</td><td>실 끌림(STRINGING) 증가</td><td>정상</td></tr>
+      <tr><td><b>위치 어긋남</b><br>다시 끼우거나 부딪힘</td><td>니들 끝이 교시 위치와 달라짐</td><td>양은 정상, 폭이 계단식으로 바뀜</td><td>폭 미달·초과, 위치 벗어남(BEAD_OFFSET)</td><td>정상</td></tr>
+    </table></div>
+    <h3>막힘 정도에 따른 예 (레시피 A)</h3>
+    <div class="table-wrap"><table>
+      <tr><th>개방률</th><th>토출량 (10.8–13.2 mg)</th><th>비드 폭 (0.68–0.92 mm)</th><th>끊김 확률</th></tr>
+      <tr><td class="num">1.00</td><td class="num good">12.0 mg</td><td class="num good">0.80 mm</td><td class="num">0 %</td></tr>
+      <tr><td class="num">0.90</td><td class="num good">10.8 mg (하한)</td><td class="num good">0.76 mm</td><td class="num">0 %</td></tr>
+      <tr><td class="num">0.80</td><td class="num bad">9.6 mg</td><td class="num good">0.72 mm</td><td class="num">0 %</td></tr>
+      <tr><td class="num">0.70</td><td class="num bad">8.4 mg</td><td class="num bad">0.67 mm</td><td class="num">5 %</td></tr>
+    </table></div>
+    <p>중량 검사는 100개마다 하므로, 그 사이에는 비드 폭이 줄어드는 것으로 먼저 보입니다.</p>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>위치와 비드</h2>
+    <figure>
+      <svg viewBox="0 0 760 230" role="img" aria-label="니들 끝이 교시보다 높으면 갭이 커져 비드가 좁아지고, 낮으면 넓어진다. 높이 레이저는 제품 표면을 재므로 니들 어긋남을 보지 못한다">
+        <g fill="none" stroke="currentColor" stroke-width="1.5">
+          <line x1="20" y1="170" x2="740" y2="170"/>
+          <rect x="95" y="40" width="30" height="110"/><rect x="345" y="40" width="30" height="90"/><rect x="595" y="40" width="30" height="120"/>
+        </g>
+        <g fill="var(--accent)">
+          <ellipse cx="110" cy="166" rx="40" ry="5"/><ellipse cx="360" cy="167" rx="34" ry="4"/><ellipse cx="610" cy="165" rx="46" ry="6"/>
+        </g>
+        <g stroke="var(--caution)" stroke-width="1.5">
+          <line x1="140" y1="150" x2="140" y2="170"/><line x1="390" y1="130" x2="390" y2="170"/><line x1="640" y1="160" x2="640" y2="170"/>
+        </g>
+        <g fill="currentColor" font-size="13" text-anchor="middle" font-family="IBM Plex Sans KR, Malgun Gothic, sans-serif">
+          <text x="110" y="28">교시 위치</text><text x="360" y="28">0.06 mm 높음</text><text x="610" y="28">0.04 mm 낮음</text>
+          <text x="110" y="195">갭 0.15 mm · 폭 0.80</text><text x="360" y="195">갭 0.21 mm · 폭 0.68</text><text x="610" y="195">갭 0.11 mm · 폭 0.88</text>
+          <text x="380" y="220" font-size="12">제품 표면 (높이 레이저는 이 면을 잼)</text>
+        </g>
+      </svg>
+      <figcaption>그림 3-1. 니들 끝 높이와 비드 폭 (레시피 A, 토출량 정상). 갭이 0.01 mm 커질 때마다 폭이 약 2.5 % 줄어듭니다.</figcaption>
+    </figure>
+    <div class="formula">비드 폭 배율 = 1 − 2.5 × (갭 차이 mm)    (니들이 높으면 +, 낮으면 −)</div>
+    <div class="note"><b>주의</b><p>높이 측정 레이저는 제품 표면까지의 거리를 잽니다. 니들 끝은 보지 않으므로, 니들이 어긋나도 높이 측정값은 정상으로 나옵니다. 니들을 뺐다 끼운 뒤에는 반드시 위치 교정을 합니다.</p></div>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>관련 알람</h2>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>장비 메시지</th><th>니들과의 관계</th></tr>
+      <tr><td class="code">E3005</td><td>Weight check out of spec</td><td>안쪽 막힘으로 토출량 부족</td></tr>
+      <tr><td class="code">E4001</td><td>Consecutive bead NG</td><td>마지막 불량이 BEAD_BREAK·WIDTH_LOW면 막힘, STRINGING이면 끝 오염, BEAD_OFFSET·폭 계단 변화면 위치 어긋남</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>고장 진단</h2>
+    <div class="table-wrap"><table>
+      <tr><th>증상</th><th>확인할 것</th><th>가능한 원인</th><th>조치</th></tr>
+      <tr><td>폭·토출량이 몇 시간에 걸쳐 감소, 끊김 발생</td><td>토출 중 압력 강하, 표시 온도</td><td>안쪽 막힘</td><td>니들 청소 또는 교체 → 중량 검사</td></tr>
+      <tr><td>청소 후에도 폭이 돌아오지 않음</td><td>표시 온도, 시린지 장착 시간</td><td>니들이 아닌 점도 문제</td><td>시린지 히터·시린지 설명서 참고</td></tr>
+      <tr><td>실 끌림이 점점 늘어남, 폭·양은 정상</td><td>토출 후 대기 설정</td><td>끝 오염 (대기 설정 정상일 때)</td><td>니들 끝 청소</td></tr>
+      <tr><td>청소·교체·모델 변경 직후 폭이 한 번에 바뀜, 위치 벗어남</td><td>그 직후 위치 교정을 했는지</td><td>위치 어긋남</td><td>니들 위치 교정</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c6">
+    <h2><span class="no">6</span>청소·교정</h2>
+    <div class="table-wrap"><table>
+      <tr><th>작업</th><th>효과</th><th>뒤에 할 일</th></tr>
+      <tr><td>니들 청소</td><td>안쪽 막힘과 끝 오염 제거 (개방률 1.0으로)</td><td>중량 검사 자동 실행. 니들을 뺐다면 위치 교정</td></tr>
+      <tr><td>니들 위치 교정</td><td>니들 끝 높이·수평 위치를 교시값으로</td><td>중량 검사 자동 실행</td></tr>
+      <tr><td>모델 변경</td><td>레시피가 바뀌며 니들 위치가 어긋날 수 있음</td><td>위치 교정 권장</td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>

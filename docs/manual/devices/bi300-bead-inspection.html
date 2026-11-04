@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-BI300 비드 검사 센서</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Bead Inspection Sensor</span>
+        <h1>AM-BI300 비드 검사 센서</h1>
+        <span class="sub">라인 스캔 방식 · 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-BI300</dd>
+        <dt>측정</dt><dd>폭·위치·결함</dd>
+        <dt>분해능</dt><dd>0.001 mm</dd>
+        <dt>설치 위치</dt><dd>INSPECTION 스테이션</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 사양</a><a href="#c3">3 판정</a><a href="#c4">4 폭이 정해지는 방식</a><a href="#c5">5 관련 알람</a><a href="#c6">6 불량 종류로 원인 찾기</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-BI300은 도포가 끝난 하우징 위를 축을 따라 한 번 지나가며 비드(접착제 줄)를 찍는 라인 스캔 센서입니다. 비드의 폭과 정해진 경로에서 벗어난 거리, 끊김·빈 곳·실 끌림 같은 결함을 판정합니다. 장비의 모든 제품을 검사하므로, 토출 상태의 변화가 가장 먼저 보이는 곳입니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>사양</h2>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>값</th><th>비고</th></tr>
+      <tr><td>검사 시간</td><td class="num">SCAN 1.2 s + SCAN_RETURN 0.5 s</td><td>되돌아가는 동안 영상 처리</td></tr>
+      <tr><td>폭 측정</td><td class="num">분해능 0.001 mm, 반복성 약 ±1 %</td><td>bead_width_mm</td></tr>
+      <tr><td>위치 측정</td><td class="num">분해능 0.001 mm, 잡음 약 ±0.015 mm</td><td>bead_offset_mm (벗어난 거리, 절댓값)</td></tr>
+      <tr><td>폭 합격 범위</td><td class="num">A 0.68–0.92 mm, B 0.55–0.75 mm</td><td>레시피 값</td></tr>
+      <tr><td>위치 허용</td><td class="num">0.10 mm 이하</td><td></td></tr>
+      <tr><td>연속 불량 정지</td><td class="num">3개 연속</td><td><span class="code">E4001</span></td></tr>
+    </table></div>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>판정</h2>
+    <p>한 제품에 여러 결함이 있으면 아래 순서에서 먼저 걸린 것 하나만 불량 이유로 남습니다.</p>
+    <div class="table-wrap"><table>
+      <tr><th>순서</th><th>불량 이유</th><th>뜻</th></tr>
+      <tr><td class="num">1</td><td class="mono">BEAD_BREAK</td><td>비드가 중간에 끊김</td></tr>
+      <tr><td class="num">2</td><td class="mono">BEAD_VOID</td><td>비드 안에 빈 곳 (공기)</td></tr>
+      <tr><td class="num">3</td><td class="mono">STRINGING</td><td>니들을 들 때 접착제가 실처럼 끌림</td></tr>
+      <tr><td class="num">4</td><td class="mono">WIDTH_LOW</td><td>폭이 하한 미만</td></tr>
+      <tr><td class="num">5</td><td class="mono">WIDTH_HIGH</td><td>폭이 상한 초과</td></tr>
+      <tr><td class="num">6</td><td class="mono">BEAD_OFFSET</td><td>경로에서 0.10 mm 넘게 벗어남</td></tr>
+      <tr><td class="num">7</td><td class="mono">PARTICLE</td><td>이물. 정상 가동에서도 약 0.2 % 무작위로 나옴</td></tr>
+    </table></div>
+    <p>이미 앞 공정에서 불량 처리된 제품은 검사하지 않습니다. 합격·불합격 모두 이벤트 로그에 "Bead OK" 또는 "Bead NG reason=…"과 폭·위치가 남습니다.</p>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>폭이 정해지는 방식</h2>
+    <div class="formula">비드 폭 = 기준 폭 × √(토출량 ÷ 목표 토출량) × 갭 배율
+갭 배율 = 1 − 2.5 × (니들 갭 차이 mm)</div>
+    <div class="table-wrap"><table>
+      <tr><th>토출량 변화</th><th>폭 변화</th><th>레시피 A 폭</th></tr>
+      <tr><td class="num">−10 %</td><td class="num">약 −5 %</td><td class="num good">0.76 mm</td></tr>
+      <tr><td class="num">−20 %</td><td class="num">약 −11 %</td><td class="num good">0.72 mm</td></tr>
+      <tr><td class="num">−28 %</td><td class="num">약 −15 %</td><td class="num bad">0.68 mm (하한)</td></tr>
+      <tr><td class="num">+30 %</td><td class="num">약 +14 %</td><td class="num good">0.91 mm</td></tr>
+    </table></div>
+    <p>폭은 토출량의 제곱근을 따르므로, 중량 검사의 허용 범위(±10 %)를 벗어나도 폭은 아직 합격일 수 있습니다. 폭 불량이 나왔다면 토출량이 이미 크게 바뀐 것입니다.</p>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>관련 알람</h2>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>장비 메시지</th><th>뜻</th></tr>
+      <tr><td class="code">E4001</td><td>Consecutive bead NG</td><td>3개 연속 불량. 알람 내용의 last=에 마지막 불량 이유가 남음. 리셋하면 그 제품은 불량으로 내보내고 계속함</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c6">
+    <h2><span class="no">6</span>불량 종류로 원인 찾기</h2>
+    <div class="table-wrap"><table>
+      <tr><th>불량 이유</th><th>먼저 볼 장치</th><th>함께 확인할 것</th></tr>
+      <tr><td class="mono">BEAD_BREAK</td><td>니들 (안쪽 막힘)</td><td>폭이 함께 줄었는지, 토출 중 압력 강하</td></tr>
+      <tr><td class="mono">BEAD_VOID</td><td>시린지 (기포)</td><td>최근 시린지 교체, 중량 검사 흔들림</td></tr>
+      <tr><td class="mono">STRINGING</td><td>니들 끝 오염, 토출 후 대기 설정</td><td>대기 설정 변경 이력, 폭·중량이 정상인지, 접착제 온도가 높은지</td></tr>
+      <tr><td class="mono">WIDTH_LOW</td><td>토출량 부족 쪽 장치, 또는 니들 위치</td><td>중량 검사 결과: 낮으면 토출량, 정상이면 니들 높이</td></tr>
+      <tr><td class="mono">WIDTH_HIGH</td><td>토출량 과다, 또는 니들이 낮음</td><td>압력 설정, 온도</td></tr>
+      <tr><td class="mono">BEAD_OFFSET</td><td>니들 수평 위치, 비전 정렬</td><td>직전 니들 탈착·모델 변경</td></tr>
+      <tr><td class="mono">PARTICLE</td><td>없음 (무작위)</td><td>드물게 흩어져 나오면 정상</td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>

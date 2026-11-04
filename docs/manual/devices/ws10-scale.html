@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-WS10 정밀 전자 저울</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Precision Scale</span>
+        <h1>AM-WS10 정밀 전자 저울</h1>
+        <span class="sub">토출량 중량 검사용 · 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-WS10</dd>
+        <dt>최소 표시</dt><dd>0.01 mg</dd>
+        <dt>안정 시간</dt><dd>3.0 s</dd>
+        <dt>설치 위치</dt><dd>DISPENSER 옆 (X 150, Y −200)</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 사양</a><a href="#c3">3 검사 순서</a><a href="#c4">4 검사하는 때</a><a href="#c5">5 관련 알람</a><a href="#c6">6 결과 읽기</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-WS10은 니들에서 실제로 나오는 접착제 양을 재는 저울입니다. 디스펜서가 저울 위로 가서 한 번 시험 토출을 하고, 무게를 재서 레시피 목표와 비교합니다. 압력·시간이 맞아도 막힘·점도 때문에 양이 달라질 수 있으므로, 실제 양을 직접 확인하는 유일한 장치입니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>사양</h2>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>값</th><th>비고</th></tr>
+      <tr><td>최소 표시</td><td class="num">0.01 mg</td><td></td></tr>
+      <tr><td>반복성</td><td class="num">약 ±0.03 mg (1σ)</td><td>토출 자체의 흔들림(약 ±1.5 %)보다 훨씬 작음</td></tr>
+      <tr><td>안정 시간</td><td class="num">3.0 s</td><td>WEIGH 단계</td></tr>
+      <tr><td>판정</td><td class="num">레시피 목표 ± 허용 오차</td><td>A: 10.8–13.2 mg, B: 7.65–9.35 mg</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>검사 순서</h2>
+    <div class="table-wrap"><table>
+      <tr><th>단계</th><th>시간</th><th>내용</th></tr>
+      <tr><td>MOVE_TO_SCALE</td><td class="num">1.5 s</td><td>니들을 저울 위로</td></tr>
+      <tr><td>TEST_SHOT</td><td class="num">레시피 토출 시간</td><td>제품 도포와 같은 조건으로 한 번 토출</td></tr>
+      <tr><td>WEIGH</td><td class="num">3.0 s</td><td>안정 후 측정</td></tr>
+      <tr><td>MOVE_FROM_SCALE</td><td class="num">1.5 s</td><td>제품 위치로 복귀</td></tr>
+    </table></div>
+    <p>검사 한 번에 약 8초(레시피 A)가 더 걸립니다. 결과는 합격이면 이벤트 로그에 "Weight check OK weight=… spec=…", 불합격이면 <span class="code">E3005</span>로 남습니다.</p>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>검사하는 때</h2>
+    <ul style="margin:0;padding-left:22px;display:grid;gap:4px">
+      <li>장비를 켠 뒤 첫 제품</li>
+      <li>그 뒤 100개마다</li>
+      <li>시린지 교체, 퍼지, 니들 청소, 니들 위치 교정, 정비 담당 조치 다음 첫 제품</li>
+      <li>모델 변경, 레시피 수정 다음 첫 제품</li>
+      <li>불합격(<span class="code">E3005</span>) 뒤에는 합격할 때까지 매번</li>
+    </ul>
+    <div class="note"><b>주의</b><p>100개 사이(약 수십 분)의 변화는 저울로 보이지 않습니다. 그 사이에는 비드 검사의 폭 값으로 토출량 변화를 짐작합니다(폭은 토출량의 제곱근에 비례).</p></div>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>관련 알람</h2>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>장비 메시지</th><th>뜻</th></tr>
+      <tr><td class="code">E3005</td><td>Weight check out of spec</td><td>시험 토출량이 허용 범위 밖. 리셋하면 디스펜서 순서를 처음부터 다시 하며 중량 검사도 다시 함</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c6">
+    <h2><span class="no">6</span>결과 읽기</h2>
+    <div class="table-wrap"><table>
+      <tr><th>결과 모양</th><th>뜻</th><th>볼 설명서</th></tr>
+      <tr><td>검사마다 조금씩 낮아짐</td><td>토출량이 서서히 줄어듦</td><td>니들(막힘), 시린지 히터(열전대), 시린지(점도)</td></tr>
+      <tr><td>어느 검사부터 한 번에 낮아짐 또는 높아짐</td><td>압력·시간 설정 변경</td><td>디스펜서 컨트롤러 5장</td></tr>
+      <tr><td>잠깐 낮았다가 다시 정상</td><td>공급 공기 일시 저하</td><td>공압 조합 유닛</td></tr>
+      <tr><td>들쭉날쭉, 가끔 15 % 정도 낮음</td><td>시린지 속 기포가 섞여 나옴</td><td>시린지</td></tr>
+      <tr><td>니들 청소 뒤에도 그대로 낮음</td><td>니들 막힘이 아님</td><td>시린지 히터, 시린지</td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>

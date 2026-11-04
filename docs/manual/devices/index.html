@@ -1,0 +1,71 @@
+<title>AM 부품 설명서</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+
+<main>
+  <header style="display:grid;gap:14px">
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Component Manuals</span>
+        <h1>AM 부품 설명서</h1>
+        <span class="sub">DSP-CELL-01 디스펜싱 셀에 들어간 부품의 취급·점검 설명서 모음</span>
+      </div>
+      <dl>
+        <dt>대상 장비</dt><dd>DSP-CELL-01</dd>
+        <dt>판</dt><dd>1.0 (2026-11)</dd>
+        <dt>수록</dt><dd>14종</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비를 위해 만든 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터(<span class="mono">simulator/</span>, <span class="mono">config/machine.json</span>)의 동작과 일치하게 썼고, 장비 로그에 없는 부품 자체 오류 코드는 만들지 않았습니다.</p>
+  </header>
+
+  <section>
+    <h2><span class="no">0</span>장비 전체</h2>
+    <p><a class="back" href="dsp-cell-01.html">DSP-CELL-01 장비 설명서</a>: 배치도, 공정 흐름, 레시피, 운전·교대, 안전, 알람 목록, 작업자 표준 조치, 기록 파일, 부품 목차.</p>
+  </section>
+
+  <section>
+    <h2><span class="no">1</span>1차: 토출 품질에 관계된 부품</h2>
+    <div class="table-wrap"><table>
+      <tr><th>부품</th><th>설치 위치</th><th>하는 일</th><th>관련 알람</th></tr>
+      <tr><td><a href="dp300-controller.html">AM-DP300 디스펜서 컨트롤러</a></td><td>DISPENSER</td><td>토출 압력·시간</td><td class="mono">E3005 E9001</td></tr>
+      <tr><td><a href="th200-syringe-heater.html">AM-TH200 시린지 히터</a></td><td>DISPENSER</td><td>시린지 온도 (열전대 포함)</td><td class="mono">E3002 E3005</td></tr>
+      <tr><td><a href="nd10-needle.html">AM-ND10 디스펜싱 니들</a></td><td>DISPENSER</td><td>접착제 출구, 도포 위치</td><td class="mono">E3005 E4001</td></tr>
+      <tr><td><a href="sy30-syringe.html">AM-SY30 시린지·접착제</a></td><td>DISPENSER</td><td>접착제 공급</td><td class="mono">E3003 E3006 E3005</td></tr>
+      <tr><td><a href="vf100-vacuum-fixture.html">AM-VF100 진공 고정 지그</a></td><td>DISPENSER</td><td>도포 중 하우징 고정</td><td class="mono">E3001</td></tr>
+      <tr><td><a href="au50-air-unit.html">AM-AU50 공압 조합 유닛</a></td><td>장비 공기 입구</td><td>공장 공기 공급·감시</td><td class="mono">E9001</td></tr>
+      <tr><td><a href="ws10-scale.html">AM-WS10 정밀 전자 저울</a></td><td>DISPENSER 옆</td><td>토출량 중량 검사</td><td class="mono">E3005</td></tr>
+      <tr><td><a href="hl05-height-laser.html">AM-HL05 높이 측정 레이저</a></td><td>DISPENSER Z축</td><td>도포 갭 확인</td><td>없음</td></tr>
+      <tr><td><a href="bi300-bead-inspection.html">AM-BI300 비드 검사 센서</a></td><td>INSPECTION</td><td>비드 폭·위치·결함 판정</td><td class="mono">E4001</td></tr>
+    </table></div>
+  </section>
+
+  <section>
+    <h2><span class="no">2</span>2차: 이송·식별·구동 부품</h2>
+    <div class="table-wrap"><table>
+      <tr><th>부품</th><th>설치 위치</th><th>하는 일</th><th>관련 알람</th></tr>
+      <tr><td><a href="vc200-vision.html">AM-VC200 정렬 비전</a></td><td>VISION</td><td>정렬 마크 촬영, 위치 보정값</td><td class="mono">E2001 E2002</td></tr>
+      <tr><td><a href="cr10-code-reader.html">AM-CR10 2D 코드 리더</a></td><td>INFEED</td><td>제품 식별</td><td class="mono">E1001</td></tr>
+      <tr><td><a href="pc40-air-cylinder.html">AM-PC40 공압 실린더</a></td><td>장비 전체 10개</td><td>스토퍼·리프트·푸셔·픽커</td><td>없음</td></tr>
+      <tr><td><a href="sv100-servo.html">AM-SV100 서보 축</a></td><td>장비 전체 5축</td><td>갠트리 X·Y·Z, 스캔, 픽커 Y</td><td class="mono">E9100 E9101</td></tr>
+      <tr><td><a href="cv500-conveyor.html">AM-CV500 컨베이어</a></td><td>장비 전체 5구간</td><td>이송, 앞뒤 설비 연동, NG 배출</td><td class="mono">E5001</td></tr>
+    </table></div>
+  </section>
+
+  <section>
+    <h2><span class="no">3</span>증상에서 설명서 찾기</h2>
+    <div class="table-wrap"><table>
+      <tr><th>보이는 증상</th><th>먼저 볼 설명서</th></tr>
+      <tr><td>중량 검사·비드 폭이 서서히 감소</td><td>니들(막힘) → 시린지 히터(열전대) → 시린지</td></tr>
+      <tr><td>중량·폭이 한 시점에 계단식 변화</td><td>디스펜서 컨트롤러(설정 변경), 니들(위치)</td></tr>
+      <tr><td>토출 압력·진공·실린더 시간이 동시에 나빠짐</td><td>공압 조합 유닛</td></tr>
+      <tr><td>진공만 서서히 약해짐, 흡착 재시도</td><td>진공 고정 지그</td></tr>
+      <tr><td>실 끌림 증가</td><td>니들(끝 오염), 디스펜서 컨트롤러(토출 후 대기)</td></tr>
+      <tr><td>빈 곳(BEAD_VOID)이 띄엄띄엄</td><td>시린지(기포)</td></tr>
+      <tr><td>알람 없이 생산량만 줄어듦</td><td>컨베이어(앞뒤 설비 대기)</td></tr>
+      <tr><td>비상 정지·수동 조작 뒤 시작이 안 됨</td><td>서보 축(원점 복귀)</td></tr>
+    </table></div>
+  </section>
+
+</main>

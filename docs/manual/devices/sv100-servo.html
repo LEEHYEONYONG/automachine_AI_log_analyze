@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-SV100 서보 축</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Servo Axis</span>
+        <h1>AM-SV100 서보 축</h1>
+        <span class="sub">서보 모터·드라이브·원점 센서 · 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-SV100 계열</dd>
+        <dt>설치</dt><dd>5축</dd>
+        <dt>원점 탐색</dt><dd>40 mm/s</dd>
+        <dt>전원 차단 후</dt><dd>원점 복귀 필요</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 축 목록</a><a href="#c3">3 원점 복귀</a><a href="#c4">4 이동 인터록</a><a href="#c5">5 관련 알람</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-SV100은 위치를 정해 움직이는 서보 축입니다. 디스펜서 갠트리 X·Y·Z, 비드 검사 스캔 축, NG 픽커 Y축에 쓰입니다. 공압이 아니라 전기로 움직이므로 공장 공기의 영향을 받지 않습니다. 비상 정지로 서보 전원이 끊기면 현재 위치를 믿을 수 없어 원점 복귀를 다시 해야 합니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>축 목록</h2>
+    <div class="table-wrap"><table>
+      <tr><th>축</th><th>스테이션</th><th>범위</th><th>속도</th><th>원점</th><th>주요 위치</th></tr>
+      <tr><td class="mono">DISP_X</td><td>DISPENSER</td><td class="num">−80 – 180 mm</td><td class="num">200 mm/s</td><td class="num">0</td><td>작업 시작 −58, 저울 150</td></tr>
+      <tr><td class="mono">DISP_Y</td><td>DISPENSER</td><td class="num">−220 – 40 mm</td><td class="num">200 mm/s</td><td class="num">0</td><td>작업 시작 −24, 저울 −200</td></tr>
+      <tr><td class="mono">DISP_Z</td><td>DISPENSER</td><td class="num">−12 – 100 mm</td><td class="num">60 mm/s</td><td class="num">88 (안전 높이)</td><td>도포 0, 저울 시험 토출 −10</td></tr>
+      <tr><td class="mono">SCAN_X</td><td>INSPECTION</td><td class="num">−84 – 84 mm</td><td class="num">150 mm/s</td><td class="num">−84</td><td>끝 84</td></tr>
+      <tr><td class="mono">NG_PICK_Y</td><td>OUTFEED</td><td class="num">0 – 260 mm</td><td class="num">300 mm/s</td><td class="num">0</td><td>NG 버퍼 260</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>원점 복귀</h2>
+    <p>원점 복귀는 장비를 켠 뒤, 비상 정지 뒤, 수동 조작 뒤에 자동 운전을 시작하기 전에 해야 합니다. 충돌하지 않는 순서로 진행합니다.</p>
+    <ol class="steps">
+      <li>SAFETY_CHECK: 비상 정지·안전 도어·메인 공기(300 kPa 이상) 확인</li>
+      <li>VACUUM_OFF → CYLINDERS_RETRACT → LIFTS_DOWN → STOPPERS_UP (실린더는 공기 영향 받음)</li>
+      <li>Z_HOME: 니들을 먼저 안전 높이로</li>
+      <li>XY_HOME: 디스펜서 X·Y</li>
+      <li>AUX_AXES_HOME: 스캔 축, NG 픽커 Y</li>
+      <li>WIP_CHECK: 라인에 남은 제품 처리. 도포를 시작한 제품은 불량(INIT_INCOMPLETE)</li>
+    </ol>
+    <div class="formula">축 하나의 원점 복귀 시간 ≈ 1 s + (원점까지 거리 ÷ 40 mm/s)</div>
+    <p>단계마다 이벤트 로그에 "Initialize step … done"이, 끝나면 "Initialize done t=…s"가 남습니다.</p>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>이동 인터록</h2>
+    <div class="table-wrap"><table>
+      <tr><th>막는 이동</th><th>조건</th></tr>
+      <tr><td>DISP_X·Y 이동</td><td>Z가 80 mm(안전 높이) 아래이거나 움직이는 중</td></tr>
+      <tr><td>DISP_Z를 30 mm 아래로</td><td>제품 위나 저울 위가 아닐 때, 제품 위인데 디스펜서 리프트가 내려가 있을 때</td></tr>
+      <tr><td>제품 위에서 Z 0 mm 아래로</td><td>항상 (도포 높이보다 낮출 수 없음)</td></tr>
+      <tr><td>NG_PICK_Y 이동</td><td>NG 픽커가 내려가 있을 때</td></tr>
+      <tr><td>범위 밖 이동</td><td>항상</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>관련 알람</h2>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>장비 메시지</th><th>서보와의 관계</th></tr>
+      <tr><td class="code">E9100</td><td>Emergency stop</td><td>서보 전원 차단. 해제·리셋 뒤 원점 복귀 필요</td></tr>
+      <tr><td class="code">E9101</td><td>Safety door open</td><td>운전 중 도어 열림으로 정지. 원점 복귀 중이었다면 다시 해야 함</td></tr>
+    </table></div>
+    <p>서보 축은 장비 기록에 자체 오류를 남기지 않습니다. 서보는 토출 품질 문제의 원인 목록에 넣지 않아도 됩니다. 니들 위치 어긋남은 서보가 아니라 니들 설치 문제입니다(니들 설명서).</p>
+  </section>
+</main>
+</body>
+</html>

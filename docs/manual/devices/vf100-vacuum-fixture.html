@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM-VF100 진공 고정 지그</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:14px">
+    <a class="back" href="index.html">← 부품 설명서 목록</a>
+    <div class="plate">
+      <div style="display:grid;gap:6px">
+        <span class="brand">AM Series · Vacuum Fixture</span>
+        <h1>AM-VF100 진공 고정 지그</h1>
+        <span class="sub">진공 이젝터·진공 패드·진공 스위치 · 취급·점검 설명서 1.0판</span>
+      </div>
+      <dl>
+        <dt>형식</dt><dd>AM-VF100</dd>
+        <dt>최대 진공</dt><dd>−85 kPa</dd>
+        <dt>판정 기준</dt><dd>−60 kPa</dd>
+        <dt>설치 위치</dt><dd>DISPENSER 리프트</dd>
+      </dl>
+    </div>
+    <p class="virtual">automachine 가상 장비용 <b>가상 제품</b> 설명서입니다. 실제 제품·제조사와 관계없습니다. 수치는 시뮬레이터 동작과 일치합니다.</p>
+    <nav class="toc" aria-label="목차"><a href="#c1">1 개요</a><a href="#c2">2 사양</a><a href="#c3">3 진공이 정해지는 방식</a><a href="#c4">4 흡착 순서</a><a href="#c5">5 관련 알람</a><a href="#c6">6 고장 진단</a><a href="#c7">7 점검·소모품</a></nav>
+  </header>
+
+  <section id="c1">
+    <h2><span class="no">1</span>개요</h2>
+    <p>AM-VF100은 도포하는 동안 하우징이 움직이지 않도록 진공으로 붙잡는 지그입니다. 공장 압축 공기로 진공을 만드는 이젝터, 제품에 닿는 고무 진공 패드, 진공 정도를 재는 진공 스위치로 이루어집니다. 리프트가 하우징을 지그 위로 올린 뒤 진공을 켭니다.</p>
+  </section>
+
+  <section id="c2">
+    <h2><span class="no">2</span>사양</h2>
+    <div class="table-wrap"><table>
+      <tr><th>항목</th><th>값</th><th>비고</th></tr>
+      <tr><td>도달 진공</td><td class="num">−85 kPa</td><td>공급 공기 450 kPa 이상, 패드 정상일 때</td></tr>
+      <tr><td>흡착 판정 기준</td><td class="num">−60 kPa 이하</td><td>이보다 약하면 다시 앉힘</td></tr>
+      <tr><td>재시도</td><td class="num">최대 2회</td><td>모두 실패하면 <span class="code">E3001</span></td></tr>
+      <tr><td>진공 스위치</td><td class="num">분해능 0.1 kPa, 잡음 약 ±0.4 kPa (1σ)</td><td>센서 로그 fixture_vac_kpa, 진공 꺼짐이면 0</td></tr>
+      <tr><td>제품 없이 진공을 켰을 때</td><td class="num">약 −4 kPa</td><td>수동 모드 확인용</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c3">
+    <h2><span class="no">3</span>진공이 정해지는 방식</h2>
+    <div class="formula">진공 = −85 kPa × (1 − 패드 누설률) × 이젝터 효율
+이젝터 효율 = min(1, 공급 공기 ÷ 450 kPa)</div>
+    <p>진공은 두 가지 이유로 약해집니다. 패드가 닳거나 찢어져 공기가 새는 경우, 그리고 이젝터를 돌리는 공장 공기가 약해진 경우입니다. 누설률이 약 30 %를 넘거나 공급 공기가 약 320 kPa 아래로 내려가면 기준(−60 kPa)을 채우지 못합니다.</p>
+    <figure>
+      <svg viewBox="0 0 640 270" role="img" aria-label="패드 누설률이 0에서 40퍼센트로 늘면 진공은 -85에서 -51 kPa로 약해지고 약 29퍼센트에서 기준 -60을 넘는다">
+        <g stroke="var(--line)" stroke-width="1">
+          <line x1="70" y1="30" x2="610" y2="30"/><line x1="70" y1="80" x2="610" y2="80"/><line x1="70" y1="130" x2="610" y2="130"/><line x1="70" y1="180" x2="610" y2="180"/><line x1="70" y1="230" x2="610" y2="230"/>
+        </g>
+        <g fill="currentColor" font-size="12" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace">
+          <text x="62" y="34">−90</text><text x="62" y="84">−80</text><text x="62" y="134">−70</text><text x="62" y="184">−60</text><text x="62" y="234">−50</text>
+        </g>
+        <g fill="currentColor" font-size="12" text-anchor="middle" font-family="IBM Plex Mono, Consolas, monospace">
+          <text x="70" y="250">0 %</text><text x="205" y="250">10 %</text><text x="340" y="250">20 %</text><text x="475" y="250">30 %</text><text x="610" y="250">40 %</text>
+        </g>
+        <text x="340" y="268" fill="currentColor" font-size="12" text-anchor="middle" font-family="IBM Plex Sans KR, sans-serif">패드 누설률 (공급 공기 정상)</text>
+        <line x1="70" y1="180" x2="610" y2="180" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="6 4"/>
+        <text x="604" y="172" fill="var(--danger)" font-size="12" text-anchor="end" font-family="IBM Plex Sans KR, sans-serif">판정 기준 −60 kPa</text>
+        <line x1="70" y1="55" x2="610" y2="225" stroke="var(--accent)" stroke-width="2.5"/>
+        <circle cx="467" cy="180" r="4" fill="var(--accent)"/>
+        <text x="460" y="205" fill="var(--accent)" font-size="12" text-anchor="end" font-family="IBM Plex Sans KR, sans-serif">약 29 %에서 기준 미달</text>
+      </svg>
+      <figcaption>그림 3-1. 패드 누설률과 진공. 공기가 같이 약해지면 선 전체가 위로 올라가 더 일찍 기준을 넘습니다.</figcaption>
+    </figure>
+    <div class="table-wrap"><table>
+      <tr><th>원인 구분</th><th>패드 마모</th><th>공급 공기 저하</th></tr>
+      <tr><td>변화 모양</td><td>몇 시간에 걸쳐 조금씩, 저절로 돌아오지 않음</td><td>몇 분 만에 떨어졌다가 공기가 회복되면 돌아옴</td></tr>
+      <tr><td>같은 시각 다른 증상</td><td>없음 (토출 압력·실린더 정상)</td><td>토출 압력 저하, 공압 실린더 동작 시간 증가</td></tr>
+      <tr><td>알람 리셋 후</td><td>재시도·<span class="code">E3001</span>이 되풀이됨</td><td>공기가 돌아오면 사라짐</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c4">
+    <h2><span class="no">4</span>흡착 순서</h2>
+    <ol class="steps">
+      <li>LIFT_UP (0.4 s): 하우징을 지그로 올림</li>
+      <li>VACUUM_ON (0.3 s): 진공을 켜고 진공 스위치 값을 읽음</li>
+      <li>−60 kPa 이하면 도포로 넘어감. 아니면 경고 "Fixture vacuum not reached"를 남기고 RESEAT (0.6 s)로 다시 앉힘</li>
+      <li>재시도 2회까지 실패하면 <span class="code">E3001</span>. 리셋하면 흡착부터 다시 함</li>
+    </ol>
+    <p>제품마다 흡착 진공값(fixture_vac_kpa)과 재시도 횟수(vac_retries)가 기록됩니다. 기준 근처까지 약해지면 재시도가 간간이 나타나기 시작하므로, 알람 전에 추세로 알 수 있습니다.</p>
+  </section>
+
+  <section id="c5">
+    <h2><span class="no">5</span>관련 알람</h2>
+    <div class="table-wrap"><table>
+      <tr><th>코드</th><th>장비 메시지</th><th>뜻</th></tr>
+      <tr><td class="code">E3001</td><td>Fixture vacuum not reached (retry exceeded)</td><td>재시도 2회 모두 기준 미달</td></tr>
+      <tr><td class="code">E9001</td><td>Main air pressure low</td><td>공급 공기 300 kPa 미만. 이때 진공은 이미 기준 미달 (약 −57 kPa)</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c6">
+    <h2><span class="no">6</span>고장 진단</h2>
+    <div class="table-wrap"><table>
+      <tr><th>증상</th><th>확인할 것</th><th>가능한 원인</th><th>조치</th></tr>
+      <tr><td>흡착 진공이 몇 시간에 걸쳐 약해짐, 재시도 증가</td><td>같은 시각 토출 압력이 정상인지</td><td>진공 패드 마모·찢어짐</td><td>진공 패드 교체</td></tr>
+      <tr><td>진공·토출 압력이 동시에 떨어짐</td><td>공압 실린더 동작 시간</td><td>공급 공기 저하</td><td>공압 조합 유닛 설명서 참고. 패드 교체로는 해결 안 됨</td></tr>
+      <tr><td><span class="code">E3001</span> 리셋 후 곧 다시 발생</td><td>최근 진공값 추세</td><td>패드 마모가 진행 중</td><td>리셋 반복 대신 패드 교체</td></tr>
+    </table></div>
+  </section>
+
+  <section id="c7">
+    <h2><span class="no">7</span>점검·소모품</h2>
+    <div class="table-wrap"><table>
+      <tr><th>주기</th><th>점검</th><th>기준</th></tr>
+      <tr><td>교대 시작</td><td>최근 제품의 흡착 진공값</td><td class="num">−75 kPa보다 강함</td></tr>
+      <tr><td>재시도가 보이기 시작할 때</td><td>패드 표면 갈라짐·변형</td><td>있으면 교체</td></tr>
+      <tr><td>소모품</td><td>진공 패드</td><td>교체 후 누설률 0, 도달 진공 −85 kPa</td></tr>
+    </table></div>
+  </section>
+</main>
+</body>
+</html>
