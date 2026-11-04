@@ -49,6 +49,18 @@ class Incidents(unittest.TestCase):
     def test_no_alerts(self):
         self.assertEqual(foreman.incidents([], []), [])
 
+    def test_break_starts_a_new_incident_within_the_hour(self):
+        alerts = [rule("nozzle_clog", 0), rule("nozzle_clog", 40)]
+        self.assertEqual(len(foreman.incidents(alerts, [])), 1)
+        found = foreman.incidents(alerts, [], breaks=[T0 + timedelta(minutes=5)])
+        self.assertEqual([i["started_at"] for i in found], [T0, T0 + timedelta(minutes=40)])
+
+    def test_alert_before_the_break_stays_in_the_old_incident(self):
+        found = foreman.incidents([rule("nozzle_clog", 0)], [guard("bead_width_mm", 3)],
+                                  breaks=[T0 + timedelta(minutes=5)])
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["last_at"], T0 + timedelta(minutes=3))
+
 
 class UnverifiedNumbers(unittest.TestCase):
     def test_flags_only_numbers_missing_from_the_sources(self):

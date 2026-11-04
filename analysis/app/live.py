@@ -136,6 +136,19 @@ def first_evidence(candidates, incident):
     return chosen and {"type": chosen["fault_type"], "data": chosen["evidence"]}
 
 
+def fixed_at(live):
+    """노즐 청소가 고장을 고쳤다고 확인된 시각들 (청소 뒤 제품 30개의 폭이 돌아온 때).
+    실시간 화면은 이 시각을 넘어 사건을 잇지 않는다. 고친 뒤 다시 생긴 고장을 새 경보로 보이고,
+    그 경보가 뒤따른 알람보다 몇 분 먼저였는지를 따로 재려는 것이다.
+    확인 시각에서 끊으므로, 청소 직후 확인 전까지 남은 경보(청소 전 제품이 섞인 값)는 앞 사건에 붙는다.
+    폭이 돌아오지 않은 청소는 끊지 않는다. 그래야 온도 센서 판단(청소 뒤에도 이어지는 사건)이 그대로다.
+    분석 버튼은 이것을 쓰지 않는다. 채점한 사건 묶음을 바꾸지 않으려는 것이다."""
+    from . import diagnosis
+    cleans = sorted({m["ts"] for m in live.maintenance if m["action"] == "nozzle_clean"})
+    checks = (diagnosis.width_recovered_after_clean(live.parts, t) for t in cleans)
+    return sorted({c["checked_at"] for c in checks if c and c["recovered"]})
+
+
 def analyze(live, profile, model):
     """지금까지 읽은 기록으로 사건과 원인을 정하고, 화면에 보낼 경보 목록을 만든다."""
     ctx = live.context()
@@ -143,7 +156,7 @@ def analyze(live, profile, model):
     from . import anomaly
     guard = anomaly.detect_anomaly(live.run_id, live.parts, live.sensors, profile)
     alerts = []
-    for incident in foreman.judge(ctx, rule_hits, profile, model):
+    for incident in foreman.judge(ctx, rule_hits, profile, model, fixed_at(live)):
         related = RELATED_ALARMS.get(incident["cause"], set())
         alarm = next((a for a in live.alarms if a["code"] in related and a["ts"] >= incident["started_at"]), None)
         alerts.append({
