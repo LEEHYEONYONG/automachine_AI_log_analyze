@@ -228,6 +228,16 @@ class Tools:
                 v = c["attrs"]
                 standard = self.ctx["recipes"].get(v["recipe"], {}).get(v["param"])
                 lines.append(f"{c['ts']:%H:%M:%S} 설정 변경: {v['param']} {v['old']} → {v['new']} (표준 {standard})")
+        for e in self.ctx.get("machine_events", []):
+            if a <= e["ts"] <= b:
+                v = e["attrs"]
+                if e["message"].startswith("Setting changed"):
+                    lines.append(f"{e['ts']:%H:%M:%S} 장비 설정 변경: {v.get('param')} {v.get('old')} → {v.get('new')}")
+                elif e["message"].startswith("Run mode change"):
+                    lines.append(f"{e['ts']:%H:%M:%S} 운전 방식 변경: {v.get('run_mode')}")
+                else:
+                    lines.append(f"{e['ts']:%H:%M:%S} 더미 런 끝: {v.get('count')}개")
+        lines.sort()
         return "\n".join(lines) or "사건 앞뒤 60분에 정비와 설정 변경 기록 없음"
 
     def check_after_clean(self):

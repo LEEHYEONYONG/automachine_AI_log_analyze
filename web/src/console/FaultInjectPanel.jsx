@@ -1,3 +1,4 @@
+import { tr } from "../prefs";
 import { useState } from "react";
 import { api } from "../api";
 import { ACTION_LABEL, FAULT_LABEL, FAULT_PARAM_LABEL, OPERATOR_ONLY_ACTION_LABEL } from "../labels";
@@ -23,7 +24,7 @@ export function FaultInjectPanel({ faultTypes, run }) {
 
   return (
     <section className="panel">
-      <h2>고장 주입</h2>
+      <h2>{tr("고장 주입")}</h2>
       <div className="form-row">
         <select value={type} onChange={(e) => selectType(e.target.value)}>
           {names.map((n) => (
@@ -36,10 +37,10 @@ export function FaultInjectPanel({ faultTypes, run }) {
       </div>
       <p className="hint">{info.description}</p>
       <p className="hint">
-        해결 조치:{" "}
+        {tr("해결 조치:")}
         {info.resolved_by.length
           ? info.resolved_by.map((a) => ACTION_LABEL[a] ?? OPERATOR_ONLY_ACTION_LABEL[a] ?? a).join(", ")
-          : "없음 (시간이 지나면 저절로 회복)"}
+          : tr("없음 (시간이 지나면 저절로 회복)")}
       </p>
 
       <div className="fields">
@@ -55,7 +56,7 @@ export function FaultInjectPanel({ faultTypes, run }) {
           </label>
         ))}
         <label className="field">
-          <span>시작 지연 (분, 시뮬레이션 시간)</span>
+          <span>{tr("시작 지연 (분, 시뮬레이션 시간)")}</span>
           <input type="number" min={0} step="any" value={delay} onChange={(e) => setDelay(e.target.value)} />
         </label>
       </div>
@@ -65,7 +66,7 @@ export function FaultInjectPanel({ faultTypes, run }) {
         disabled={!valid}
         onClick={() => run(() => api.injectFault(type, parsed, Number(delay)))}
       >
-        {Number(delay) > 0 ? `${delay}분 뒤 주입` : "지금 주입"}
+        {Number(delay) > 0 ? tr("{a}분 뒤 주입", { a: delay }) : tr("지금 주입")}
       </button>
     </section>
   );

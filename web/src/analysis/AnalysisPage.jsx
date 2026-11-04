@@ -1,3 +1,4 @@
+import { localized, tr } from "../prefs";
 import { useEffect, useState } from "react";
 import { anomalyText, evidenceText, FEATURE, faultName, time } from "./evidence";
 import { HandoverPanel } from "./Handover";
@@ -9,12 +10,12 @@ const API = "/api/analysis";
 // Repeats of the same fault within this many minutes are shown as one row (same as eval/README.md).
 const GROUP_MIN = 60;
 
-const METHOD_LABEL = { rule: "규칙", anomaly: "경비원", classify: "분류" };
-const METHOD_HINT = {
+const METHOD_LABEL = localized({ rule: "규칙", anomaly: "경비원", classify: "분류" });
+const METHOD_HINT = localized({
   rule: "규칙은 고장 이름까지 알려 주지만, 규칙을 만들어 둔 고장만 찾습니다.",
   anomaly: "경비원은 정상 구간에서 배운 평소 모습과 다른 값을 알려 줍니다. 처음 보는 고장도 찾지만, 고장 이름은 모릅니다.",
   classify: "분류는 경비원이 울린 순간의 값을 보고 지금까지의 예시에서 배운 고장 이름을 고릅니다. 규칙보다 자주 틀리므로 참고용입니다.",
-};
+});
 
 function groupRepeats(candidates) {
   const rows = [];
@@ -43,7 +44,7 @@ function ForemanPanel({ runId }) {
   useEffect(() => {
     let current = true;
     fetch(`${API}/runs/${runId}/incidents`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`사건을 불러오지 못했습니다 (${res.status})`))))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(tr("사건을 불러오지 못했습니다 ({a})", { a: res.status })))))
       .then((data) => current && setIncidents(data.incidents))
       .catch((e) => current && setError(e.message));
     return () => {
@@ -58,7 +59,7 @@ function ForemanPanel({ runId }) {
       const res = await fetch(`${API}/runs/${runId}/incidents/report?at=${encodeURIComponent(at)}`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail ?? `보고서를 쓰지 못했습니다 (${res.status})`);
+        throw new Error(body.detail ?? tr("보고서를 쓰지 못했습니다 ({a})", { a: res.status }));
       }
       const report = await res.json();
       setIncidents((list) => list.map((i) => (i.started_at === at ? { ...i, report } : i)));
@@ -71,14 +72,14 @@ function ForemanPanel({ runId }) {
 
   return (
     <section className="panel">
-      <h2>반장 보고서</h2>
+      <h2>{tr("반장 보고서")}</h2>
       <p className="hint">
-        규칙과 경비원의 경보를 사건으로 묶어 코드가 원인을 정합니다. AI는 기록을 조회해 근거를 설명할 뿐 원인을 바꾸지 못하고, 조치는 안내서에서
-        가져옵니다. 보고서는 한 건에 1분 안팎 걸립니다.
+        {tr("규칙과 경비원의 경보를 사건으로 묶어 코드가 원인을 정합니다. AI는 기록을 조회해 근거를 설명할 뿐 원인을 바꾸지 못하고, 조치는 안내서에서")}
+        {tr("가져옵니다. 보고서는 한 건에 1분 안팎 걸립니다.")}
       </p>
       {error && <p className="hint analysis-error">{error}</p>}
-      {incidents === null && !error && <p className="hint">사건을 찾는 중…</p>}
-      {incidents?.length === 0 && <p className="hint">이 런에는 경보가 없습니다.</p>}
+      {incidents === null && !error && <p className="hint">{tr("사건을 찾는 중…")}</p>}
+      {incidents?.length === 0 && <p className="hint">{tr("이 런에는 경보가 없습니다.")}</p>}
       {incidents?.map((i) => (
         <div className="incident" key={i.started_at}>
           <div className="incident-head">
@@ -89,15 +90,15 @@ function ForemanPanel({ runId }) {
                 </span>{" "}
                 <strong>{faultName(i.cause)}</strong>
               </div>
-              <div className="small">{i.basis}</div>
+              <div className="small">{tr(i.basis)}</div>
               <div className="small muted">
-                규칙: {i.rule_names.map(faultName).join(", ") || "없음"} · 경비원:{" "}
-                {i.guard_values.map((v) => FEATURE[v].label).join(", ") || "없음"} · 분류:{" "}
-                {i.tree_guess ? faultName(i.tree_guess) : "없음"}
+                {tr("규칙")}: {i.rule_names.map(faultName).join(", ") || tr("없음")} · {tr("경비원")}:{" "}
+                {i.guard_values.map((v) => FEATURE[v].label).join(", ") || tr("없음")} · {tr("분류")}:{" "}
+                {i.tree_guess ? faultName(i.tree_guess) : tr("없음")}
               </div>
             </div>
             <button className="btn" disabled={writing !== null} onClick={() => write(i.started_at)}>
-              {writing === i.started_at ? "작성 중…" : i.report ? "다시 쓰기" : "보고서 쓰기"}
+              {writing === i.started_at ? tr("작성 중…") : i.report ? tr("다시 쓰기") : tr("보고서 쓰기")}
             </button>
           </div>
           {i.report && <Report report={i.report} />}
@@ -117,7 +118,7 @@ export function AnalysisPage() {
 
   useEffect(() => {
     fetch(`${API}/runs`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`분석 서버 응답 ${res.status}`))))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(tr("분석 서버 응답 {a}", { a: res.status })))))
       .then((list) => {
         setRuns(list);
         setRunId((id) => id || list.at(-1)?.run_id || "");
@@ -130,7 +131,7 @@ export function AnalysisPage() {
     setError(null);
     try {
       const res = await fetch(`${API}/runs/${runId}?method=${method}`, { method: "POST" });
-      if (!res.ok) throw new Error(`분석 실패 (${res.status})`);
+      if (!res.ok) throw new Error(tr("분석 실패 ({a})", { a: res.status }));
       setResult(await res.json());
     } catch (e) {
       setError(e.message);
@@ -147,7 +148,7 @@ export function AnalysisPage() {
     <main className="console">
       <LivePanel />
       <section className="panel">
-        <h2>AI 분석</h2>
+        <h2>{tr("AI 분석")}</h2>
         <p className="hint">{METHOD_HINT[method]}</p>
         <div className="form-row">
           <select value={runId} onChange={(e) => setRunId(e.target.value)}>
@@ -165,7 +166,7 @@ export function AnalysisPage() {
             ))}
           </select>
           <button className="btn" disabled={!runId || busy} onClick={analyze}>
-            {busy ? "분석 중…" : "분석"}
+            {busy ? tr("분석 중…") : tr("분석")}
           </button>
         </div>
         {error && <p className="hint analysis-error">{error}</p>}
@@ -174,20 +175,20 @@ export function AnalysisPage() {
       {result && (
         <section className="panel">
           <h2>
-            {METHOD_LABEL[result.method]} 결과 · <span className="mono">{result.run_id}</span>
+            {tr("{a} 결과", { a: METHOD_LABEL[result.method] })} · <span className="mono">{result.run_id}</span>
           </h2>
           {rows.length === 0 ? (
             <p className="hint">
-              {isAnomaly || isClassify ? "경비원이 평소와 다른 값을 찾지 못했습니다." : "규칙이 찾은 고장 후보가 없습니다."}
+              {isAnomaly || isClassify ? tr("경비원이 평소와 다른 값을 찾지 못했습니다.") : tr("규칙이 찾은 고장 후보가 없습니다.")}
             </p>
           ) : (
             <div className="table-wrap">
               <table className="alarm-table">
                 <thead>
                   <tr>
-                    <th>탐지 시각</th>
-                    <th>{isAnomaly ? "평소와 다른 값" : "고장 종류"}</th>
-                    <th>근거</th>
+                    <th>{tr("탐지 시각")}</th>
+                    <th>{isAnomaly ? tr("평소와 다른 값") : tr("고장 종류")}</th>
+                    <th>{tr("근거")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -196,11 +197,11 @@ export function AnalysisPage() {
                       <td className="mono">{time(r.detected_at)}</td>
                       <td>
                         {isAnomaly ? FEATURE[r.evidence.feature].label : faultName(r.fault_type)}
-                        {r.repeats > 1 && <span className="muted small"> · 반복 {r.repeats}번</span>}
+                        {r.repeats > 1 && <span className="muted small"> {tr("· 반복 {a}번", { a: r.repeats })}</span>}
                       </td>
                       <td className="detail">
                         {isClassify &&
-                          `${FEATURE[r.evidence.feature].label} 경보, ${faultName(r.evidence.best_guess)} 예시와 ${Math.round(r.confidence * 100)}% 일치 · `}
+                          tr("{a} 경보, {b} 예시와 {c}% 일치 · ", { a: FEATURE[r.evidence.feature].label, b: faultName(r.evidence.best_guess), c: Math.round(r.confidence * 100) })}
                         {isAnomaly || isClassify ? anomalyText(r.evidence) : evidenceText(r.fault_type, r.evidence)}
                       </td>
                     </tr>

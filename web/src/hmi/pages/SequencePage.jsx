@@ -1,3 +1,4 @@
+import { tr } from "../../prefs";
 import { useState } from "react";
 import { useMeta } from "../../api";
 import { STATION_LABEL, STATION_STATE_LABEL } from "../../labels";
@@ -40,17 +41,17 @@ export function SequencePage({ state }) {
 
       <div className="sequence-grid">
         <section className="panel">
-          <h2>{STATION_LABEL[station.name]} 표준 시퀀스</h2>
+          <h2>{tr("{station} 표준 시퀀스", { station: STATION_LABEL[station.name] })}</h2>
           <div className="table-wrap">
             <table className="seq-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>스텝</th>
-                  <th>동작</th>
-                  <th>기준 시간</th>
-                  <th>조건</th>
-                  <th>진행</th>
+                  <th>{tr("스텝")}</th>
+                  <th>{tr("동작")}</th>
+                  <th>{tr("기준 시간")}</th>
+                  <th>{tr("조건")}</th>
+                  <th>{tr("진행")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -82,17 +83,17 @@ export function SequencePage({ state }) {
         <div className="col">
           <StationStatus station={station} />
           <section className="panel">
-            <h2>최근 스텝 실적</h2>
+            <h2>{tr("최근 스텝 실적")}</h2>
             {station.history.length === 0 ? (
-              <p className="hint">아직 완료된 스텝이 없습니다.</p>
+              <p className="hint">{tr("아직 완료된 스텝이 없습니다.")}</p>
             ) : (
               <table className="seq-table">
                 <thead>
                   <tr>
-                    <th>완료</th>
-                    <th>스텝</th>
-                    <th>실적</th>
-                    <th>기준</th>
+                    <th>{tr("완료")}</th>
+                    <th>{tr("스텝")}</th>
+                    <th>{tr("실적")}</th>
+                    <th>{tr("기준")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -111,7 +112,7 @@ export function SequencePage({ state }) {
                 </tbody>
               </table>
             )}
-            <p className="hint">기준보다 20% 이상 느린 스텝은 강조됩니다. 실린더 스텝이 느려지면 에어 압력을 의심해 보세요.</p>
+            <p className="hint">{tr("기준보다 20% 이상 느린 스텝은 강조됩니다. 실린더 스텝이 느려지면 에어 압력을 의심해 보세요.")}</p>
           </section>
         </div>
       </div>
@@ -122,17 +123,17 @@ export function SequencePage({ state }) {
 function StationStatus({ station }) {
   return (
     <section className="panel">
-      <h2>스테이션 상태</h2>
+      <h2>{tr("스테이션 상태")}</h2>
       <dl className="kv">
-        <dt>상태</dt>
+        <dt>{tr("상태")}</dt>
         <dd className={`st-text-${station.state}`}>{STATION_STATE_LABEL[station.state]}</dd>
-        <dt>현재 스텝</dt>
+        <dt>{tr("현재 스텝")}</dt>
         <dd>{station.step ? `${STEP_LABEL[station.step] ?? station.step} (${station.step})` : "-"}</dd>
-        <dt>대기 사유</dt>
+        <dt>{tr("대기 사유")}</dt>
         <dd>{WAIT_LABEL[station.wait] ?? "-"}</dd>
-        <dt>제품</dt>
+        <dt>{tr("제품")}</dt>
         <dd className="mono">{station.wp ?? "-"}</dd>
-        <dt>판정</dt>
+        <dt>{tr("판정")}</dt>
         <dd>{station.judge || "-"}</dd>
       </dl>
     </section>

@@ -1,3 +1,4 @@
+import { tr } from "../prefs";
 import { Fragment, useState } from "react";
 import { evidenceText, time } from "./evidence";
 import { Report } from "./Report";
@@ -12,18 +13,18 @@ async function writeLiveReport(runId, at) {
     throw new Error(body.detail ?? `${what} (${res.status})`);
   };
   const loaded = await fetch(`${API}/runs/${runId}/ingest`, { method: "POST" });
-  if (!loaded.ok) await fail(loaded, "지금 런을 적재하지 못했습니다");
+  if (!loaded.ok) await fail(loaded, tr("지금 런을 적재하지 못했습니다"));
   const res = await fetch(`${API}/runs/${runId}/incidents/report?at=${encodeURIComponent(at)}`, { method: "POST" });
-  if (!res.ok) await fail(res, "보고서를 쓰지 못했습니다");
+  if (!res.ok) await fail(res, tr("보고서를 쓰지 못했습니다"));
   return res.json();
 }
 
 function leadText(alert) {
-  if (!alert.first_alarm) return "관련 설비 알람 아직 없음";
+  if (!alert.first_alarm) return tr("관련 설비 알람 아직 없음");
   const lead = alert.lead_min;
   return lead >= 0
-    ? `설비 알람 ${alert.first_alarm.code}보다 ${Math.round(lead)}분 먼저`
-    : `설비 알람 ${alert.first_alarm.code}보다 ${Math.round(-lead)}분 늦게`;
+    ? tr("설비 알람 {a}보다 {b}분 먼저", { a: alert.first_alarm.code, b: Math.round(lead) })
+    : tr("설비 알람 {a}보다 {b}분 늦게", { a: alert.first_alarm.code, b: Math.round(-lead) });
 }
 
 function evidenceLine(alert) {
@@ -39,15 +40,15 @@ export function LiveAlertBar({ onOpen }) {
   if (!newest || hidden === `${watch.run_id}/${newest.started_at}`) return null;
   return (
     <div className="live-bar" role="status">
-      <button className="live-bar-main" onClick={onOpen} title="AI 분석 탭에서 경보 목록 보기">
-        <span className="live-bar-tag">AI 예측 경보</span>
+      <button className="live-bar-main" onClick={onOpen} title={tr("AI 분석 탭에서 경보 목록 보기")}>
+        <span className="live-bar-tag">{tr("AI 예측 경보")}</span>
         <span className="mono">{time(newest.started_at)}</span>
         <strong>{newest.cause_label}</strong>
         <span className="live-bar-evidence">{evidenceLine(newest)}</span>
         <span className="live-bar-lead">{leadText(newest)}</span>
-        {alerts.length > 1 && <span className="muted small">외 {alerts.length - 1}건</span>}
+        {alerts.length > 1 && <span className="muted small">{tr("외 {a}건", { a: alerts.length - 1 })}</span>}
       </button>
-      <button className="btn-text" aria-label="경보 숨기기" onClick={() => setHidden(`${watch.run_id}/${newest.started_at}`)}>
+      <button className="btn-text" aria-label={tr("경보 숨기기")} onClick={() => setHidden(`${watch.run_id}/${newest.started_at}`)}>
         ✕
       </button>
     </div>
@@ -77,8 +78,8 @@ export function LivePanel() {
   if (!watch) {
     return (
       <section className="panel">
-        <h2>실시간 감시</h2>
-        <p className="hint">실시간 감시에 연결하지 못했습니다. k8s에서만 동작합니다.</p>
+        <h2>{tr("실시간 감시")}</h2>
+        <p className="hint">{tr("실시간 감시에 연결하지 못했습니다. k8s에서만 동작합니다.")}</p>
       </section>
     );
   }
@@ -86,28 +87,28 @@ export function LivePanel() {
   return (
     <section className="panel">
       <h2>
-        실시간 감시 · <span className="mono">{watch.run_id ?? "-"}</span>
+        {tr("실시간 감시")} · <span className="mono">{watch.run_id ?? "-"}</span>
       </h2>
       <p className="hint">
-        지금 돌고 있는 런의 기록을 몇 초마다 이어 읽어 규칙, 경비원, 분류, 판단 코드를 돌립니다. 그 시점까지의 기록만 쓰므로, 노즐 막힘은 청소한 뒤
-        온도 센서로 바뀔 수 있습니다. 장비 시각 {watch.sim_time ? time(watch.sim_time) : "-"}
-        {watch.sim_speed ? ` · 속도 ×${watch.sim_speed}` : ""}
+        {tr("지금 돌고 있는 런의 기록을 몇 초마다 이어 읽어 규칙, 경비원, 분류, 판단 코드를 돌립니다. 그 시점까지의 기록만 쓰므로, 노즐 막힘은 청소한 뒤")}
+        {tr("온도 센서로 바뀔 수 있습니다. 장비 시각 {a}", { a: watch.sim_time ? time(watch.sim_time) : "-" })}
+        {watch.sim_speed ? tr(" · 속도 ×{a}", { a: watch.sim_speed }) : ""}
       </p>
-      {watch.status === "error" && <p className="hint analysis-error">감시 오류: {watch.error}</p>}
+      {watch.status === "error" && <p className="hint analysis-error">{tr("감시 오류: {a}", { a: watch.error })}</p>}
       {error && <p className="hint analysis-error">{error}</p>}
       {alerts.length === 0 ? (
-        <p className="hint">이번 런에서 아직 경보가 없습니다.</p>
+        <p className="hint">{tr("이번 런에서 아직 경보가 없습니다.")}</p>
       ) : (
         <div className="table-wrap">
           <table className="alarm-table">
             <thead>
               <tr>
-                <th>경보 시각</th>
-                <th>원인 (코드 판단)</th>
-                <th>근거</th>
-                <th>조치 (안내서)</th>
-                <th>설비 알람</th>
-                <th>반장 보고서</th>
+                <th>{tr("경보 시각")}</th>
+                <th>{tr("원인 (코드 판단)")}</th>
+                <th>{tr("근거")}</th>
+                <th>{tr("조치 (안내서)")}</th>
+                <th>{tr("설비 알람")}</th>
+                <th>{tr("반장 보고서")}</th>
               </tr>
             </thead>
             <tbody>
@@ -119,8 +120,8 @@ export function LivePanel() {
                   <td className="mono">{time(a.started_at)}</td>
                   <td>
                     {a.cause_label}
-                    <div className="muted small">{a.basis}</div>
-                    {a.recheck_after_clean && <div className="muted small">청소 후 폭으로 다시 판단</div>}
+                    <div className="muted small">{tr(a.basis)}</div>
+                    {a.recheck_after_clean && <div className="muted small">{tr("청소 후 폭으로 다시 판단")}</div>}
                   </td>
                   <td className="detail">{evidenceLine(a)}</td>
                   <td className="detail">{a.actions?.steps ?? "-"}</td>
@@ -133,12 +134,12 @@ export function LivePanel() {
                         <div className="small">{leadText(a)}</div>
                       </>
                     ) : (
-                      <span className="muted small">아직 없음</span>
+                      <span className="muted small">{tr("아직 없음")}</span>
                     )}
                   </td>
                   <td>
                     <button className="btn-text live-report-btn" disabled={writing !== null} onClick={() => write(a.started_at)}>
-                      {writing === a.started_at ? "작성 중…" : report ? "다시 쓰기" : "보고서 쓰기"}
+                      {writing === a.started_at ? tr("작성 중…") : report ? tr("다시 쓰기") : tr("보고서 쓰기")}
                     </button>
                   </td>
                 </tr>

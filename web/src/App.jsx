@@ -7,6 +7,8 @@ import { Header } from "./hmi/Header";
 import { HmiShell } from "./hmi/HmiShell";
 import { isHmiPage } from "./hmi/hmiPages";
 import { OpsPage } from "./ops/OpsPage";
+import { useAlarmSound } from "./hmi/alarmSound";
+import { usePrefs } from "./prefs";
 import { SimBar } from "./SimBar";
 
 // three.js is large, so the viewer is only downloaded when its tab is opened.
@@ -35,6 +37,8 @@ function showScreen(tab, page) {
 
 export default function App() {
   const { state, connected } = useMachineState();
+  const { prefs, t } = usePrefs();
+  useAlarmSound(state?.alarm, prefs.alarmSound);
   const [route, setRoute] = useState(readHash);
   const [error, setError] = useState(null);
 
@@ -48,32 +52,33 @@ export default function App() {
 
   const run = useCallback((action) => {
     action().catch((e) => {
-      setError(e.message);
+      setError(t(e.message));
       window.setTimeout(() => setError(null), 4000);
     });
-  }, []);
+  }, [t]);
 
   if (!state) {
-    return <div className="loading">서버 연결 중… (python -m server 실행 여부를 확인하세요)</div>;
+    return <div className="loading">{t("서버 연결 중… (python -m server 실행 여부를 확인하세요)")}</div>;
   }
 
   return (
     <div className="app">
       <div className="topbar">
         <nav className="tabs">
-          {TABS.map((t) => (
-            <button key={t.id} className={route.tab === t.id ? "active" : ""} onClick={() => go(t.id)}>
-              {t.label}
+          {TABS.map((tab) => (
+            <button key={tab.id} className={route.tab === tab.id ? "active" : ""} onClick={() => go(tab.id)}>
+              {t(tab.label)}
             </button>
           ))}
         </nav>
         <SimBar state={state} connected={connected} run={run} />
       </div>
       <Header state={state} run={run} />
-      <LiveAlertBar onOpen={() => go("analysis")} />      {route.tab === "hmi" && <HmiShell state={state} page={route.page} onPage={(p) => go("hmi", p)} run={run} />}
+      {prefs.aiBar && <LiveAlertBar onOpen={() => go("analysis")} />}
+      {route.tab === "hmi" && <HmiShell state={state} page={route.page} onPage={(p) => go("hmi", p)} run={run} />}
       {route.tab === "console" && <ConsolePage state={state} run={run} />}
       {route.tab === "3d" && (
-        <Suspense fallback={<div className="loading">3D 뷰어 불러오는 중…</div>}>
+        <Suspense fallback={<div className="loading">{t("3D 뷰어 불러오는 중…")}</div>}>
           <ViewerPage state={state} />
         </Suspense>
       )}

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Awaitable, Callable
 
+from simulator import settings as machine_settings
 from simulator.simulation import Simulation
 
 FRAME_S = 0.1          # how often state is pushed to the browser
@@ -22,7 +24,15 @@ class SimRunner:
         self.root = root
         self.out_root = out_root or root
         self.seed = seed  # fixed seed for reproducible live runs (tests); None = new seed per run
-        self.machine_cfg = json.loads((root / "config" / "machine.json").read_text(encoding="utf-8"))
+        # The shipped file is the standard; settings changed on the HMI are kept in state/ and laid over it,
+        # so they survive a restart. Batch runs for evaluation never read state/.
+        self.standard_cfg = json.loads((root / "config" / "machine.json").read_text(encoding="utf-8"))
+        self.machine_cfg = copy.deepcopy(self.standard_cfg)
+        self.settings_file = self.out_root / "state" / "machine_settings.json"
+        self.saved = self._load_saved()
+        for key, value in self.saved.get("machine", {}).items():
+            if key in machine_settings.SPEC:
+                machine_settings.put(self.machine_cfg, key, machine_settings.coerce(key, value))
         self.sim: Simulation | None = None
         self.scenario_name = "live"
         self.speed = 1.0
@@ -30,6 +40,23 @@ class SimRunner:
         self._debt = 0.0
         self.session = None  # HmiSession, set by the app
         self.last_frame: float | None = None  # when the real-time loop last ran; None without a loop
+
+    def _load_saved(self) -> dict:
+        """Settings saved from the HMI. A missing or broken file means the shipped values."""
+        try:
+            return json.loads(self.settings_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def save_settings(self, session_values: dict | None = None) -> None:
+        """Write the settings that differ from the shipped file (with the session's), so a restart keeps them."""
+        changed = {k: v for k, v in machine_settings.current(self.machine_cfg).items()
+                   if v != machine_settings.get(self.standard_cfg, k)}
+        self.saved = {"machine": changed, "session": session_values or self.saved.get("session", {})}
+        self.settings_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.settings_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.saved, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(self.settings_file)
 
     def loop_stalled(self) -> bool:
         """The HTTP API keeps answering when the loop dies, so only this shows the machine has stopped moving.
@@ -53,7 +80,7 @@ class SimRunner:
         scenario["start_time"] = datetime.now().replace(microsecond=0).isoformat()
         scenario["seed"] = self.seed if self.seed is not None else int(time.time()) % 1_000_000
         self.scenario_name = scenario["name"]
-        self.sim = Simulation(self.machine_cfg, scenario, self.out_root)
+        self.sim = Simulation(self.machine_cfg, scenario, self.out_root, standard_cfg=self.standard_cfg)
         self.sim.operator.enabled = auto
         self._debt = 0.0
 

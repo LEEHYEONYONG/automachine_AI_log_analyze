@@ -56,7 +56,7 @@ if ! kubectl -n automachine get secret ops-db >/dev/null 2>&1; then
   kubectl -n automachine create secret generic ops-db --from-literal=password="$(openssl rand -hex 16)"
 fi
 # Must exist before the jobs' hostPath volumes are mounted, and belong to this user rather than root.
-mkdir -p backups scores
+mkdir -p backups scores state
 
 # Kustomize joins the shared settings with this environment's differences. The files say :dev;
 # each deployment fills in its own version, and the changed tag starts the rolling update.

@@ -1,3 +1,4 @@
+import { tr } from "../prefs";
 import { useEffect, useState } from "react";
 import { time } from "./evidence";
 
@@ -6,7 +7,7 @@ const API = "/api/analysis";
 function shiftName(iso) {
   const d = new Date(iso);
   const day = `${d.getMonth() + 1}/${d.getDate()}`;
-  return `${day} ${d.getHours() < 12 ? "주간 조" : "야간 조"}`;
+  return tr("{a} {b}", { a: day, b: d.getHours() < 12 ? tr("주간 조") : tr("야간 조") });
 }
 
 /** What the code checked in the AI summary. Shown so nobody acts on a made-up number. */
@@ -15,10 +16,10 @@ function Checks({ result }) {
   return (
     <>
       {madeUp.length > 0 && (
-        <p className="hint analysis-error">기록에서 확인되지 않은 수치·코드·시각이 있습니다: {madeUp.join(", ")}</p>
+        <p className="hint analysis-error">{tr("기록에서 확인되지 않은 수치·코드·시각이 있습니다: {a}", { a: madeUp.join(", ") })}</p>
       )}
       {result.missing.length > 0 && (
-        <p className="hint analysis-error">요약에 빠진 중요 항목: {result.missing.join(" / ")} (아래 전체 기록에는 있습니다)</p>
+        <p className="hint analysis-error">{tr("요약에 빠진 중요 항목: {a} (아래 전체 기록에는 있습니다)", { a: result.missing.join(" / ") })}</p>
       )}
     </>
   );
@@ -34,7 +35,7 @@ export function HandoverPanel({ runId }) {
   useEffect(() => {
     let current = true;
     fetch(`${API}/runs/${runId}/handover`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`인수인계 기록을 불러오지 못했습니다 (${res.status})`))))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(tr("인수인계 기록을 불러오지 못했습니다 ({a})", { a: res.status })))))
       .then((data) => current && setShifts(data.shifts))
       .catch((e) => current && setError(e.message));
     return () => {
@@ -49,7 +50,7 @@ export function HandoverPanel({ runId }) {
       const res = await fetch(`${API}/runs/${runId}/handover/summary?shift=${encodeURIComponent(shift)}`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail ?? `요약을 쓰지 못했습니다 (${res.status})`);
+        throw new Error(body.detail ?? tr("요약을 쓰지 못했습니다 ({a})", { a: res.status }));
       }
       const result = await res.json();
       setSummaries((s) => ({ ...s, [shift]: result }));
@@ -62,14 +63,14 @@ export function HandoverPanel({ runId }) {
 
   return (
     <section className="panel">
-      <h2>교대 인수인계</h2>
+      <h2>{tr("교대 인수인계")}</h2>
       <p className="hint">
-        전체 기록은 코드가 빠짐없이 모읍니다. AI는 그 기록만 보고 다음 조가 먼저 읽을 요약과 할 일을 씁니다. 지어낸 수치가 있거나 중요 항목이
-        빠지면 코드가 표시합니다.
+        {tr("전체 기록은 코드가 빠짐없이 모읍니다. AI는 그 기록만 보고 다음 조가 먼저 읽을 요약과 할 일을 씁니다. 지어낸 수치가 있거나 중요 항목이")}
+        {tr("빠지면 코드가 표시합니다.")}
       </p>
       {error && <p className="hint analysis-error">{error}</p>}
-      {shifts === null && !error && <p className="hint">기록을 모으는 중…</p>}
-      {shifts?.length === 0 && <p className="hint">이 런에는 1시간 넘게 돈 교대가 없습니다.</p>}
+      {shifts === null && !error && <p className="hint">{tr("기록을 모으는 중…")}</p>}
+      {shifts?.length === 0 && <p className="hint">{tr("이 런에는 1시간 넘게 돈 교대가 없습니다.")}</p>}
       {shifts?.map((s) => {
         const result = summaries[s.shift];
         const open = s.facts.filter((f) => f.open);
@@ -82,16 +83,16 @@ export function HandoverPanel({ runId }) {
                   {time(s.from)} ~ {time(s.to)}
                 </span>
                 <div className="small muted">
-                  기록 {s.facts.length}개{open.length > 0 && <span className="analysis-error"> · 이어 볼 일 {open.length}개</span>}
+                  {tr("기록 {a}개", { a: s.facts.length })}{open.length > 0 && <span className="analysis-error"> {tr("· 이어 볼 일 {a}개", { a: open.length })}</span>}
                 </div>
               </div>
               <button className="btn" disabled={writing !== null} onClick={() => write(s.shift)}>
-                {writing === s.shift ? "쓰는 중…" : result ? "다시 쓰기" : "요약 쓰기"}
+                {writing === s.shift ? tr("쓰는 중…") : result ? tr("다시 쓰기") : tr("요약 쓰기")}
               </button>
             </div>
             {result && (
               <div className="report">
-                <h4>요약 (AI)</h4>
+                <h4>{tr("요약 (AI)")}</h4>
                 <ul>
                   {result.summary.map((line) => (
                     <li key={line}>{line}</li>
@@ -99,7 +100,7 @@ export function HandoverPanel({ runId }) {
                 </ul>
                 {result.todo.length > 0 && (
                   <>
-                    <h4>다음 조 할 일 (AI)</h4>
+                    <h4>{tr("다음 조 할 일 (AI)")}</h4>
                     <ul>
                       {result.todo.map((line) => (
                         <li key={line}>{line}</li>
@@ -111,12 +112,12 @@ export function HandoverPanel({ runId }) {
               </div>
             )}
             <details open={!result}>
-              <summary>전체 기록 (코드)</summary>
+              <summary>{tr("전체 기록 (코드)")}</summary>
               <ul className="handover-facts">
                 {s.facts.map((f) => (
                   <li key={f.text} className={f.open ? "analysis-error" : undefined}>
-                    {f.open && "[이어 볼 일] "}
-                    {f.text}
+                    {f.open && tr("[이어 볼 일] ")}
+                    {tr(f.text)}
                   </li>
                 ))}
               </ul>

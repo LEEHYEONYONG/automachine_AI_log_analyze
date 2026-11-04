@@ -1,3 +1,4 @@
+import { tr } from "../../prefs";
 import { AlarmHistory } from "../AlarmPanel";
 import { ALARM_GUIDE, NG_GUIDE } from "../hmiLabels";
 
@@ -13,9 +14,9 @@ export function AlarmPage({ state }) {
   return (
     <div className="page">
       <section className={`panel ${active ? "panel-alarm" : ""}`}>
-        <h2>현재 알람</h2>
+        <h2>{tr("현재 알람")}</h2>
         {!active ? (
-          <p className="hint">발생 중인 알람이 없습니다.</p>
+          <p className="hint">{tr("발생 중인 알람이 없습니다.")}</p>
         ) : (
           <div className="alarm-guide">
             <div className="alarm-guide-head">
@@ -25,20 +26,20 @@ export function AlarmPage({ state }) {
               <span className="mono muted">{active.set_at}</span>
             </div>
             <dl className="kv">
-              <dt>상세</dt>
+              <dt>{tr("상세")}</dt>
               <dd className="mono">{active.detail || "-"}</dd>
               {ngType && (
                 <>
-                  <dt>불량 유형</dt>
+                  <dt>{tr("불량 유형")}</dt>
                   <dd className="mono">{ngType}</dd>
                 </>
               )}
-              <dt>추정 원인</dt>
+              <dt>{tr("추정 원인")}</dt>
               <dd>{guide?.cause ?? "-"}</dd>
-              <dt>조치 방법</dt>
+              <dt>{tr("조치 방법")}</dt>
               <dd>{guide?.action ?? "-"}</dd>
             </dl>
-            <p className="hint">조치는 [유지보수] 메뉴에서 장비를 정지한 상태로 진행하고, 끝나면 RESET → START 순서로 재가동합니다.</p>
+            <p className="hint">{tr("조치는 [유지보수] 메뉴에서 장비를 정지한 상태로 진행하고, 끝나면 RESET → START 순서로 재가동합니다.")}</p>
           </div>
         )}
       </section>
@@ -46,9 +47,9 @@ export function AlarmPage({ state }) {
       <div className="alarm-grid">
         <AlarmHistory history={state.alarm_history} />
         <section className="panel">
-          <h2>발생 빈도 (최근 20건)</h2>
+          <h2>{tr("발생 빈도 (최근 20건)")}</h2>
           {frequent.length === 0 ? (
-            <p className="hint">알람 없음</p>
+            <p className="hint">{tr("알람 없음")}</p>
           ) : (
             <table className="seq-table">
               <tbody>
@@ -56,7 +57,7 @@ export function AlarmPage({ state }) {
                   <tr key={code}>
                     <td className="mono">{code}</td>
                     <td>{ALARM_GUIDE[code]?.title ?? code}</td>
-                    <td className="mono">{n}회</td>
+                    <td className="mono">{tr("{n}회", { n })}</td>
                   </tr>
                 ))}
               </tbody>

@@ -21,6 +21,11 @@ class Vision(Station):
     ]
 
     def process(self):
+        if self.m.run_mode == "DRY":
+            # No part to look at: the cylinders still go through their strokes, the camera is not triggered.
+            for step, seconds in (("LIFT_UP", 0.4), ("PUSH_ALIGN", 0.4), ("SETTLE", 0.2), ("RELEASE", 0.3), ("LIFT_DOWN", 0.4)):
+                yield self.motion(step, seconds, pneumatic=step != "SETTLE")
+            return
         rng = self.m.rng
         threshold = self.cfg["score_threshold"]
         mark_defect = rng.random() < self.cfg["mark_defect_probability"]  # damaged or dirty mark on this part

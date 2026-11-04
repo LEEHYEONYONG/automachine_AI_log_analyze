@@ -1,6 +1,7 @@
+import { localized } from "../prefs";
 // Korean texts for the operator HMI: sequence steps, wait reasons and alarm guidance.
 
-export const STEP_LABEL = {
+export const STEP_LABEL = localized({
   WAIT_UPSTREAM: "이전 공정 대기",
   TRANSFER_IN: "반입 이송",
   STOPPER: "스토퍼 상승",
@@ -34,36 +35,36 @@ export const STEP_LABEL = {
   MOVE_TO_NG: "NG 버퍼로 이동",
   PLACE: "내려놓기",
   RETURN: "픽커 복귀",
-};
+});
 
-export const CONDITION_LABEL = {
+export const CONDITION_LABEL = localized({
   "": "매 사이클",
   upstream_late: "이전 공정 미준비 시",
   weight_check: "weight check 주기",
   retry: "진공 미달 시",
   ok: "OK 제품",
   ng: "NG 제품",
-};
+});
 
-export const WAIT_LABEL = {
+export const WAIT_LABEL = localized({
   ALARM: "알람 정지",
   MACHINE_STOPPED: "장비 정지",
   WAIT_NEXT_STATION: "다음 스테이션 대기",
   WAIT_PART: "제품 대기",
   WAIT_UPSTREAM: "이전 공정 대기",
   WAIT_DOWNSTREAM: "다음 공정 대기",
-};
+});
 
-export const LEVEL_LABEL = {
+export const LEVEL_LABEL = localized({
   GUEST: "게스트",
   OPERATOR: "오퍼레이터",
   ENGINEER: "엔지니어",
   MAKER: "메이커",
-};
+});
 const LEVEL_ORDER = ["GUEST", "OPERATOR", "ENGINEER", "MAKER"];
 export const atLeast = (level, need) => LEVEL_ORDER.indexOf(level) >= LEVEL_ORDER.indexOf(need);
 
-export const INIT_STEP_LABEL = {
+export const INIT_STEP_LABEL = localized({
   SAFETY_CHECK: "안전 확인",
   VACUUM_OFF: "진공 해제",
   CYLINDERS_RETRACT: "푸셔 후진 · 픽커 상승",
@@ -73,10 +74,10 @@ export const INIT_STEP_LABEL = {
   XY_HOME: "X/Y축 원점",
   AUX_AXES_HOME: "스캔 축 · 픽커 Y축 원점",
   WIP_CHECK: "재공품 확인",
-};
+});
 
 /** Manual-mode device names and what OFF (home) / ON (extended) mean for each. */
-export const DEVICE_LABEL = {
+export const DEVICE_LABEL = localized({
   INFEED_STOPPER: { name: "투입 스토퍼", off: "하강", on: "상승" },
   VISION_STOPPER: { name: "비전 스토퍼", off: "하강", on: "상승" },
   DISPENSER_STOPPER: { name: "디스펜서 스토퍼", off: "하강", on: "상승" },
@@ -94,17 +95,17 @@ export const DEVICE_LABEL = {
   DISPENSER_BELT: { name: "디스펜서 컨베이어", off: "정지", on: "구동" },
   INSPECTION_BELT: { name: "검사 컨베이어", off: "정지", on: "구동" },
   OUTFEED_BELT: { name: "배출 컨베이어", off: "정지", on: "구동" },
-};
+});
 
-export const AXIS_LABEL = {
+export const AXIS_LABEL = localized({
   DISP_X: "디스펜서 X축",
   DISP_Y: "디스펜서 Y축",
   DISP_Z: "디스펜서 Z축",
   SCAN_X: "검사 스캔 축",
   NG_PICK_Y: "NG 픽커 Y축",
-};
+});
 
-export const PRESET_LABEL = {
+export const PRESET_LABEL = localized({
   HOME: "원점",
   SAFE: "안전 높이",
   WORK: "도포 높이",
@@ -113,7 +114,7 @@ export const PRESET_LABEL = {
   SCALE_SHOT: "저울 토출 높이",
   END: "끝",
   NG_BUFFER: "NG 버퍼",
-};
+});
 
 /** Recipe-driven standard times for steps whose `std_s` is null. */
 export function standardTime(step, std, setpoints) {
@@ -124,7 +125,7 @@ export function standardTime(step, std, setpoints) {
 }
 
 /** E4001 guidance by the NG type in its detail ("last=..."). */
-export const NG_GUIDE = {
+export const NG_GUIDE = localized({
   BEAD_VOID: { cause: "시린지 안 기포로 비드가 끊김", action: "퍼지로 기포를 빼고, 반복되면 시린지를 교체합니다." },
   STRINGING: { cause: "니들 끝 접착제 누적, 또는 dwell 설정 이상", action: "노즐(니들 끝)을 청소합니다. 반복되면 레시피 dwell 값을 확인합니다." },
   BEAD_OFFSET: { cause: "니들 위치가 티칭 값에서 틀어짐", action: "니들 캘리브레이션을 합니다." },
@@ -132,9 +133,9 @@ export const NG_GUIDE = {
   WIDTH_HIGH: { cause: "토출량 과다 또는 니들이 낮음", action: "니들 캘리브레이션을 하고 레시피 압력을 확인합니다." },
   BEAD_BREAK: { cause: "노즐 부분 막힘", action: "노즐을 청소합니다." },
   PARTICLE: { cause: "이물", action: "제품과 작업 영역의 이물을 확인합니다." },
-};
+});
 
-export const ALARM_GUIDE = {
+export const ALARM_GUIDE = localized({
   E1001: {
     title: "2D 코드 판독 실패",
     cause: "코드 오염이나 손상, 리더 렌즈 오염",
@@ -191,4 +192,4 @@ export const ALARM_GUIDE = {
     cause: "공장 에어 공급 저하, 레귤레이터 이상",
     action: "공장 에어 공급과 장비 입구 레귤레이터를 확인합니다.",
   },
-};
+});

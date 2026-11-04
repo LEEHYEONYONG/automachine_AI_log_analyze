@@ -1,6 +1,8 @@
+import { tr } from "../prefs";
 import { Canvas } from "@react-three/fiber";
 import { useState } from "react";
 import { MODE_LABEL } from "../labels";
+import { usePrefs } from "../prefs";
 
 import { VIEWS } from "./layout";
 import { Scene } from "./Scene";
@@ -11,9 +13,21 @@ function initialView() {
   return v && v in VIEWS ? v : "overview";
 }
 
-export default function ViewerPage({ state }) {
+/** A dry run has no parts on the line, and with motion off nothing moves either. */
+function shownState(state) {
+  if (state.run?.mode !== "DRY") return state;
+  const still = state.run.dry_no_motion;
+  return {
+    ...state,
+    stations: state.stations.map((s) => ({ ...s, wp: null, ...(still ? { step: "", progress: 0 } : {}) })),
+  };
+}
+
+export default function ViewerPage({ state: live }) {
+  const state = shownState(live);
+  const { prefs } = usePrefs();
   const [covers, setCovers] = useState(true);
-  const [effects, setEffects] = useState(true);
+  const [effects, setEffects] = useState(prefs.viewerEffects);
   const [view, setView] = useState(initialView);
   const fast = state.sim.speed > 10;
   const start = VIEWS[view].position;
@@ -30,26 +44,26 @@ export default function ViewerPage({ state }) {
             <span className="alarm-code">{state.alarm.code}</span> {state.alarm.text}
           </div>
         )}
-        {fast && <div className="hint">배속이 높으면 동작이 건너뛰어 보입니다. ×1~×10에서 자연스럽게 보입니다.</div>}
+        {fast && <div className="hint">{tr("배속이 높으면 동작이 건너뛰어 보입니다. ×1~×10에서 자연스럽게 보입니다.")}</div>}
       </div>
       <div className="viewer-tools">
-        <div className="segmented" role="group" aria-label="시점">
+        <div className="segmented" role="group" aria-label={tr("시점")}>
           {(Object.keys(VIEWS) ).map((v) => (
             <button key={v} className={view === v ? "active" : ""} onClick={() => setView(v)}>
-              {VIEWS[v].label}
+              {tr(VIEWS[v].label)}
             </button>
           ))}
         </div>
         <label className="toggle">
           <input type="checkbox" checked={covers} onChange={(e) => setCovers(e.target.checked)} />
-          안전 커버
+          {tr("안전 커버")}
         </label>
-        <label className="toggle" title="느리면 끄세요">
+        <label className="toggle" title={tr("느리면 끄세요")}>
           <input type="checkbox" checked={effects} onChange={(e) => setEffects(e.target.checked)} />
-          그래픽 효과
+          {tr("그래픽 효과")}
         </label>
       </div>
-      <div className="viewer-help">드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동</div>
+      <div className="viewer-help">{tr("드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동")}</div>
     </main>
   );
 }

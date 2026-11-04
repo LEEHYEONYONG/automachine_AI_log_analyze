@@ -19,6 +19,11 @@ class Inspection(Station):
         self.consecutive_ng = 0
 
     def process(self):
+        if self.m.run_mode == "DRY":
+            # The scan axis still travels; there is no bead, so nothing is judged.
+            yield self.motion("SCAN", 1.2)
+            yield self.motion("SCAN_RETURN", 0.5)
+            return
         if self.wp.judge == "NG":
             # Already rejected upstream (e.g. by an initialization); do not overwrite that judgement.
             self.log("INFO", "Skip inspection: already NG", reason=self.wp.ng_reason)

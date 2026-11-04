@@ -27,6 +27,7 @@ RELATED_ALARMS = {
     "recipe_pressure_error": {"E3005", "E4001"},
     "recipe_retract_error": {"E4001"},
 }
+MACHINE_EVENTS = ("Setting changed", "Run mode change", "Dummy run done")
 FLOATS = {"fixture_vac_kpa", "disp_pressure_kpa", "disp_temp_c", "syringe_level_pct", "bead_width_mm",
           "bead_offset_mm", "cycle_s", "align_dx_mm", "align_dy_mm", "align_score", "nozzle_height_mm"}
 
@@ -80,6 +81,7 @@ class LiveRun:
         self.run_id = self.dir.name
         self.recipes = recipes or {}
         self.parts, self.sensors, self.changes, self.maintenance, self.alarms = [], [], [], [], []
+        self.machine_events = []      # setting changes, run mode changes, finished dummy runs
         self._tails = {name: _Tail(self.dir / name)
                        for name in ("production.csv", "sensor_trend.csv", "event.log", "alarm.log")}
         self._headers = {}
@@ -107,6 +109,8 @@ class LiveRun:
             ts, _level, unit, message = m.groups()
             if unit == "HMI" and message.startswith("Recipe parameter changed"):
                 self.changes.append({"ts": _time(ts), "attrs": dict(ATTR_RE.findall(message))})
+            elif message.startswith(MACHINE_EVENTS) and unit in ("HMI", "MACHINE"):
+                self.machine_events.append({"ts": _time(ts), "message": message, "attrs": dict(ATTR_RE.findall(message))})
             elif unit == "MAINT" and message.startswith("Maintenance done"):
                 self.maintenance.append({"ts": _time(ts), "action": dict(ATTR_RE.findall(message)).get("action")})
             added += 1
@@ -122,7 +126,7 @@ class LiveRun:
 
     def context(self):
         return {"run_id": self.run_id, "recipes": self.recipes, "parts": self.parts, "sensors": self.sensors,
-                "changes": self.changes, "maintenance": self.maintenance}
+                "changes": self.changes, "maintenance": self.maintenance, "machine_events": self.machine_events}
 
     def now(self):
         return self.sensors[-1]["ts"] if self.sensors else None

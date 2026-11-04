@@ -1,3 +1,4 @@
+import { tr } from "../prefs";
 import { useMeta } from "../api";
 
 import { FaultInjectPanel } from "./FaultInjectPanel";
@@ -11,7 +12,7 @@ export function ConsolePage({ state, run }) {
   return (
     <main className="console">
       <div className="console-notice">
-        엔지니어 전용 화면입니다. 고장 정답과 실제 물리 상태가 보이므로, AI 분석 결과는 이 화면을 보기 전에 기록해 두세요.
+        {tr("엔지니어 전용 화면입니다. 고장 정답과 실제 물리 상태가 보이므로, AI 분석 결과는 이 화면을 보기 전에 기록해 두세요.")}
       </div>
       <div className="console-grid">
         <div className="col">

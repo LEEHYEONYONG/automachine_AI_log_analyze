@@ -35,7 +35,7 @@ def load_context(db, run_id):
         "run_id": run_id,
         "recipes": (run.recipes or {}) if run else {},
         "parts": db.execute(text("""
-            SELECT start_time, recipe, bead_width_mm, bead_offset_mm, disp_pressure_kpa, disp_temp_c,
+            SELECT start_time, recipe, lot_id, bead_width_mm, bead_offset_mm, disp_pressure_kpa, disp_temp_c,
                    fixture_vac_kpa, ng_reason
             FROM production WHERE run_id = :r ORDER BY start_time
         """), {"r": run_id}).mappings().all(),
@@ -46,6 +46,12 @@ def load_context(db, run_id):
         "changes": db.execute(text("""
             SELECT ts, attrs FROM events
             WHERE run_id = :r AND unit = 'HMI' AND message LIKE 'Recipe parameter changed%' ORDER BY ts
+        """), {"r": run_id}).mappings().all(),
+        "machine_events": db.execute(text("""
+            SELECT ts, message, attrs FROM events
+            WHERE run_id = :r AND ((unit = 'HMI' AND message LIKE 'Setting changed%')
+                OR (unit = 'MACHINE' AND (message LIKE 'Run mode change%' OR message LIKE 'Dummy run done%')))
+            ORDER BY ts
         """), {"r": run_id}).mappings().all(),
         "maintenance": db.execute(text("""
             SELECT ts, attrs->>'action' AS action FROM events

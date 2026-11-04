@@ -113,6 +113,8 @@ class Operator:
         self._check_shift(now)
         if self.m.op_mode == "MANUAL":
             return  # someone is working on the machine by hand
+        if self.m.run_mode != "PRODUCTION":
+            return  # dry and dummy runs are started and watched by the engineer who chose them
         if self.phase == "init":
             if self.m.init.done:
                 self.phase = "idle"

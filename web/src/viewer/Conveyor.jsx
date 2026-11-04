@@ -1,3 +1,4 @@
+import { tr } from "../prefs";
 import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
@@ -176,12 +177,12 @@ export function ConveyorLine({ m, running, speed }) {
       })}
       <NeighbourConveyor
         x={UPSTREAM_X}
-        label="이전 공정"
+        label={tr("이전 공정")}
         moving={running && receiving("INFEED")}
         speed={speed}
         partWaiting={!!infeed && !["WAIT_UPSTREAM", "TRANSFER_IN"].includes(infeed.step)}
       />
-      <NeighbourConveyor x={DOWNSTREAM_X} label="다음 공정" moving={running && sendingOut} speed={speed} partWaiting={false} />
+      <NeighbourConveyor x={DOWNSTREAM_X} label={tr("다음 공정")} moving={running && sendingOut} speed={speed} partWaiting={false} />
     </group>
   );
 }
