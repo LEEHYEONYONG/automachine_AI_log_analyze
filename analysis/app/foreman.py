@@ -82,16 +82,18 @@ TOOLS = [
 ]
 
 
-def incidents(rule_candidates, guard_candidates):
+def incidents(rule_candidates, guard_candidates, breaks=()):
     """규칙과 경비원의 경보를 사건으로 묶는다.
     같은 규칙이 60분 안에 반복되면 같은 사건이고, 새 규칙 이름이 나오면 다른 고장일 수 있으니 새 사건이다.
-    경비원 경보는 이름이 없어서 가장 최근의 열린 사건에 붙고, 열린 사건이 없으면 새 사건이 된다."""
+    경비원 경보는 이름이 없어서 가장 최근의 열린 사건에 붙고, 열린 사건이 없으면 새 사건이 된다.
+    breaks: 이 시각을 넘어서는 사건을 잇지 않는다 (실시간 감시만 쓴다. 분석 버튼은 비워 둔다)."""
     alerts = [("rule", c) for c in rule_candidates] + [("guard", c) for c in guard_candidates]
     alerts.sort(key=lambda x: x[1]["detected_at"])
     result = []
     for kind, c in alerts:
         at = c["detected_at"]
-        opened = [i for i in result if at - i["last_at"] <= GROUP]
+        opened = [i for i in result
+                  if at - i["last_at"] <= GROUP and not any(i["last_at"] < b <= at for b in breaks)]
         target = None
         if kind == "guard":
             target = opened[-1] if opened else None
@@ -145,13 +147,14 @@ def decide(ctx, incident, tree_guess):
     return UNKNOWN, "규칙 경보가 없고 분류 모델도 확신하지 못함"
 
 
-def judge(ctx, rule_candidates, profile, model):
+def judge(ctx, rule_candidates, profile, model, breaks=()):
     """규칙·경비원 경보를 사건으로 묶고, 첫 경보 순간의 분류 의견과 코드가 정한 원인을 붙인다.
-    분석 버튼(DB의 행)과 실시간 감시(파일에서 이어 읽은 행)가 같은 판단을 하도록 둘 다 이 함수를 쓴다."""
+    분석 버튼(DB의 행)과 실시간 감시(파일에서 이어 읽은 행)가 같은 판단을 하도록 둘 다 이 함수를 쓴다.
+    breaks는 실시간 감시만 넘긴다 (live.fixed_at)."""
     from . import anomaly, classify    # classify가 이 모듈을 쓰지 않도록 여기서 읽는다
 
     guard = anomaly.detect_anomaly(ctx["run_id"], ctx["parts"], ctx["sensors"], profile)
-    found = incidents(rule_candidates, guard)
+    found = incidents(rule_candidates, guard, breaks)
     if model:
         pairs = classify.alert_snapshots(ctx, profile)
         for incident in found:
