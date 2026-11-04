@@ -341,6 +341,12 @@ function ratio(a, b) {
 }
 
 /** Daily scores from the auto-eval CronJob. Each day is new runs the analyzer has never seen. */
+/** "0 21 * * *" → "21:00". Anything other than a once-a-day schedule is shown as it is. */
+function dailyTime(cron) {
+  const m = /^(\d{1,2}) (\d{1,2}) \* \* \*$/.exec(cron ?? "");
+  return m ? `${m[2].padStart(2, "0")}:${m[1].padStart(2, "0")}` : cron;
+}
+
 function ScoresPanel({ data, error, onRun }) {
   if (!data) return <section className="panel"><h2>매일 자동 채점</h2><p className="hint">{error ?? "불러오는 중…"}</p></section>;
   const { days, totals, runs, schedule } = data;
@@ -354,8 +360,8 @@ function ScoresPanel({ data, error, onRun }) {
         </button>
       </div>
       <p className="hint">
-        매일 {schedule.schedule === "0 13 * * *" ? "13:00" : schedule.schedule}에 처음 보는 런 3개를 새로 만들어 적재하고 채점합니다. PC가 꺼져
-        있었으면 켜진 뒤 6시간 안에 실행됩니다. 원인은 코드가 정하므로 LLM은 채점에 쓰지 않습니다.
+        매일 {dailyTime(schedule.schedule)}에 처음 보는 런 3개를 새로 만들어 적재하고 채점합니다.
+        {schedule.catch_up_s > 0 && ` 그때 k3s가 꺼져 있었으면 ${Math.round(schedule.catch_up_s / 3600)}시간 안에 k3s를 켜는 순간 한 번 실행됩니다.`} 원인은 코드가 정하므로 LLM은 채점에 쓰지 않습니다.
       </p>
       {schedule.error && <p className="hint analysis-error">{schedule.error}</p>}
       {job && (

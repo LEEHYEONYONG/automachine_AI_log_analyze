@@ -336,6 +336,7 @@ def cron_status(name):
     return cron, {
         "schedule": cron["spec"]["schedule"],
         "time_zone": cron["spec"].get("timeZone"),
+        "catch_up_s": cron["spec"].get("startingDeadlineSeconds"),   # 꺼져 있다가 켜지면 이만큼 늦게까지 따라잡는다
         "last_job": latest and {
             "name": latest["metadata"]["name"],
             "state": job_state(latest),

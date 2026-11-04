@@ -7,11 +7,13 @@ metadata:
   name: auto-eval
   namespace: automachine
 spec:
-  # After the 12:30 backup. The PC is often off at night, so a night schedule would rarely run.
-  schedule: "0 13 * * *"
+  # In the evening, when automachine is usually on (medi-info is worked on in the daytime and the two are not run together).
+  schedule: "0 21 * * *"
   timeZone: Asia/Seoul
   concurrencyPolicy: Forbid
-  startingDeadlineSeconds: 21600
+  # Missed because k3s was off? It runs once when k3s starts, up to 23 hours late (that is, before the next schedule).
+  # Running twice in a day is harmless: existing runs are skipped and the score file is rewritten.
+  startingDeadlineSeconds: 82800
   successfulJobsHistoryLimit: 7
   failedJobsHistoryLimit: 3
   jobTemplate:
