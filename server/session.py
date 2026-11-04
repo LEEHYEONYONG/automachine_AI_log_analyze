@@ -24,7 +24,11 @@ REQUIRED = {
     "io_force": "ENGINEER",
     "recipe_load": "ENGINEER",
     "recipe_edit": "MAKER",
+    "run_mode": "ENGINEER",
+    "counter_reset": "ENGINEER",
+    "settings": "ENGINEER",   # opening the settings for change; each value also has its own level
 }
+AUTO_LOGOUT_MIN = (1, 60)       # range for the auto logout setting (minutes)
 # Maintenance actions that need more than an operator.
 MAINTENANCE_LEVEL = {"needle_calibration": "ENGINEER", "replace_vacuum_pad": "ENGINEER"}
 
@@ -74,6 +78,22 @@ class HmiSession:
             need = MAINTENANCE_LEVEL.get(detail, REQUIRED[action]) if action == "maintenance" else REQUIRED[action]
             raise AccessDenied(f"권한이 없습니다: {need} 이상 필요 (현재 {self.level})")
         self.touch()
+
+    def require_level(self, need: str, what: str) -> None:
+        """For settings whose level is per value rather than per command."""
+        if LEVELS.index(self.level) < LEVELS.index(need):
+            raise AccessDenied(f"권한이 없습니다: {what}은(는) {need} 이상 필요 (현재 {self.level})")
+        self.touch()
+
+    @property
+    def auto_logout_min(self) -> float:
+        return self.auto_logout_s / 60.0
+
+    def set_auto_logout_min(self, minutes: float) -> None:
+        lo, hi = AUTO_LOGOUT_MIN
+        if not lo <= minutes <= hi:
+            raise ValueError(f"자동 로그아웃: {lo}~{hi}분 범위여야 합니다 (입력 {minutes:g})")
+        self.auto_logout_s = minutes * 60.0
 
     def view(self) -> dict:
         level = self.level

@@ -13,8 +13,10 @@ from pydantic import BaseModel
 
 from faults import FAULT_TYPES
 from server.runner import STALL_S, SimRunner
-from server.session import AccessDenied, HmiSession
+from server.session import AUTO_LOGOUT_MIN, AccessDenied, HmiSession
+from simulator import settings as machine_settings
 from simulator.alarms import ALARMS
+from simulator.machine import DUMMY_COUNT_MAX, RUN_MODES
 from simulator.manual import InterlockError
 from simulator.recipe import RECIPE_SPEC
 from simulator.operator import ACTION_MINUTES
@@ -121,12 +123,29 @@ class FaultRequest(BaseModel):
     delay_min: float = 0.0
 
 
+class RunModeRequest(BaseModel):
+    mode: Literal["PRODUCTION", "DRY", "DUMMY"]
+    dummy_count: int | None = None
+    no_motion: bool | None = None
+
+
+class SettingsRequest(BaseModel):
+    values: dict[str, float]
+
+
+class StandardRequest(BaseModel):
+    keys: list[str] | None = None   # None: every setting back to the shipped value
+
+
 def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None = None,
                live: bool = True) -> FastAPI:
     """live=False skips the real-time loop, so tests can step the simulation from their own thread."""
     runner = SimRunner(root, out_root, seed)
     session = HmiSession(root / "config" / "hmi_users.json")
     runner.session = session
+    standard_logout_min = session.auto_logout_min
+    with contextlib.suppress(TypeError, ValueError):
+        session.set_auto_logout_min(float(runner.saved.get("session", {}).get("auto_logout_min", standard_logout_min)))
     clients: set[WebSocket] = set()
 
     async def broadcast(state: dict) -> None:
@@ -415,6 +434,101 @@ def create_app(root: Path = ROOT, out_root: Path | None = None, seed: int | None
         if unknown:
             raise HTTPException(400, f"unknown params: {sorted(unknown)}")
         runner.sim.inject_fault(req.type, req.params, max(0.0, req.delay_min))
+        return runner.state()
+
+    # ---- settings screen ----------------------------------------------------------
+
+    SETTING_HISTORY = ("Setting changed", "Run mode change", "Counters reset")
+
+    def settings_payload() -> dict:
+        m = runner.sim.machine
+        lo, hi = AUTO_LOGOUT_MIN
+        return {
+            "machine": m.settings_view(),
+            "session": [{"key": "auto_logout_min", "group": "hmi", "label": "자동 로그아웃", "unit": "분",
+                         "min": lo, "max": hi, "step": 1, "level": "MAKER",
+                         "value": round(session.auto_logout_min), "standard": round(standard_logout_min)}],
+            "run": m.snapshot()["run"],
+            "run_modes": RUN_MODES,
+            "dummy_max": DUMMY_COUNT_MAX,
+            "history": [e for e in m.log.query_events("INFO", limit=2000) if e["text"].startswith(SETTING_HISTORY)][:50],
+        }
+
+    def apply_settings(values: dict) -> list[str]:
+        """Check every key's level first, then apply all or nothing. Saves what is not standard."""
+        m = runner.sim.machine
+        machine_values = {k: v for k, v in values.items() if k != "auto_logout_min"}
+        for key in machine_values:
+            spec = machine_settings.SPEC.get(key)
+            if spec is None:
+                raise HTTPException(400, f"알 수 없는 설정: {key}")
+            try:
+                session.require_level(spec[7], spec[2])
+            except AccessDenied as e:
+                m.log.event("WARN", "HMI", "Access denied", action=f"setting:{key}", role=session.level, by=session.by)
+                raise HTTPException(403, str(e)) from None
+        logout = values.get("auto_logout_min")
+        if logout is not None:
+            try:
+                session.require_level("MAKER", "자동 로그아웃")
+            except AccessDenied as e:
+                raise HTTPException(403, str(e)) from None
+            lo, hi = AUTO_LOGOUT_MIN
+            if not lo <= logout <= hi:
+                raise HTTPException(400, f"자동 로그아웃: {lo}~{hi}분 범위여야 합니다 (입력 {logout:g})")
+        try:
+            changed = m.change_settings(machine_values, by=session.by)
+        except InterlockError as e:
+            raise HTTPException(400, str(e)) from None
+        if logout is not None and round(logout) != round(session.auto_logout_min):
+            m.log.event("INFO", "HMI", "Setting changed", param="auto_logout_min", old=round(session.auto_logout_min),
+                        new=round(logout), by=session.by)
+            session.set_auto_logout_min(round(logout))
+            changed.append("auto_logout_min")
+        runner.save_settings({"auto_logout_min": round(session.auto_logout_min)})
+        return changed
+
+    @app.get("/api/settings")
+    async def get_settings():
+        return settings_payload()
+
+    @app.post("/api/settings")
+    async def post_settings(req: SettingsRequest):
+        gate("settings")
+        changed = apply_settings(req.values)
+        return {"changed": changed, **settings_payload()}
+
+    @app.post("/api/settings/standard")
+    async def settings_to_standard(req: StandardRequest):
+        """Put settings back to the shipped values (all, or the given keys)."""
+        gate("settings")
+        m = runner.sim.machine
+        keys = req.keys if req.keys is not None else [*machine_settings.SPEC, "auto_logout_min"]
+        values = {}
+        for key in keys:
+            if key == "auto_logout_min":
+                values[key] = standard_logout_min
+            elif key in machine_settings.SPEC:
+                values[key] = machine_settings.get(m.standard_cfg, key)
+            else:
+                raise HTTPException(400, f"알 수 없는 설정: {key}")
+        # Back to standard only touches what differs, so a lower level can still reset its own values.
+        current = {**machine_settings.current(m.cfg), "auto_logout_min": round(session.auto_logout_min)}
+        values = {k: v for k, v in values.items() if current.get(k) != v}
+        changed = apply_settings(values) if values else []
+        return {"changed": changed, **settings_payload()}
+
+    @app.post("/api/runmode")
+    async def run_mode(req: RunModeRequest):
+        gate("run_mode")
+        m = runner.sim.machine
+        return interlocked(lambda: m.set_run_mode(req.mode, by=session.by, dummy_count=req.dummy_count,
+                                                  no_motion=req.no_motion))
+
+    @app.post("/api/counters/reset")
+    async def counters_reset():
+        gate("counter_reset")
+        runner.sim.machine.reset_counters(by=session.by)
         return runner.state()
 
     @app.websocket("/ws")

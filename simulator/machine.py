@@ -13,6 +13,7 @@ from simulator.initializer import Initializer
 from simulator.io import IoMonitor
 from simulator.manual import InterlockError, ManualDevices
 from simulator.recipe import validate as validate_recipe
+from simulator import settings as machine_settings
 from simulator.physics import DispenserPhysics, FixturePhysics, Physics, PlantAir
 from simulator.sensors import Sensor
 from simulator.stations import Dispenser, Infeed, Inspection, Outfeed, Station, StationState, Vision
@@ -21,6 +22,14 @@ from simulator.workpiece import Workpiece
 
 # Per-part measurements that feed the HMI trend charts (weight checks are added by the dispenser).
 PART_TRENDS = ("fixture_vac_kpa", "disp_pressure_kpa", "disp_temp_c", "bead_width_mm", "bead_offset_mm")
+
+# How the line runs. PRODUCTION is real parts. DRY moves through every step with no part and no
+# adhesive (optionally with the actuator outputs held off, like a PLC simulation mode). DUMMY runs a
+# set number of dummy parts through the real process; they are logged but kept out of the counts.
+RUN_MODES = {"PRODUCTION": "자동 운전", "DRY": "드라이 런", "DUMMY": "더미 런"}
+DUMMY_LOT = "DUMMY"
+DRY_LOT = "DRY"
+DUMMY_COUNT_MAX = 50
 
 
 class MachineMode(str, Enum):
@@ -35,8 +44,12 @@ class Machine:
     start/stop/reset/maintenance/change_recipe are the same commands the HMI sends.
     """
 
-    def __init__(self, cfg: dict, clock: VirtualClock, log: MachineLogger, rng: Random):
+    def __init__(self, cfg: dict, clock: VirtualClock, log: MachineLogger, rng: Random,
+                 standard_cfg: dict | None = None):
         self.cfg = cfg
+        # The shipped settings, for "standard value" on the settings screen. The live server passes the
+        # file as it was before any HMI change; a batch run has none and is its own standard.
+        self.standard_cfg = copy.deepcopy(standard_cfg if standard_cfg is not None else cfg)
         self.machine_id = cfg["machine_id"]
         self.clock = clock
         self.log = log
@@ -85,6 +98,13 @@ class Machine:
         self.mode_seconds: Counter[str] = Counter()  # RUNNING / STOPPED / ALARM, plus STARVED and BLOCKED
         self._finished_at: deque[float] = deque(maxlen=2000)
         self.op_mode = "AUTO"  # AUTO: sequences run on START. MANUAL: devices are moved one by one.
+        self.run_mode = "PRODUCTION"
+        self.dummy_count = 5          # dummy parts per DUMMY start
+        self.dry_no_motion = False    # DRY only: keep actuator outputs off
+        self.dummy_fed = 0
+        self.dummy_tray = 0           # dummy parts collected at the outfeed
+        self.dry_cycles = 0
+        self._run_seq = 0             # serial for dry and dummy pieces
         self.manual = ManualDevices(self)
         # Safety circuit: the E-stop button and the two front guard doors (physical, not HMI commands).
         self.estop = False
@@ -114,6 +134,8 @@ class Machine:
         if self.safety_problems():
             self.log.event("WARN", "MACHINE", "Start rejected: safety", reason=f"[{', '.join(self.safety_problems())}]", by=by)
             return
+        if self.run_mode == "DUMMY" and self.dummy_fed >= self.dummy_count:
+            self.dummy_fed = 0   # the last batch finished; START runs a new one
         self._cycle_stop = False
         self.mode = MachineMode.RUNNING
         self.log.event("INFO", "MACHINE", "Mode change", mode=self.mode.value, by=by)
@@ -142,6 +164,64 @@ class Machine:
             raise InterlockError(f"알 수 없는 모드: {op_mode}")
         self.op_mode = op_mode
         self.log.event("INFO", "MACHINE", "Operation mode change", op_mode=op_mode, by=by)
+
+    def set_run_mode(self, run_mode: str, by: str, dummy_count: int | None = None,
+                     no_motion: bool | None = None) -> None:
+        """Switch PRODUCTION / DRY / DUMMY. Only stopped, in AUTO, with the line empty, so no part is
+        half made in one mode and finished in another. Raises InterlockError with the reason."""
+        if run_mode not in RUN_MODES:
+            raise InterlockError(f"알 수 없는 운전 방식: {run_mode}")
+        if self.mode is not MachineMode.STOPPED:
+            raise InterlockError("정지 상태에서만 운전 방식을 바꿀 수 있습니다")
+        if self.op_mode != "AUTO":
+            raise InterlockError("AUTO 모드에서만 운전 방식을 바꿀 수 있습니다")
+        if any(s.wp is not None or s.state is not StationState.IDLE for s in self.stations):
+            raise InterlockError("라인에 제품이 남아 있습니다. 사이클 정지로 비우거나 원점 복귀에서 제품을 빼고 바꾸세요")
+        if dummy_count is not None:
+            if not 1 <= int(dummy_count) <= DUMMY_COUNT_MAX:
+                raise InterlockError(f"더미 수량은 1~{DUMMY_COUNT_MAX}개여야 합니다")
+            self.dummy_count = int(dummy_count)
+        if no_motion is not None:
+            self.dry_no_motion = bool(no_motion)
+        self.run_mode = run_mode
+        self.dummy_fed = 0
+        self.io.dirty = True
+        self.log.event("INFO", "MACHINE", "Run mode change", run_mode=run_mode, dummy_count=self.dummy_count,
+                       no_motion=int(self.dry_no_motion), by=by)
+
+    def settings_view(self) -> dict:
+        return machine_settings.view(self.cfg, self.standard_cfg)
+
+    def change_settings(self, values: dict, by: str) -> list[str]:
+        """Change machine settings from the HMI. All values are checked before any is applied.
+        Returns the changed keys; raises InterlockError listing every problem."""
+        problems, coerced = [], {}
+        for key, value in values.items():
+            if key not in machine_settings.SPEC:
+                problems.append(f"알 수 없는 설정: {key}")
+                continue
+            try:
+                coerced[key] = machine_settings.coerce(key, value)
+            except ValueError as e:
+                problems.append(str(e))
+        if problems:
+            raise InterlockError("; ".join(problems))
+        changed = []
+        for key, value in coerced.items():
+            old = machine_settings.get(self.cfg, key)
+            if old == value:
+                continue
+            machine_settings.put(self.cfg, key, value)
+            changed.append(key)
+            self.log.event("INFO", "HMI", "Setting changed", param=key, old=old, new=value, by=by)
+        return changed
+
+    def reset_counters(self, by: str) -> None:
+        """Zero the production counters on the screen. The logs keep every part."""
+        self.log.event("INFO", "HMI", "Counters reset", ok=self.counts["OK"], ng=self.counts["NG"], by=by)
+        self.counts.clear()
+        self.dummy_tray = 0
+        self.dry_cycles = 0
 
     def manual_command(self, action, *args, by: str) -> None:
         """Run a manual-mode command, logging interlock refusals like a real HMI would."""
@@ -312,6 +392,15 @@ class Machine:
         self.log.event("INFO", "MACHINE", "Mode change", mode=self.mode.value)
 
     def new_workpiece(self) -> Workpiece:
+        if self.run_mode != "PRODUCTION":
+            # Dry pieces are only a place in the sequence; dummy pieces are real but not product.
+            self._run_seq += 1
+            prefix, lot = ("DRY", DRY_LOT) if self.run_mode == "DRY" else ("DMY", DUMMY_LOT)
+            if self.run_mode == "DUMMY":
+                self.dummy_fed += 1
+                if self.dummy_fed >= self.dummy_count:
+                    self.cycle_stop(by="MACHINE", reason="dummy_done")
+            return Workpiece(f"{prefix}-{self._run_seq:04d}", lot, self.recipe["name"], self.clock.now)
         if self._lot_id is None or self._lot_seq >= self.cfg["lot_size"]:
             self._lot_no += 1
             self._lot_seq = 0
@@ -385,6 +474,8 @@ class Machine:
         if self._cycle_stop and all(s.state is StationState.IDLE for s in self.stations):
             self._cycle_stop = False
             self.mode = MachineMode.STOPPED
+            if self.run_mode == "DUMMY" and self.dummy_fed >= self.dummy_count:
+                self.log.event("INFO", "MACHINE", "Dummy run done", count=self.dummy_fed, tray=self.dummy_tray)
             self.log.event("INFO", "MACHINE", "Mode change", mode=self.mode.value, by="CYCLE_STOP")
 
     def snapshot(self) -> dict:
@@ -395,6 +486,13 @@ class Machine:
             "recipe": self.recipe["name"],
             "mode": self.mode.value,
             "op_mode": self.op_mode,
+            "run": {
+                "mode": self.run_mode, "label": RUN_MODES[self.run_mode], "dummy_count": self.dummy_count,
+                "dummy_fed": self.dummy_fed, "dummy_tray": self.dummy_tray, "dry_no_motion": self.dry_no_motion,
+                "dry_cycles": self.dry_cycles,
+            },
+            "production_target": self.cfg.get("production_target", 0),
+            "pot_life_h": self.cfg["dispenser"]["pot_life_h"],
             "init": self.init.view(),
             "safety": {"estop": self.estop, "doors_open": dict(self.doors_open), "problems": self.safety_problems()},
             "manual": self.manual.view() if self.op_mode == "MANUAL" else None,
@@ -437,6 +535,16 @@ class Machine:
 
     def _record(self, wp: Workpiece) -> None:
         now = self.clock.now
+        if wp.lot_id == DRY_LOT:
+            self.dry_cycles += 1      # nothing was made, so nothing goes into production.csv
+            return
+        if wp.lot_id == DUMMY_LOT:
+            # The process really ran, so the row is kept for analysis, but not counted as product.
+            self.log.production(wp.production_row(now))
+            for name in PART_TRENDS:
+                if name in wp.data:
+                    self.trends.add(name, now, wp.data[name])
+            return
         self._finished_at.append(now.timestamp())
         self.log.production(wp.production_row(now))
         for name in PART_TRENDS:

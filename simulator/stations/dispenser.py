@@ -48,6 +48,9 @@ class Dispenser(Station):
         return 100.0 * p.syringe_level_ml / p.syringe_capacity_ml
 
     def process(self):
+        if self.m.run_mode == "DRY":
+            yield from self._dry()
+            return
         sp = self.m.setpoints
         p = self.m.physics.dispenser
         rng = self.m.rng
@@ -106,6 +109,21 @@ class Dispenser(Station):
             yield self.motion("DWELL", sp["retract_delay_s"])
         yield self.motion("RETRACT", 0.5)
         self.vacuum_on = False
+        yield self.motion("VACUUM_OFF", 0.2)
+        yield self.motion("LIFT_DOWN", 0.4, pneumatic=True)
+
+    def _dry(self):
+        """The gantry draws the bead path in the air: no part on the fixture, so no vacuum check,
+        the valve stays closed, no adhesive is used and nothing is weighed or measured."""
+        sp = self.m.setpoints
+        yield self.motion("LIFT_UP", 0.4, pneumatic=True)
+        yield self.motion("VACUUM_ON", 0.3)
+        yield self.motion("APPROACH", 0.8)
+        yield self.motion("HEIGHT_MEASURE", 0.5)
+        yield self.motion("DISPENSE", sp["dispense_time_s"], jitter=0.005)
+        if sp["retract_delay_s"] > 0:
+            yield self.motion("DWELL", sp["retract_delay_s"])
+        yield self.motion("RETRACT", 0.5)
         yield self.motion("VACUUM_OFF", 0.2)
         yield self.motion("LIFT_DOWN", 0.4, pneumatic=True)
 

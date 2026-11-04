@@ -15,6 +15,9 @@ class Infeed(Station):
     ]
 
     def process(self):
+        if self.m.run_mode != "PRODUCTION":
+            yield from self._test_run()
+            return
         rng = self.m.rng
         cfg = self.cfg
 
@@ -42,3 +45,13 @@ class Infeed(Station):
         else:
             raise MachineAlarm("E1001", "no read after 2 attempts")
         self.log("INFO", "Part received", serial=self.wp.wp_id)
+
+    def _test_run(self):
+        """Dry run: no part and no upstream handshake. Dummy run: the engineer loads dummy parts by hand,
+        and their code labels are clean, so the read does not fail."""
+        self.wp = self.m.new_workpiece()
+        yield self.motion("TRANSFER_IN", 1.0)
+        yield self.motion("STOPPER", 0.15, pneumatic=True)
+        if self.m.run_mode == "DUMMY":
+            yield self.motion("ID_READ", 0.3)
+            self.log("INFO", "Dummy part received", serial=self.wp.wp_id)

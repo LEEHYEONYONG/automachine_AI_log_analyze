@@ -1,3 +1,5 @@
+import { useT } from "../prefs";
+
 function Gauge({ label, value, max, unit, warnBelow }
 
 ) {
@@ -29,28 +31,41 @@ function Stat({ label, value, tone }) {
 }
 
 export function ProductionPanel({ state }) {
+  const t = useT();
   const { OK, NG } = state.counts;
+  const target = state.production_target;
   const total = OK + NG;
   const { uph, tact_s } = state.metrics;
   return (
     <section className="panel">
-      <h2>생산 현황</h2>
+      <h2>{t("생산 현황")}</h2>
+      {state.run.mode !== "PRODUCTION" && (
+        <p className="notice notice-warn">
+          {state.run.mode === "DRY"
+            ? t("드라이 런 중입니다. 제품 없이 동작만 확인하며 생산 수에 넣지 않습니다 (사이클 {n}회).", { n: state.run.dry_cycles })
+            : t("더미 런 중입니다. 더미 {fed}/{count}개, 트레이 {tray}개. 생산 수에 넣지 않습니다.", { fed: state.run.dummy_fed, count: state.run.dummy_count, tray: state.run.dummy_tray })}
+        </p>
+      )}
       <div className="stats stats-3">
-        <Stat label="생산" value={total.toLocaleString()} />
+        <Stat label={t("생산")} value={total.toLocaleString()} />
         <Stat label="OK" value={OK.toLocaleString()} tone="ok" />
         <Stat label="NG" value={NG.toLocaleString()} tone="ng" />
-        <Stat label="수율" value={total ? `${((100 * OK) / total).toFixed(2)}%` : "-"} />
-        <Stat label="UPH (최근 1시간)" value={uph.toLocaleString()} />
-        <Stat label="택트 타임" value={tact_s ? `${tact_s.toFixed(1)}초` : "-"} />
+        <Stat label={t("수율")} value={total ? `${((100 * OK) / total).toFixed(2)}%` : "-"} />
+        <Stat label={t("UPH (최근 1시간)")} value={uph.toLocaleString()} />
+        <Stat label={t("택트 타임")} value={tact_s ? t("{s}초", { s: tact_s.toFixed(1) }) : "-"} />
       </div>
 
-      <h3>자재 / 버퍼</h3>
-      <Gauge label="시린지 잔량" value={state.syringe_level_pct} max={100} unit="%" warnBelow={15} />
+      {target > 0 && (
+        <Gauge label={t("생산 목표 (OK 기준)")} value={OK} max={target} unit={`/${target.toLocaleString()}`} />
+      )}
+
+      <h3>{t("자재 / 버퍼")}</h3>
+      <Gauge label={t("시린지 잔량")} value={state.syringe_level_pct} max={100} unit="%" warnBelow={15} />
       <p className="hint">
-        시린지 장착 후 {Math.floor(state.syringe_age_min / 60)}시간 {state.syringe_age_min % 60}분 (가사시간 6시간)
+        {t("시린지 장착 후 {h}시간 {m}분 (가사시간 {limit}시간)", { h: Math.floor(state.syringe_age_min / 60), m: state.syringe_age_min % 60, limit: state.pot_life_h })}
       </p>
       <Gauge
-        label="NG 버퍼 여유"
+        label={t("NG 버퍼 여유")}
         value={state.ng_buffer_capacity - state.ng_buffer}
         max={state.ng_buffer_capacity}
         unit={`/${state.ng_buffer_capacity}`}

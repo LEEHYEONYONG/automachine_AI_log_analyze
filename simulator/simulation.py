@@ -11,6 +11,7 @@ from faults import FAULT_TYPES, FaultEngine
 from simulator.alarms import ALARMS
 from simulator.clock import VirtualClock
 from simulator.logger import CsvSink, MachineLogger
+from simulator import settings as machine_settings
 from simulator.machine import Machine
 from simulator.operator import Operator
 
@@ -32,7 +33,8 @@ class Simulation:
     ground_truth/<run_id>/  what really happened (only for evaluating the analysis)
     """
 
-    def __init__(self, machine_cfg: dict, scenario: dict, out_root: Path, seed: int | None = None):
+    def __init__(self, machine_cfg: dict, scenario: dict, out_root: Path, seed: int | None = None,
+                 standard_cfg: dict | None = None):
         self.scenario = scenario
         self.seed = scenario.get("seed", 0) if seed is None else seed
         start = datetime.fromisoformat(scenario["start_time"])
@@ -48,7 +50,7 @@ class Simulation:
 
         self.log = MachineLogger(self.log_dir, self.clock, SENSOR_FIELDS)
         # Separate random streams so adding a fault does not reshuffle unrelated randomness.
-        self.machine = Machine(machine_cfg, self.clock, self.log, Random(f"{self.seed}-machine"))
+        self.machine = Machine(machine_cfg, self.clock, self.log, Random(f"{self.seed}-machine"), standard_cfg)
         self.operator = Operator(self.machine, Random(f"{self.seed}-operator"), machine_cfg["plant"],
                                  machine_cfg["operator"], scenario.get("schedule"))
         self.faults = FaultEngine([
@@ -224,6 +226,8 @@ class Simulation:
             "end_time": self.clock.now.isoformat(timespec="milliseconds"),
             "recipes": self.machine.recipes,
             "planned_breaks": self.cfg["plant"]["breaks"],
+            # Machine settings as they are now; each change is also in event.log ("Setting changed").
+            "settings": machine_settings.current(self.machine.cfg),
             "io_map": self.machine.io.io_map(),
             "alarm_codes": [dataclasses.asdict(a) for a in ALARMS.values()],
         }

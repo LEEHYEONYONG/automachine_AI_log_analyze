@@ -25,6 +25,14 @@ class Outfeed(Station):
         self.picker_vacuum = False
 
     def process(self):
+        if self.m.run_mode == "DRY":
+            # Nothing to hand over: the stopper and belt cycle without the downstream handshake.
+            yield self.motion("STOPPER_DOWN", 0.15, pneumatic=True)
+            yield self.motion("TRANSFER_OUT", 1.0)
+            return
+        if self.wp.lot_id == "DUMMY":
+            yield from self._move_to_dummy_tray()
+            return
         if self.wp.judge == "OK":
             yield from self._send_downstream()
         else:
@@ -46,6 +54,21 @@ class Outfeed(Station):
         yield self.motion("STOPPER_DOWN", 0.15, pneumatic=True)
         yield self.motion("TRANSFER_OUT", 1.0)
         self.log("INFO", "Part sent downstream")
+
+    def _move_to_dummy_tray(self):
+        """Dummy parts never go downstream. The picker puts them on the dummy tray, good or not;
+        the inspection result is in the log for whoever runs the test."""
+        yield self.motion("PICK_DOWN", 0.3, pneumatic=True)
+        self.picker_vacuum = True
+        yield self.motion("VACUUM_ON", 0.2)
+        yield self.motion("PICK_UP", 0.3, pneumatic=True)
+        yield self.motion("MOVE_TO_NG", 0.8)
+        yield self.motion("PLACE", 0.3, pneumatic=True)
+        self.picker_vacuum = False
+        self.m.dummy_tray += 1
+        self.log("INFO", "Dummy part to tray", judge=self.wp.judge or "-", reason=self.wp.ng_reason or "-",
+                 tray=self.m.dummy_tray)
+        yield self.motion("RETURN", 0.8)
 
     def _move_to_ng_buffer(self):
         capacity = self.cfg["ng_buffer_capacity"]

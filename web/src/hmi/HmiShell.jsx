@@ -9,17 +9,20 @@ import { ManualPage } from "./pages/ManualPage";
 import { ProductionPage } from "./pages/ProductionPage";
 import { RecipePage } from "./pages/RecipePage";
 import { SequencePage } from "./pages/SequencePage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { PAGES } from "./hmiPages";
+import { useT } from "../prefs";
 
 /** Operator panel: menu on the left, the selected screen, and the run buttons fixed at the bottom. */
 export function HmiShell({ state, page, onPage, run }) {
+  const t = useT();
   return (
     <div className="hmi-shell">
-      <nav className="hmi-nav" aria-label="HMI 메뉴">
+      <nav className="hmi-nav" aria-label={t("HMI 메뉴")}>
         {PAGES.map((p) => (
           <button key={p.id} className={page === p.id ? "active" : ""} onClick={() => onPage(p.id)}>
-            {p.label}
-            {p.id === "alarm" && state.alarm && <span className="nav-dot" aria-label="알람 발생 중" />}
+            {t(p.label)}
+            {p.id === "alarm" && state.alarm && <span className="nav-dot" aria-label={t("알람 발생 중")} />}
           </button>
         ))}
       </nav>
@@ -34,6 +37,7 @@ export function HmiShell({ state, page, onPage, run }) {
         {page === "production" && <ProductionPage state={state} />}
         {page === "recipe" && <RecipePage state={state} run={run} />}
         {page === "maintenance" && <MaintenancePage state={state} run={run} />}
+        {page === "settings" && <SettingsPage state={state} />}
       </main>
       <OperationBar state={state} run={run} />
     </div>

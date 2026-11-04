@@ -370,3 +370,87 @@ class ServerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SettingsApiTest(unittest.TestCase):
+    """The HMI settings screen: machine settings, run modes and counters."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.out = Path(self._tmp.name)
+        self.client = self._open()
+
+    def _open(self):
+        client = TestClient(create_app(ROOT, self.out, seed=7, live=False))
+        client.__enter__()
+        client.post("/api/operator", json={"auto": False})
+        return client
+
+    def tearDown(self):
+        self.client.__exit__(None, None, None)
+        self._tmp.cleanup()
+
+    def login(self, user, pin):
+        self.client.post("/api/login", json={"user": user, "pin": pin})
+
+    def values(self, payload=None):
+        payload = payload or self.client.get("/api/settings").json()
+        return {s["key"]: s["value"] for s in payload["machine"]["editable"] + payload["session"]}
+
+    def test_maker_changes_a_setting_and_it_survives_a_restart(self):
+        self.login("MAKER", "9999")
+        res = self.client.post("/api/settings", json={"values": {"weight_check_interval": 40, "auto_logout_min": 20}})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(sorted(res.json()["changed"]), ["auto_logout_min", "weight_check_interval"])
+        self.assertTrue(any(h["text"].startswith("Setting changed") for h in res.json()["history"]))
+        self.client.__exit__(None, None, None)
+        self.client = self._open()                               # the server restarts
+        payload = self.client.get("/api/settings").json()
+        self.assertEqual((self.values(payload)["weight_check_interval"], self.values(payload)["auto_logout_min"]), (40, 20))
+        standard = {s["key"]: s["standard"] for s in payload["machine"]["editable"]}
+        self.assertEqual(standard["weight_check_interval"], 100)
+
+    def test_each_value_needs_its_own_level_and_nothing_is_half_applied(self):
+        self.login("ENG01", "2222")
+        res = self.client.post("/api/settings", json={"values": {"lot_size": 300, "weight_check_interval": 40}})
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(self.values()["lot_size"], 500)
+        self.assertEqual(self.client.post("/api/settings", json={"values": {"lot_size": 300}}).status_code, 200)
+        self.login("OP01", "1111")
+        self.assertEqual(self.client.post("/api/settings", json={"values": {"lot_size": 200}}).status_code, 403)
+
+    def test_bad_values_are_refused(self):
+        self.login("MAKER", "9999")
+        self.assertEqual(self.client.post("/api/settings", json={"values": {"vacuum_threshold_kpa": 10}}).status_code, 400)
+        self.assertEqual(self.client.post("/api/settings", json={"values": {"tick_s": 1}}).status_code, 400)
+        self.assertEqual(self.client.post("/api/settings", json={"values": {"auto_logout_min": 0}}).status_code, 400)
+
+    def test_back_to_standard(self):
+        self.login("MAKER", "9999")
+        self.client.post("/api/settings", json={"values": {"lot_size": 300, "max_consecutive_ng": 5}})
+        res = self.client.post("/api/settings/standard", json={"keys": None})
+        self.assertEqual(sorted(res.json()["changed"]), ["lot_size", "max_consecutive_ng"])
+        self.assertEqual((self.values()["lot_size"], self.values()["max_consecutive_ng"]), (500, 3))
+
+    def test_run_mode_needs_an_engineer_and_a_stopped_empty_line(self):
+        self.login("OP01", "1111")
+        self.assertEqual(self.client.post("/api/runmode", json={"mode": "DRY"}).status_code, 403)
+        self.login("ENG01", "2222")
+        res = self.client.post("/api/runmode", json={"mode": "DUMMY", "dummy_count": 3})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual((res.json()["run"]["mode"], res.json()["run"]["dummy_count"]), ("DUMMY", 3))
+        self.assertEqual(self.client.post("/api/runmode", json={"mode": "DUMMY", "dummy_count": 99}).status_code, 409)
+        self.client.post("/api/initialize", json={"clear_parts": False})
+        runner = self.client.app.state.runner
+        for _ in range(150):
+            runner.sim.step()
+        self.client.post("/api/machine/start")
+        self.assertEqual(self.client.post("/api/runmode", json={"mode": "PRODUCTION"}).status_code, 409)
+
+    def test_counter_reset(self):
+        self.login("OP01", "1111")
+        self.assertEqual(self.client.post("/api/counters/reset").status_code, 403)
+        self.login("ENG01", "2222")
+        res = self.client.post("/api/counters/reset")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["counts"], {"OK": 0, "NG": 0})

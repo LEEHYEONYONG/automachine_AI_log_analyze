@@ -73,6 +73,9 @@ spec:
               mountPath: /app/logs
             - name: ground-truth
               mountPath: /app/ground_truth
+            # HMI settings (state/machine_settings.json) survive a pod restart
+            - name: state
+              mountPath: /app/state
       volumes:
         - name: logs
           hostPath:
@@ -82,3 +85,7 @@ spec:
           hostPath:
             path: /home/lhy/projects/automachine_AI_log_analyze/ground_truth
             type: Directory
+        - name: state
+          hostPath:
+            path: /home/lhy/projects/automachine_AI_log_analyze/state
+            type: DirectoryOrCreate

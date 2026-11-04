@@ -11,6 +11,7 @@ backups/
 
 # made by the auto-eval CronJob
 scores/
+state/
 
 # vendor manuals: reference only, do not redistribute
 docs/references/*

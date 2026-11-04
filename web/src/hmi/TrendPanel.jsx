@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTrends } from "../api";
+import { usePrefs } from "../prefs";
 import { TrendChart } from "./TrendChart";
 
 const WINDOWS = [
@@ -18,28 +19,29 @@ const METRICS = [
 ];
 
 export function TrendPanel() {
-  const [minutes, setMinutes] = useState(60);
+  const { prefs, t } = usePrefs();
+  const [minutes, setMinutes] = useState(prefs.trendMinutes);
   const trends = useTrends(minutes);
 
   return (
     <section className="panel">
       <div className="trend-header">
-        <h2>공정 트렌드</h2>
-        <div className="segmented" role="group" aria-label="표시 기간">
+        <h2>{t("공정 트렌드")}</h2>
+        <div className="segmented" role="group" aria-label={t("표시 기간")}>
           {WINDOWS.map((w) => (
             <button key={w.minutes} className={minutes === w.minutes ? "active" : ""} onClick={() => setMinutes(w.minutes)}>
-              최근 {w.label}
+              {t("최근 {period}", { period: t(w.label) })}
             </button>
           ))}
         </div>
-        <span className="hint">시뮬레이션 시간 기준 · 제품별 측정값 (구간이 길면 평균)</span>
+        <span className="hint">{t("시뮬레이션 시간 기준 · 제품별 측정값 (구간이 길면 평균)")}</span>
       </div>
       {trends && (
         <div className="trend-grid">
           {METRICS.map((m) => (
             <TrendChart
               key={m.key}
-              title={m.title}
+              title={t(m.title)}
               unit={m.unit}
               digits={m.digits}
               minSpan={m.minSpan}

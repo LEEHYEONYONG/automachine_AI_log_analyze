@@ -10,6 +10,7 @@ async function post(path, body) {
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail.detail ?? `${res.status} ${res.statusText}`);
   }
+  return res.json().catch(() => null);
 }
 
 export const api = {
@@ -31,6 +32,11 @@ export const api = {
   changeRecipe: (recipe) => post("/api/recipe", { recipe }),
   injectFault: (type, params, delayMin) =>
     post("/api/faults", { type, params, delay_min: delayMin }),
+  saveSettings: (values) => post("/api/settings", { values }),
+  standardSettings: (keys) => post("/api/settings/standard", { keys: keys ?? null }),
+  setRunMode: (mode, dummyCount, noMotion) =>
+    post("/api/runmode", { mode, dummy_count: dummyCount, no_motion: noMotion }),
+  resetCounters: () => post("/api/counters/reset"),
 };
 
 /** Trend data for the last `minutes` of simulated time, refreshed every second.

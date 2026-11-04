@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { useState } from "react";
 import { MODE_LABEL } from "../labels";
+import { usePrefs } from "../prefs";
 
 import { VIEWS } from "./layout";
 import { Scene } from "./Scene";
@@ -11,9 +12,21 @@ function initialView() {
   return v && v in VIEWS ? v : "overview";
 }
 
-export default function ViewerPage({ state }) {
+/** A dry run has no parts on the line, and with motion off nothing moves either. */
+function shownState(state) {
+  if (state.run?.mode !== "DRY") return state;
+  const still = state.run.dry_no_motion;
+  return {
+    ...state,
+    stations: state.stations.map((s) => ({ ...s, wp: null, ...(still ? { step: "", progress: 0 } : {}) })),
+  };
+}
+
+export default function ViewerPage({ state: live }) {
+  const state = shownState(live);
+  const { prefs } = usePrefs();
   const [covers, setCovers] = useState(true);
-  const [effects, setEffects] = useState(true);
+  const [effects, setEffects] = useState(prefs.viewerEffects);
   const [view, setView] = useState(initialView);
   const fast = state.sim.speed > 10;
   const start = VIEWS[view].position;

@@ -17,6 +17,7 @@ VISION_PUSHED = {"SETTLE", "CAPTURE", "PROCESS"}
 DISP_LIFT_UP = {"VACUUM_ON", "APPROACH", "HEIGHT_MEASURE", "DISPENSE", "DWELL", "RETRACT", "VACUUM_OFF"}
 DISP_AXES_MOVING = {"APPROACH", "DISPENSE", "RETRACT", "MOVE_TO_SCALE", "WEIGH", "MOVE_FROM_SCALE"}
 STATIONS = ["INFEED", "VISION", "DISPENSER", "INSPECTION", "OUTFEED"]
+ALWAYS_DRIVEN = {"TOWER_GREEN", "TOWER_YELLOW", "TOWER_RED", "BUZZER"}
 UNIT_KO = {"INFEED": "투입", "VISION": "비전", "DISPENSER": "디스펜서", "INSPECTION": "검사", "OUTFEED": "배출"}
 
 
@@ -49,8 +50,14 @@ class IoMonitor:
             return
         self.dirty = False
         ts = self.m.log.timestamp()
+        # Dry run with the actuators held off (a PLC simulation mode): the sequence and its sensors run
+        # as if every stroke arrived, but no output is driven except the signal tower.
+        held = self.m.run_mode == "DRY" and self.m.dry_no_motion and self.m.op_mode == "AUTO"
+        outputs = {id(s) for s in self.outputs}
         for sig in self.inputs + self.outputs:
             value = bool(sig.read())
+            if held and id(sig) in outputs and sig.id not in ALWAYS_DRIVEN:
+                value = False
             if self.values.get(sig.address) != value:
                 if sig.address in self.values:  # skip the initial read
                     self.m.log.io(ts, sig.address, sig.id, value)

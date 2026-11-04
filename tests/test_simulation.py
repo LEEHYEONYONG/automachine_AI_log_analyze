@@ -1,3 +1,5 @@
+import contextlib
+import copy
 import csv
 import json
 import tempfile
@@ -157,3 +159,126 @@ class SimulationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@contextlib.contextmanager
+def started(run_mode=None, **kwargs):
+    """A simulation stopped at power-on, switched to a run mode, initialized and started by hand
+    (the simulated crew only runs production). Closed before its folder is removed."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sim = Simulation(copy.deepcopy(MACHINE_CFG), scenario(), Path(tmp))
+        m = sim.machine
+        if run_mode:
+            m.set_run_mode(run_mode, by="TEST", **kwargs)
+        m.init.start(clear_parts=False, by="TEST")
+        while not m.init.done:
+            sim.step()
+        m.start(by="TEST")
+        try:
+            yield sim
+        finally:
+            sim.close()
+
+
+def advance(sim, minutes):
+    for _ in range(round(minutes * 60 / sim.clock.dt)):
+        sim.step()
+    sim.flush()
+
+
+def lines(path):
+    return path.read_text(encoding="utf-8").splitlines()
+
+
+class RunModeTest(unittest.TestCase):
+    def test_dry_run_moves_without_parts_or_adhesive(self):
+        with started("DRY") as sim:
+            level = sim.machine.dispenser.level_pct
+            advance(sim, 5)
+            m = sim.machine
+            self.assertGreater(m.dry_cycles, 10)
+            self.assertEqual(production(sim), [])
+            self.assertEqual(m.counts.total(), 0)
+            self.assertEqual(m.dispenser.level_pct, level)
+            with open(sim.log_dir / "sensor_trend.csv", encoding="utf-8") as f:
+                self.assertTrue(all(r["disp_valve_open"] == "0" for r in csv.DictReader(f)))
+            self.assertEqual(lines(sim.log_dir / "alarm.log"), [])
+
+    def test_dry_run_without_motion_drives_only_the_signal_tower(self):
+        with started("DRY", no_motion=True) as sim:
+            advance(sim, 2)
+            self.assertGreater(sim.machine.dry_cycles, 3)
+            with open(sim.log_dir / "io_trace.csv", encoding="utf-8") as f:
+                driven = {r["signal"] for r in csv.DictReader(f) if r["address"].startswith("Y")}
+            self.assertTrue(driven <= {"TOWER_GREEN", "TOWER_YELLOW", "TOWER_RED", "BUZZER"}, driven)
+
+    def test_dummy_run_stops_after_the_set_count_and_is_not_counted(self):
+        with started("DUMMY", dummy_count=4) as sim:
+            advance(sim, 5)
+            m = sim.machine
+            self.assertEqual(m.mode.value, "STOPPED")
+            self.assertEqual((m.dummy_fed, m.dummy_tray), (4, 4))
+            rows = production(sim)
+            self.assertEqual(len(rows), 4)
+            self.assertTrue(all(r["lot_id"] == "DUMMY" and r["wp_id"].startswith("DMY-") for r in rows))
+            self.assertTrue(all(r["bead_width_mm"] for r in rows))     # the bead was really laid and inspected
+            self.assertEqual(m.counts.total(), 0)
+            self.assertTrue(any("Dummy run done count=4" in line for line in lines(sim.log_dir / "event.log")))
+            m.start(by="TEST")                                          # START again runs a new batch
+            advance(sim, 5)
+            self.assertEqual(len(production(sim)), 8)
+
+    def test_run_mode_only_changes_when_stopped_and_empty(self):
+        from simulator.manual import InterlockError
+        with started() as sim:
+            advance(sim, 1)
+            m = sim.machine
+            with self.assertRaisesRegex(InterlockError, "정지 상태"):
+                m.set_run_mode("DRY", by="TEST")
+            m.stop(by="TEST")
+            with self.assertRaisesRegex(InterlockError, "제품이 남아"):
+                m.set_run_mode("DRY", by="TEST")
+            with self.assertRaisesRegex(InterlockError, "알 수 없는"):
+                m.set_run_mode("FAST", by="TEST")
+
+    def test_changing_back_to_production_counts_again(self):
+        with started("DUMMY", dummy_count=2) as sim:
+            advance(sim, 3)
+            m = sim.machine
+            m.set_run_mode("PRODUCTION", by="TEST")
+            m.start(by="TEST")
+            advance(sim, 3)
+            self.assertGreater(m.counts.total(), 10)
+            self.assertTrue(all(r["lot_id"] != "DUMMY" for r in production(sim)[2:]))
+
+
+class SettingsTest(unittest.TestCase):
+    def test_change_is_validated_logged_and_used(self):
+        from simulator.manual import InterlockError
+        with started() as sim:
+            m = sim.machine
+            with self.assertRaisesRegex(InterlockError, "범위"):
+                m.change_settings({"weight_check_interval": 5}, by="TEST")
+            with self.assertRaisesRegex(InterlockError, "알 수 없는 설정"):
+                m.change_settings({"tick_s": 1}, by="TEST")
+            self.assertEqual(m.change_settings({"weight_check_interval": "20", "lot_size": 500}, by="TEST"),
+                             ["weight_check_interval"])
+            advance(sim, 10)
+            events = lines(sim.log_dir / "event.log")
+            self.assertTrue(any("Setting changed param=weight_check_interval old=100 new=20" in e for e in events))
+            self.assertGreaterEqual(sum("Weight check OK" in e for e in events), 3)   # every 100 would be 1
+            view = {s["key"]: s for s in m.settings_view()["editable"]}
+            self.assertEqual((view["weight_check_interval"]["value"], view["weight_check_interval"]["standard"]), (20, 100))
+            info = json.loads((sim.log_dir / "machine_info.json").read_text(encoding="utf-8"))
+            self.assertEqual(info["settings"]["weight_check_interval"], 20)
+
+    def test_counter_reset_keeps_the_log(self):
+        with started() as sim:
+            advance(sim, 3)
+            m = sim.machine
+            made = m.counts.total()
+            m.reset_counters(by="TEST")
+            self.assertEqual(m.counts.total(), 0)
+            sim.flush()
+            self.assertEqual(len(production(sim)), made)
+            self.assertTrue(any("Counters reset" in e for e in lines(sim.log_dir / "event.log")))

@@ -10,6 +10,7 @@ export const PAGES = [
   { id: "production", label: "생산" },
   { id: "recipe", label: "레시피" },
   { id: "maintenance", label: "유지보수" },
+  { id: "settings", label: "설정" },
 ];
 
 export const isHmiPage = (p) => PAGES.some((x) => x.id === p);
