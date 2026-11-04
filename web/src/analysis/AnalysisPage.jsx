@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { FAULT_LABEL } from "../labels";
+import { anomalyText, evidenceText, FEATURE, faultName, time } from "./evidence";
+import { LivePanel } from "./LiveWatch";
+import { Report } from "./Report";
 
 // The analysis API runs in its own container; Vite proxies /api/analysis to it.
 const API = "/api/analysis";
@@ -12,54 +14,6 @@ const METHOD_HINT = {
   anomaly: "경비원은 정상 구간에서 배운 평소 모습과 다른 값을 알려 줍니다. 처음 보는 고장도 찾지만, 고장 이름은 모릅니다.",
   classify: "분류는 경비원이 울린 순간의 값을 보고 지금까지의 예시에서 배운 고장 이름을 고릅니다. 규칙보다 자주 틀리므로 참고용입니다.",
 };
-const faultName = (name) => FAULT_LABEL[name] ?? { unknown: "판단 불가", no_fault: "고장 아님" }[name] ?? name;
-// The values the guard watches (FEATURES in analysis/app/anomaly.py).
-const FEATURE = {
-  bead_width_mm: { label: "비드 폭", unit: "mm", digits: 3 },
-  bead_offset_mm: { label: "비드 오프셋", unit: "mm", digits: 3 },
-  disp_pressure_kpa: { label: "토출 압력", unit: "kPa", digits: 1 },
-  vacuum_kpa: { label: "진공", unit: "kPa", digits: 1 },
-  ng_10min: { label: "10분 불량 수" },
-};
-
-const time = (t) => t.slice(11, 19);
-const num = (v, digits = 1) => Number(v).toFixed(digits);
-
-/** One line of evidence for the guard, from the evidence dict in anomaly.py. */
-function anomalyText(e) {
-  if (e.feature === "ng_10min") {
-    return `최근 10분 불량 ${e.count_10min}개 (평소 최대 ${e.normal_max}개), ${e.recipe}`;
-  }
-  const { unit, digits } = FEATURE[e.feature];
-  const usual = `${num(e.normal_mean, digits)} ± ${num(e.normal_std, digits)} ${unit}`;
-  return `${num(e.value, digits)} ${unit} (평소 ${usual}, 표준편차의 ${num(Math.abs(e.z))}배 벗어남), ${e.recipe}`;
-}
-
-/** One line of evidence per rule, from the evidence dict each rule leaves in rules.py. */
-function evidenceText(type, e) {
-  if (type === "air_supply_drop") {
-    return `압력 ${num(e.pressure_kpa)} kPa, 진공 ${num(e.vacuum_kpa)} kPa 상태가 토출 중 ${e.consecutive}번 연속`;
-  }
-  if (type === "vacuum_leak") {
-    return `진공 중앙값 ${num(e.vacuum_median_kpa)} kPa로 약해짐 (압력 중앙값 ${num(e.pressure_median_kpa)} kPa는 정상)`;
-  }
-  if (type === "nozzle_clog") {
-    return `비드 폭 중앙값 ${num(e.width_median_30min_ago_mm, 3)} → ${num(e.width_median_mm, 3)} mm (30분 사이), ${e.recipe}`;
-  }
-  if (type === "recipe_pressure_error" || type === "recipe_retract_error") {
-    return `${e.by}가 ${e.param}를 ${e.old} → ${e.new}로 변경 (표준 ${e.standard}, ${e.deviation_pct}%), ${e.recipe}`;
-  }
-  if (type === "air_bubble") {
-    return `BEAD_VOID 불량이 ${e.window_min}분 안에 ${e.void_count}개 (첫 VOID ${time(e.first_void_at)}), ${e.recipe}`;
-  }
-  if (type === "needle_offset") {
-    return `최근 ${e.window}개 제품의 비드 오프셋 중앙값 ${num(e.offset_median_mm, 3)} mm (정상 약 0.010, 불량 기준 0.10), ${e.recipe}`;
-  }
-  if (type === "needle_tip_buildup") {
-    return `STRINGING 불량이 ${e.window_min}분 안에 ${e.stringing_count}개 (첫 STRINGING ${time(e.first_stringing_at)}, retract 설정은 정상), ${e.recipe}`;
-  }
-  return Object.entries(e).map(([k, v]) => `${k}=${v}`).join(", ");
-}
 
 function groupRepeats(candidates) {
   const rows = [];
@@ -77,48 +31,6 @@ function groupRepeats(candidates) {
     rows.push(last[key]);
   }
   return rows;
-}
-
-function Report({ report }) {
-  return (
-    <div className="report">
-      <h4>근거 (AI 설명)</h4>
-      <ul>
-        {report.reasoning.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
-      {report.doubts?.length > 0 && (
-        <>
-          <h4>의문점 (AI가 판단과 맞지 않는다고 본 기록)</h4>
-          <ul>
-            {report.doubts.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </>
-      )}
-      {report.other_causes?.length > 0 && (
-        <p className="hint analysis-error">
-          AI 설명이 판단과 다른 고장을 근거로 들었습니다: {report.other_causes.map(faultName).join(", ")}. 이 설명은 믿지 마세요.
-        </p>
-      )}
-      {report.unverified_numbers.length > 0 && (
-        <p className="hint analysis-error">
-          측정 기록에서 확인되지 않은 수치가 있습니다: {report.unverified_numbers.join(", ")}
-        </p>
-      )}
-      {report.actions && (
-        <>
-          <h4>조치 (안내서: {report.actions.section})</h4>
-          <p>{report.actions.steps}</p>
-        </>
-      )}
-      <p className="hint">
-        AI가 쓴 설명은 틀릴 수 있으니 조치 전에 기록을 확인하세요. 조회한 자료: {report.tools_called.join(", ") || "없음"}
-      </p>
-    </div>
-  );
 }
 
 /** Incidents for one run. Reports are written one at a time because the model takes up to a few minutes on one GPU. */
@@ -232,6 +144,7 @@ export function AnalysisPage() {
 
   return (
     <main className="console">
+      <LivePanel />
       <section className="panel">
         <h2>AI 분석</h2>
         <p className="hint">{METHOD_HINT[method]}</p>

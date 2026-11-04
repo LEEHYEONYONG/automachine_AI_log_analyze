@@ -10,3 +10,4 @@ resources:
   - ops.yaml
   - backup.yaml
   - auto-eval.yaml
+  - watch.yaml

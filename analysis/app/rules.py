@@ -3,6 +3,19 @@ import statistics
 from collections import deque
 from datetime import timedelta
 
+
+def run_all(run_id, sensors, parts, changes, recipes):
+    """규칙 7개를 한 런에 돌린다. DB에서 읽은 행(분석 버튼)과 파일에서 이어 읽은 행(실시간 감시)에 똑같이 쓴다.
+    sensors: sensor_trend 행 (ts 순서), parts: production 행 (start_time 순서),
+    changes: HMI "Recipe parameter changed" 이벤트 (ts, attrs), recipes: 표준 레시피."""
+    return (detect_air_supply_drop(run_id, sensors)
+            + detect_vacuum_leak(run_id, sensors)
+            + detect_nozzle_clog(run_id, parts)
+            + detect_recipe_error(run_id, changes, recipes)
+            + detect_air_bubble(run_id, parts)
+            + detect_needle_offset(run_id, parts)
+            + detect_needle_tip_buildup(run_id, parts, changes, recipes))
+
 # 규칙 1: air_supply_drop
 AIR_PRESSURE_MAX = 230   # 이보다 낮으면 압력 이상
 AIR_VACUUM_MIN = -75     # 이보다 높으면(0에 가까우면) 진공 이상

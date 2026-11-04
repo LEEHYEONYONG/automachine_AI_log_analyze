@@ -11,6 +11,8 @@ AI 로그 분석 영역입니다. 입력은 `logs/<run_id>/`를 적재한 DB뿐�
 
 `app/manual.py`는 `manual/*.md`를 `##` 제목 단위로 임베딩해 `manual_chunks`에 넣고 검색합니다.
 
+`app/live.py`와 `app/watch.py`는 **실시간 감시**입니다. 돌고 있는 런의 로그 파일을 이어 읽어 위의 판단을 그대로 돌립니다(`rules.run_all`, `foreman.judge`). 분석 버튼과 같은 함수를 쓰므로 같은 기록이면 같은 결과가 나옵니다.
+
 ## 반장이 할 수 있는 것과 없는 것
 
 - 사건의 시각과 원인은 코드가 정합니다. LLM에게 원인을 고르게 했을 때 dev에서 규칙보다 나빠서 바꿨습니다 (`eval/README.md` 7절).
