@@ -79,6 +79,8 @@ export const VIEWS = localized({
   infeed: { label: "투입부", position: [STATION_X.INFEED - 1.2, 1.6, 2.6], target: [STATION_X.INFEED - 0.6, 0.3, -0.2] },
   vision: { label: "비전 정렬", position: [STATION_X.VISION + 0.9, 1.0, 1.6], target: [STATION_X.VISION, 0.2, 0] },
   dispenser: { label: "디스펜서", position: [1.4, 1.3, 2.2], target: [0, 0.35, -0.2] },
+  // a little higher than the dispenser view so the scan head on its axis stays in frame with the part
+  inspection: { label: "도포 검사", position: [STATION_X.INSPECTION + 1.5, 2.1, 3.3], target: [STATION_X.INSPECTION, 0.7, -0.2] },
   outfeed: { label: "배출부", position: [STATION_X.OUTFEED + 0.6, 2.0, 3.2], target: [STATION_X.OUTFEED + 0.3, 0.4, -0.5] },
 });
 
