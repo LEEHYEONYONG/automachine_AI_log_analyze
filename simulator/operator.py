@@ -166,6 +166,12 @@ class Operator:
 
     def _advance_task(self, now: datetime) -> None:
         if self.phase == "ack":
+            if self.m.active_alarm is None:
+                # Someone reset the alarm at the HMI while the crew was still walking over. They took it on;
+                # the crew does not restart a machine a person has just reset.
+                self.phase = "idle"
+                self.m.log.event("INFO", "OPERATOR", "Alarm already reset", by=self.names[0])
+                return
             _, alarm = self.m.active_alarm
             self._action = self._choose(alarm.code, alarm.reason, now)
             self._who = "ENG-01" if self._action == "call_engineer" else self.rng.choice(self.names)

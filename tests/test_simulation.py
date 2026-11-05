@@ -85,6 +85,25 @@ class SimulationTest(unittest.TestCase):
             finally:
                 sim.close()
 
+    def test_crew_copes_with_an_alarm_reset_at_the_hmi_before_they_arrive(self):
+        # Found by fuzzing (11/5): the crew read the alarm after its response delay and crashed the
+        # simulation loop when a person had reset it in the meantime.
+        from simulator.alarms import MachineAlarm
+        with tempfile.TemporaryDirectory() as tmp:
+            sim = Simulation(copy.deepcopy(MACHINE_CFG), scenario(), Path(tmp))
+            try:
+                sim.operator.start_shift()
+                advance(sim, 1)
+                sim.machine.raise_alarm(None, MachineAlarm("E9101", "door=FRONT_LEFT"))
+                advance(sim, 0.05)
+                self.assertEqual(sim.operator.phase, "ack")
+                sim.machine.reset(by="OP01")              # the person at the panel is quicker
+                advance(sim, 4)                           # past the longest response delay
+                self.assertEqual(sim.operator.phase, "idle")
+                self.assertIn("Alarm already reset", (sim.log_dir / "event.log").read_text(encoding="utf-8"))
+            finally:
+                sim.close()
+
     def test_model_change_switches_recipe_and_lot(self):
         change = {"type": "model_change", "at_min": 20, "recipe": "REAR_HOUSING_ADH_B"}
         tmp, sim, _, _ = run(scenario(schedule=[change]), hours=1.5)
