@@ -216,7 +216,7 @@ kubectl -n automachine exec -i db-0 -- sh -c 'pg_restore --clean --if-exists -U 
 
 ## 왜 Traefik이 포트를 직접 여나
 
-WSL mirrored 네트워크에서는 PC에서 Service 주소로 들어가는 경로가 시간 초과로 막힙니다 (파드에서 Service로, PC에서 파드 IP로는 됩니다). 그래서 `cluster/traefik-config.yaml`로 Traefik이 80, 443을 직접 엽니다. k3s가 켜져 있는 동안 80, 443, 8088, 9100번을 씁니다.
+WSL mirrored 네트워크에서는 PC에서 Service 주소로 들어가는 경로가 시간 초과로 막힙니다 (파드에서 Service로, PC에서 파드 IP로는 됩니다). 그래서 `cluster/traefik-config.yaml`로 Traefik이 80을 직접 엽니다. k3s가 켜져 있는 동안 80, 8444, 8088, 9100번을 씁니다. https 입구(`websecure`)는 쓰지 않아서 443이 아니라 8444에 둡니다. 443을 잡으면 이 PC에서 medi-info의 Tailscale Funnel 주소(https)를 열 때 Tailscale 대신 Traefik이 자체 인증서로 대답해서 인증서 경고가 났습니다 (11/09).
 
 Ollama는 GPU를 쓰므로 클러스터 밖 WSL에서 돌고, 파드에서는 `ollama` Service를 거쳐 `10.42.0.1:11434`로 연결합니다.
 
