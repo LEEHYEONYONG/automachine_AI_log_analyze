@@ -45,13 +45,13 @@ export function evidenceText(type, e) {
     return tr("{a}가 {b}를 {c} → {d}로 변경 (표준 {e}, {f}%), {g}", { a: e.by, b: e.param, c: e.old, d: e.new, e: e.standard, f: e.deviation_pct, g: e.recipe });
   }
   if (type === "air_bubble") {
-    return tr("BEAD_VOID 불량이 {a}분 안에 {b}개 (첫 VOID {c}), {d}", { a: e.window_min, b: e.void_count, c: time(e.first_void_at), d: e.recipe });
+    return tr("비드 끊김(BEAD_VOID) 불량이 {a}분 안에 {b}개 (첫 불량 {c}), {d}", { a: e.window_min, b: e.void_count, c: time(e.first_void_at), d: e.recipe });
   }
   if (type === "needle_offset") {
     return tr("최근 {a}개 제품의 비드 오프셋 중앙값 {b} mm (정상 약 0.010, 불량 기준 0.10), {c}", { a: e.window, b: num(e.offset_median_mm, 3), c: e.recipe });
   }
   if (type === "needle_tip_buildup") {
-    return tr("STRINGING 불량이 {a}분 안에 {b}개 (첫 STRINGING {c}, retract 설정은 정상), {d}", { a: e.window_min, b: e.stringing_count, c: time(e.first_stringing_at), d: e.recipe });
+    return tr("실 끌림(STRINGING) 불량이 {a}분 안에 {b}개 (첫 불량 {c}, 토출 후 대기(dwell) 설정은 정상), {d}", { a: e.window_min, b: e.stringing_count, c: time(e.first_stringing_at), d: e.recipe });
   }
   return Object.entries(e).map(([k, v]) => `${k}=${v}`).join(", ");
 }

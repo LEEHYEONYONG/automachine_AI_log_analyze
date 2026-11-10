@@ -336,6 +336,20 @@ button:disabled { cursor: not-allowed; opacity: 0.4; }
 .incident:first-of-type { border-top: none; padding-top: 0; }
 .incident-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
 .incident-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Plain-language summary of one incident (analysis/PlainSummary.jsx) */
+.plain-summary { margin-top: 8px; padding: 10px 12px; border-left: 3px solid var(--ai); background: var(--panel-2); border-radius: 0 6px 6px 0; }
+.plain-summary p { margin: 0 0 6px; line-height: 1.5; }
+.plain-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; }
+.plain-checks .hit span:first-child { color: var(--ok); font-weight: 700; }
+.plain-checks .miss { color: var(--muted); }
+.glossary { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
+.glossary summary { cursor: pointer; font-weight: 600; color: var(--ai); }
+.glossary-flow { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; padding: 0; margin: 12px 0; }
+.glossary-flow li { display: flex; flex-direction: column; gap: 2px; background: var(--panel-2); border-radius: 6px; padding: 8px 10px; font-size: 13px; }
+.glossary-terms { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 16px; margin: 0; }
+.glossary-terms dt { font-weight: 600; font-size: 13px; }
+.glossary-terms dd { margin: 2px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .btn-secondary { background: none; border: 1px solid var(--line); color: var(--text); }
 
 /* Incident graph: pressure and vacuum around one incident (analysis/IncidentChart.jsx) */

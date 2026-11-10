@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from ..config import LOGS_DIR
 from ..database import engine, get_db
-from .. import anomaly, classify, foreman, handover, ingest, rules, trend
+from .. import anomaly, classify, foreman, handover, ingest, live, rules, trend
 
 router = APIRouter(
     prefix="/api/analysis",
@@ -107,18 +107,27 @@ def analyze_run(run_id: str, method: Literal["rule", "anomaly", "classify"] = "r
     return {"run_id": run_id, "method": method, "count": len(candidates), "candidates": candidates}
 
 
-def _incidents(db, run_id):
-    """규칙·경비원 경보를 사건으로 묶고, 첫 경보 순간의 분류 의견과 코드가 정한 원인을 붙인다."""
+def _incidents(db, run_id, with_candidates=False):
+    """규칙·경비원 경보를 사건으로 묶고, 첫 경보 순간의 분류 의견과 코드가 정한 원인을 붙인다.
+    with_candidates면 사건에 들어간 경보 목록(규칙 + 경비원)도 돌려준다."""
     _require_run(db, run_id)
     profile = _require_profile()
     ctx = classify.load_context(db, run_id)
-    return ctx, foreman.judge(ctx, rule_candidates(db, run_id, ctx["recipes"]), profile, classify.load_model())
+    hits = rule_candidates(db, run_id, ctx["recipes"])
+    incidents = foreman.judge(ctx, hits, profile, classify.load_model())
+    if not with_candidates:
+        return ctx, incidents
+    return ctx, incidents, hits + anomaly.detect_anomaly(run_id, ctx["parts"], ctx["sensors"], profile)
 
 
 @router.get("/runs/{run_id}/incidents")
 def list_incidents(run_id: str, db: Session = Depends(get_db)):
-    """이 런의 사건 목록과 이미 쓴 반장 보고서."""
-    _, incidents = _incidents(db, run_id)
+    """이 런의 사건 목록과 이미 쓴 반장 보고서. 화면의 쉬운 요약을 위해 첫 경보 수치, 조치, 관련 설비 알람도 붙인다
+    (실시간 감시의 경보와 같은 모양). LLM에게 가는 내용은 바뀌지 않는다."""
+    _, incidents, candidates = _incidents(db, run_id, with_candidates=True)
+    alarms = [{"code": a["code"], "ts": a["set_ts"], "message": a["message"]} for a in handover.load_alarms(db, run_id)]
+    for incident in incidents:
+        incident.update(live.extras(incident, candidates, alarms))
     saved = db.execute(text("""
         SELECT detected_at, predicted_cause, report, evidence, model, created_at FROM analysis_results
         WHERE run_id = :r AND method = 'foreman'

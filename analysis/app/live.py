@@ -161,8 +161,6 @@ def analyze(live, profile, model):
     guard = anomaly.detect_anomaly(live.run_id, live.parts, live.sensors, profile)
     alerts = []
     for incident in foreman.judge(ctx, rule_hits, profile, model, fixed_at(live)):
-        related = RELATED_ALARMS.get(incident["cause"], set())
-        alarm = next((a for a in live.alarms if a["code"] in related and a["ts"] >= incident["started_at"]), None)
         alerts.append({
             "started_at": incident["started_at"].isoformat(),
             "last_at": incident["last_at"].isoformat(),
@@ -172,10 +170,20 @@ def analyze(live, profile, model):
             "rule_names": incident["rule_names"],
             "guard_values": incident["guard_values"],
             "tree_guess": incident.get("tree_guess"),
-            "evidence": first_evidence(rule_hits + guard, incident),
-            "actions": manual.actions_from_file(incident["cause"]),
             "recheck_after_clean": incident["cause"] == "nozzle_clog",
-            "first_alarm": alarm and {"code": alarm["code"], "message": alarm["message"], "at": alarm["ts"].isoformat()},
-            "lead_min": alarm and round((alarm["ts"] - incident["started_at"]).total_seconds() / 60, 1),
+            **extras(incident, rule_hits + guard, live.alarms),
         })
     return alerts
+
+
+def extras(incident, candidates, alarms):
+    """화면이 사건을 쉬운 말로 풀어 쓸 때 쓰는 것: 첫 경보가 본 수치, 안내서의 조치, 뒤따른 관련 설비 알람.
+    실시간 감시와 분석 탭이 같이 쓴다. alarms: code, ts, message가 있는 알람 목록 (시각 순서)."""
+    related = RELATED_ALARMS.get(incident["cause"], set())
+    alarm = next((a for a in alarms if a["code"] in related and a["ts"] >= incident["started_at"]), None)
+    return {
+        "evidence": first_evidence(candidates, incident),
+        "actions": manual.actions_from_file(incident["cause"]),
+        "first_alarm": alarm and {"code": alarm["code"], "message": alarm["message"], "at": alarm["ts"].isoformat()},
+        "lead_min": alarm and round((alarm["ts"] - incident["started_at"]).total_seconds() / 60, 1),
+    }

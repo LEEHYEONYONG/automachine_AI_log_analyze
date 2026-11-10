@@ -1,6 +1,7 @@
 import { tr } from "../prefs";
 import { Fragment, useState } from "react";
 import { evidenceText, time } from "./evidence";
+import { plainBasis, plainText, runName, TERM } from "./plain";
 import { Report } from "./Report";
 import { useWatch } from "./useWatch";
 
@@ -13,7 +14,7 @@ async function writeLiveReport(runId, at) {
     throw new Error(body.detail ?? `${what} (${res.status})`);
   };
   const loaded = await fetch(`${API}/runs/${runId}/ingest`, { method: "POST" });
-  if (!loaded.ok) await fail(loaded, tr("지금 런을 적재하지 못했습니다"));
+  if (!loaded.ok) await fail(loaded, tr("지금 런을 불러오지 못했습니다"));
   const res = await fetch(`${API}/runs/${runId}/incidents/report?at=${encodeURIComponent(at)}`, { method: "POST" });
   if (!res.ok) await fail(res, tr("보고서를 쓰지 못했습니다"));
   return res.json();
@@ -28,7 +29,7 @@ function leadText(alert) {
 }
 
 function evidenceLine(alert) {
-  return alert.evidence ? evidenceText(alert.evidence.type, alert.evidence.data) : alert.basis;
+  return alert.evidence ? plainText(evidenceText(alert.evidence.type, alert.evidence.data)) : plainBasis(alert.basis);
 }
 
 /** A strip under the header on every tab. Shows the newest AI alert until it is dismissed or a newer one arrives. */
@@ -87,11 +88,11 @@ export function LivePanel() {
   return (
     <section className="panel">
       <h2>
-        {tr("실시간 감시")} · <span className="mono">{watch.run_id ?? "-"}</span>
+        {tr("실시간 감시")} · {watch.run_id ? runName(watch.run_id) : "-"}
       </h2>
       <p className="hint">
-        {tr("지금 돌고 있는 런의 기록을 몇 초마다 이어 읽어 규칙, 경비원, 분류, 판단 코드를 돌립니다. 그 시점까지의 기록만 쓰므로, 노즐 막힘은 청소한 뒤")}
-        {tr("온도 센서로 바뀔 수 있습니다. 장비 시각 {a}", { a: watch.sim_time ? time(watch.sim_time) : "-" })}
+        {tr("지금 가동 중인 장비의 기록을 1초마다 이어 읽어 {a}·{b}·{c}·{d}를 합니다. 그 시점까지의 기록만 쓰므로, 노즐 막힘은 노즐을 청소한 뒤에야 온도 센서 문제로 바뀔 수 있습니다.", { a: TERM.rule, b: TERM.anomaly, c: TERM.classify, d: TERM.decide })}{" "}
+        {tr("장비 시각 {a}", { a: watch.sim_time ? time(watch.sim_time) : "-" })}
         {watch.sim_speed ? tr(" · 속도 ×{a}", { a: watch.sim_speed }) : ""}
       </p>
       {watch.status === "error" && <p className="hint analysis-error">{tr("감시 오류: {a}", { a: watch.error })}</p>}
@@ -104,11 +105,11 @@ export function LivePanel() {
             <thead>
               <tr>
                 <th>{tr("경보 시각")}</th>
-                <th>{tr("원인 (코드 판단)")}</th>
+                <th>{TERM.decide}</th>
                 <th>{tr("근거")}</th>
-                <th>{tr("조치 (안내서)")}</th>
+                <th>{tr("할 일 (조치 매뉴얼)")}</th>
                 <th>{tr("설비 알람")}</th>
-                <th>{tr("반장 보고서")}</th>
+                <th>{TERM.report}</th>
               </tr>
             </thead>
             <tbody>
@@ -120,11 +121,11 @@ export function LivePanel() {
                   <td className="mono">{time(a.started_at)}</td>
                   <td>
                     {a.cause_label}
-                    <div className="muted small">{tr(a.basis)}</div>
-                    {a.recheck_after_clean && <div className="muted small">{tr("청소 후 폭으로 다시 판단")}</div>}
+                    <div className="muted small">{plainBasis(a.basis)}</div>
+                    {a.recheck_after_clean && <div className="muted small">{tr("노즐 청소 뒤 비드 폭을 보고 다시 판정합니다")}</div>}
                   </td>
                   <td className="detail">{evidenceLine(a)}</td>
-                  <td className="detail">{a.actions?.steps ?? "-"}</td>
+                  <td className="detail">{a.actions?.steps ? plainText(a.actions.steps) : "-"}</td>
                   <td>
                     {a.first_alarm ? (
                       <>

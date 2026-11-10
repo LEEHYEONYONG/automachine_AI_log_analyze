@@ -159,7 +159,7 @@ function Plot({ plot, data, marks, width, hoverIdx, onHover, showLabels }) {
             </strong>
             <span className="muted">
               {time(hp.t)}
-              {hp[`${plot.key}_band`] && ` · ${tr("평소")} ${hp[`${plot.key}_band`][0].toFixed(1)}~${hp[`${plot.key}_band`][1].toFixed(1)}`}
+              {hp[`${plot.key}_band`] && ` · ${tr("정상")}${hp[`${plot.key}_band`][0].toFixed(1)}~${hp[`${plot.key}_band`][1].toFixed(1)}`}
             </span>
           </div>
         )}
@@ -204,7 +204,7 @@ export function IncidentChart({ runId, at, until }) {
         <>
           <div className="chart-legend small">
             <span className="legend-line">{tr("토출 중 값 ({a}초 중앙값)", { a: data.step_s })}</span>
-            <span className="legend-band">{tr("평소 범위 (경비원 기준 ±3σ)")}</span>
+            <span className="legend-band">{tr("정상 범위 (이상 감지 기준)")}</span>
             <span className="legend-ai">{tr("AI 경보")}</span>
             <span className="legend-alarm">{tr("설비 알람")}</span>
             <span className="legend-maint">{tr("정비")}</span>

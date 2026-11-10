@@ -51,7 +51,7 @@ const EN_PATTERNS = [
   [/^규칙 경보가 없고 분류 모델도 확신하지 못함$/, () => "no rule alert and the classifier is not sure"],
   // shift handover facts (analysis/app/handover.py facts)
   [/^AI 경보: (\d\d:\d\d)부터 (.+) 의심 \(코드 판단\)\.( 교대 끝까지 경보가 이어져 다음 조가 확인해야 한다\.)?$/,
-    (m) => `AI alert: ${en(m[2])} suspected from ${m[1]} (code decision).${m[3] ? " Still alerting at the end of the shift; the next shift must check it." : ""}`],
+    (m) => `AI alert: ${en(m[2])} suspected from ${m[1]} (cause decision).${m[3] ? " Still alerting at the end of the shift; the next shift must check it." : ""}`],
   [/^알람 (E\d{4}) (.+) (\d+)회 \((.+)\)\.$/, (m) => `Alarm ${m[1]} ${m[2]} ${m[3]}× (${m[4].replace(" 등", " …")}).`],
   [/^정비: (.+) (\d+)회\.$/, (m) => `Maintenance: ${en(m[1])} ${m[2]}×.`],
   [/^설정 변경: (\d\d:\d\d) (.+) (\S+) → (\S+) \(표준 (.+)\)\.$/, (m) => `Setting change: ${m[1]} ${en(m[2])} ${m[3]} → ${m[4]} (standard ${m[5]}).`],

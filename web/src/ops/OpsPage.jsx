@@ -1,4 +1,5 @@
 import { localized, tr } from "../prefs";
+import { FAULT_LABEL } from "../labels";
 import { useEffect, useRef, useState } from "react";
 
 // The operations API only exists on k8s; under Compose this path reaches the simulator, which answers 404.
@@ -214,7 +215,7 @@ function StoragePanel({ storage, error }) {
               <span className="mono">{size(logs.size_mib)}</span> · {tr("런 {a}개", { a: logs.runs })}
             </p>
           )}
-          <p className="hint ops-spec">{tr("시뮬레이터를 재시작할 때마다 새 런이 쌓입니다. 자동으로 지우지 않습니다.")}</p>
+          <p className="hint ops-spec">{tr("시뮬레이터를 다시 시작할 때마다 새 런이 쌓입니다. 자동으로 지우지 않습니다.")}</p>
         </div>
         <div className="ops-card">
           <h3>
@@ -334,7 +335,9 @@ function DeploymentsPanel({ data, error, onAction }) {
   );
 }
 
-const METHOD_NAME = localized({ rule: "규칙", anomaly: "경비원 (이름 없음)", classify: "경비원 + 분류" });
+const METHOD_NAME = localized({ rule: "패턴 검사", anomaly: "이상 감지 (고장 이름 없음)", classify: "이상 감지 + 유형 추정" });
+// Scenario and fault names come as code names (nozzle_clog); show them as the HMI does.
+const faultLabel = (name) => (name === "normal" ? tr("정상 (고장 없음)") : FAULT_LABEL[name] ?? name);
 const JOB_TONE = localized({ 성공: "ok", "실행 중": "warn", 대기: "warn", 실패: "ng" });
 
 function ratio(a, b) {
@@ -361,8 +364,8 @@ function ScoresPanel({ data, error, onRun }) {
         </button>
       </div>
       <p className="hint">
-        {tr("매일 {a}에 처음 보는 런 3개를 새로 만들어 적재하고 채점합니다.", { a: dailyTime(schedule.schedule) })}
-        {schedule.catch_up_s > 0 && tr(" 그때 k3s가 꺼져 있었으면 {a}시간 안에 k3s를 켜는 순간 한 번 실행됩니다.", { a: Math.round(schedule.catch_up_s / 3600) })} {tr("원인은 코드가 정하므로 LLM은 채점에 쓰지 않습니다.")}
+        {tr("매일 {a}에 고장을 넣은 새 런 3개를 만들어 AI에게 분석시키고, 넣은 고장(정답)과 비교해 채점합니다. AI는 이 기록을 처음 봅니다.", { a: dailyTime(schedule.schedule) })}
+        {schedule.catch_up_s > 0 && tr(" 그때 k3s가 꺼져 있었으면 {a}시간 안에 k3s를 켜는 순간 한 번 실행됩니다.", { a: Math.round(schedule.catch_up_s / 3600) })} {tr("원인은 원인 판정 코드가 정하므로 채점에 LLM을 쓰지 않습니다.")}
       </p>
       {schedule.error && <p className="hint analysis-error">{schedule.error}</p>}
       {job && (
@@ -382,7 +385,7 @@ function ScoresPanel({ data, error, onRun }) {
                 <tr>
                   <th>{tr("방법")}</th>
                   <th>{tr("찾은 고장")}</th>
-                  <th>{tr("오탐")}</th>
+                  <th title={tr("고장이 없는데 울린 경보")}>{tr("오탐")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -397,7 +400,7 @@ function ScoresPanel({ data, error, onRun }) {
             </table>
           </div>
           <p className="small">
-            {tr("사건 {a}개의 원인: 코드 판단 {b}개, 규칙의 첫 이름 {c}개 맞힘", { a: totals.cause.incidents, b: totals.cause.decision, c: totals.cause.rule_first })}
+            {tr("이상 {a}건의 원인: 원인 판정 {b}건, 패턴 검사의 첫 결과 {c}건 맞힘", { a: totals.cause.incidents, b: totals.cause.decision, c: totals.cause.rule_first })}
           </p>
           <h3 className="ops-subhead">{tr("날짜별")}</h3>
           <div className="table-wrap">
@@ -405,10 +408,10 @@ function ScoresPanel({ data, error, onRun }) {
               <thead>
                 <tr>
                   <th>{tr("날짜")}</th>
-                  <th>{tr("시나리오")}</th>
-                  <th>{tr("규칙")}</th>
-                  <th>{tr("경비원")}</th>
-                  <th>{tr("원인 (코드)")}</th>
+                  <th>{tr("넣은 고장")}</th>
+                  <th>{tr("패턴 검사")}</th>
+                  <th>{tr("이상 감지")}</th>
+                  <th>{tr("원인 판정")}</th>
                   <th>{tr("놓친 고장")}</th>
                 </tr>
               </thead>
@@ -416,7 +419,7 @@ function ScoresPanel({ data, error, onRun }) {
                 {days.map((d) => (
                   <tr key={d.day}>
                     <td className="mono">{d.day}</td>
-                    <td className="small">{d.scenarios.join(", ")}</td>
+                    <td className="small">{d.scenarios.map(faultLabel).join(", ")}</td>
                     <td className="mono">
                       {tr("{a} · 오탐 {b}", { a: ratio(d.detection.rule.found, d.detection.rule.total), b: d.detection.rule.false_alarms })}
                     </td>
@@ -424,7 +427,7 @@ function ScoresPanel({ data, error, onRun }) {
                       {tr("{a} · 오탐 {b}", { a: ratio(d.detection.anomaly.found, d.detection.anomaly.total), b: d.detection.anomaly.false_alarms })}
                     </td>
                     <td className="mono">{ratio(d.cause.decision, d.cause.incidents)}</td>
-                    <td className="small">{Object.keys(d.detection.rule.missed).join(", ") || "-"}</td>
+                    <td className="small">{Object.keys(d.detection.rule.missed).map(faultLabel).join(", ") || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -451,7 +454,7 @@ const ACTION_TEXT = {
   }),
   score: () => ({
     title: tr("지금 채점할까요?"),
-    text: tr("오늘 날짜의 런 3개를 만들고(이미 있으면 그대로 사용) 적재한 뒤 채점합니다. 1분쯤 걸립니다."),
+    text: tr("오늘 날짜의 런 3개를 만들고(이미 있으면 그대로 사용) DB에 넣은 뒤 채점합니다. 1분쯤 걸립니다."),
     confirm: tr("채점 시작"),
   }),
 };

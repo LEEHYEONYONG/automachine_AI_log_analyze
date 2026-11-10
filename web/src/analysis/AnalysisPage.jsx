@@ -1,9 +1,11 @@
-import { localized, tr } from "../prefs";
+import { tr } from "../prefs";
 import { useEffect, useState } from "react";
 import { anomalyText, evidenceText, FEATURE, faultName, time } from "./evidence";
 import { HandoverPanel } from "./Handover";
 import { IncidentChart } from "./IncidentChart";
 import { LivePanel } from "./LiveWatch";
+import { Glossary, IncidentSummary } from "./PlainSummary";
+import { runName, TERM, TERM_HELP } from "./plain";
 import { Report } from "./Report";
 
 // The analysis API runs in its own container; Vite proxies /api/analysis to it.
@@ -11,12 +13,7 @@ const API = "/api/analysis";
 // Repeats of the same fault within this many minutes are shown as one row (same as eval/README.md).
 const GROUP_MIN = 60;
 
-const METHOD_LABEL = localized({ rule: "규칙", anomaly: "경비원", classify: "분류" });
-const METHOD_HINT = localized({
-  rule: "규칙은 고장 이름까지 알려 주지만, 규칙을 만들어 둔 고장만 찾습니다.",
-  anomaly: "경비원은 정상 구간에서 배운 평소 모습과 다른 값을 알려 줍니다. 처음 보는 고장도 찾지만, 고장 이름은 모릅니다.",
-  classify: "분류는 경비원이 울린 순간의 값을 보고 지금까지의 예시에서 배운 고장 이름을 고릅니다. 규칙보다 자주 틀리므로 참고용입니다.",
-});
+const METHODS = ["rule", "anomaly", "classify"];
 
 function groupRepeats(candidates) {
   const rows = [];
@@ -75,30 +72,21 @@ function ForemanPanel({ runId }) {
 
   return (
     <section className="panel">
-      <h2>{tr("반장 보고서")}</h2>
+      <h2>{tr("이상 건과 원인 판정")}</h2>
       <p className="hint">
-        {tr("규칙과 경비원의 경보를 사건으로 묶어 코드가 원인을 정합니다. AI는 기록을 조회해 근거를 설명할 뿐 원인을 바꾸지 못하고, 조치는 안내서에서")}
-        {tr("가져옵니다. 보고서는 한 건에 1분 안팎 걸립니다.")}
+        {tr("가까운 시각에 울린 경보를 이상 건 하나로 묶고, 코드가 정해진 순서로 원인을 판정합니다. \"보고서 쓰기\"를 누르면 AI(LLM)가 기록을 찾아보고 판정의 근거를 글로 씁니다. AI는 원인을 바꾸지 못하고, 할 일은 조치 매뉴얼에서 가져옵니다. 보고서는 한 건에 1분 안팎 걸립니다.")}
       </p>
       {error && <p className="hint analysis-error">{error}</p>}
-      {incidents === null && !error && <p className="hint">{tr("사건을 찾는 중…")}</p>}
+      {incidents === null && !error && <p className="hint">{tr("이상 건을 찾는 중…")}</p>}
       {incidents?.length === 0 && <p className="hint">{tr("이 런에는 경보가 없습니다.")}</p>}
       {incidents?.map((i) => (
         <div className="incident" key={i.started_at}>
           <div className="incident-head">
             <div>
-              <div>
-                <span className="mono">
-                  {time(i.started_at)} ~ {time(i.last_at)}
-                </span>{" "}
-                <strong>{faultName(i.cause)}</strong>
-              </div>
-              <div className="small">{tr(i.basis)}</div>
-              <div className="small muted">
-                {tr("규칙")}: {i.rule_names.map(faultName).join(", ") || tr("없음")} · {tr("경비원")}:{" "}
-                {i.guard_values.map((v) => FEATURE[v].label).join(", ") || tr("없음")} · {tr("분류")}:{" "}
-                {i.tree_guess ? faultName(i.tree_guess) : tr("없음")}
-              </div>
+              <span className="mono">
+                {time(i.started_at)} ~ {time(i.last_at)}
+              </span>{" "}
+              <strong>{faultName(i.cause)}</strong>
             </div>
             <div className="incident-buttons">
               <button className="btn btn-secondary" aria-expanded={!!charts[i.started_at]} onClick={() => setCharts((c) => ({ ...c, [i.started_at]: !c[i.started_at] }))}>
@@ -109,6 +97,7 @@ function ForemanPanel({ runId }) {
               </button>
             </div>
           </div>
+          <IncidentSummary incident={i} />
           {charts[i.started_at] && <IncidentChart runId={runId} at={i.started_at} until={i.last_at} />}
           {i.report && <Report report={i.report} />}
         </div>
@@ -155,22 +144,23 @@ export function AnalysisPage() {
 
   return (
     <main className="console">
+      <Glossary />
       <LivePanel />
       <section className="panel">
-        <h2>{tr("AI 분석")}</h2>
-        <p className="hint">{METHOD_HINT[method]}</p>
+        <h2>{tr("지난 런 분석")}</h2>
+        <p className="hint">{TERM_HELP[method]}</p>
         <div className="form-row">
-          <select value={runId} onChange={(e) => setRunId(e.target.value)}>
+          <select value={runId} onChange={(e) => setRunId(e.target.value)} aria-label={tr("런")} title={tr("런")}>
             {runs.map((r) => (
               <option key={r.run_id} value={r.run_id}>
-                {r.run_id}
+                {runName(r.run_id)}
               </option>
             ))}
           </select>
-          <select value={method} onChange={(e) => setMethod(e.target.value)}>
-            {Object.entries(METHOD_LABEL).map(([value, label]) => (
+          <select value={method} onChange={(e) => setMethod(e.target.value)} aria-label={tr("분석 방법")}>
+            {METHODS.map((value) => (
               <option key={value} value={value}>
-                {label}
+                {TERM[value]}
               </option>
             ))}
           </select>
@@ -184,11 +174,11 @@ export function AnalysisPage() {
       {result && (
         <section className="panel">
           <h2>
-            {tr("{a} 결과", { a: METHOD_LABEL[result.method] })} · <span className="mono">{result.run_id}</span>
+            {tr("{a} 결과", { a: TERM[result.method] })} · {runName(result.run_id)}
           </h2>
           {rows.length === 0 ? (
             <p className="hint">
-              {isAnomaly || isClassify ? tr("경비원이 평소와 다른 값을 찾지 못했습니다.") : tr("규칙이 찾은 고장 후보가 없습니다.")}
+              {isAnomaly || isClassify ? tr("정상 범위를 벗어난 값이 없습니다.") : tr("알려진 고장 패턴과 일치하는 기록이 없습니다.")}
             </p>
           ) : (
             <div className="table-wrap">
@@ -196,7 +186,7 @@ export function AnalysisPage() {
                 <thead>
                   <tr>
                     <th>{tr("탐지 시각")}</th>
-                    <th>{isAnomaly ? tr("평소와 다른 값") : tr("고장 종류")}</th>
+                    <th>{isAnomaly ? tr("정상 범위를 벗어난 값") : tr("고장 종류")}</th>
                     <th>{tr("근거")}</th>
                   </tr>
                 </thead>
@@ -210,7 +200,7 @@ export function AnalysisPage() {
                       </td>
                       <td className="detail">
                         {isClassify &&
-                          tr("{a} 경보, {b} 예시와 {c}% 일치 · ", { a: FEATURE[r.evidence.feature].label, b: faultName(r.evidence.best_guess), c: Math.round(r.confidence * 100) })}
+                          tr("{a} 이상 → 지난 {b} 사례와 {c}% 비슷 · ", { a: FEATURE[r.evidence.feature].label, b: faultName(r.evidence.best_guess), c: Math.round(r.confidence * 100) })}
                         {isAnomaly || isClassify ? anomalyText(r.evidence) : evidenceText(r.fault_type, r.evidence)}
                       </td>
                     </tr>
