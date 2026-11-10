@@ -1,6 +1,7 @@
 import { tr } from "../prefs";
 import { useEffect, useState } from "react";
 import { time } from "./evidence";
+import { plainText } from "./plain";
 
 const API = "/api/analysis";
 
@@ -65,12 +66,11 @@ export function HandoverPanel({ runId }) {
     <section className="panel">
       <h2>{tr("교대 인수인계")}</h2>
       <p className="hint">
-        {tr("전체 기록은 코드가 빠짐없이 모읍니다. AI는 그 기록만 보고 다음 조가 먼저 읽을 요약과 할 일을 씁니다. 지어낸 수치가 있거나 중요 항목이")}
-        {tr("빠지면 코드가 표시합니다.")}
+        {tr("전체 기록은 프로그램이 장비 기록에서 빠짐없이 모읍니다. AI(LLM)는 그 기록만 보고 다음 조가 먼저 읽을 요약과 할 일을 씁니다. 기록에 없는 수치를 쓰거나 중요한 항목을 빠뜨리면 빨간 글씨로 표시합니다.")}
       </p>
       {error && <p className="hint analysis-error">{error}</p>}
       {shifts === null && !error && <p className="hint">{tr("기록을 모으는 중…")}</p>}
-      {shifts?.length === 0 && <p className="hint">{tr("이 런에는 1시간 넘게 돈 교대가 없습니다.")}</p>}
+      {shifts?.length === 0 && <p className="hint">{tr("이 런에는 1시간 넘게 일한 교대가 없습니다.")}</p>}
       {shifts?.map((s) => {
         const result = summaries[s.shift];
         const open = s.facts.filter((f) => f.open);
@@ -95,7 +95,7 @@ export function HandoverPanel({ runId }) {
                 <h4>{tr("요약 (AI)")}</h4>
                 <ul>
                   {result.summary.map((line) => (
-                    <li key={line}>{line}</li>
+                    <li key={line}>{plainText(line)}</li>
                   ))}
                 </ul>
                 {result.todo.length > 0 && (
@@ -103,7 +103,7 @@ export function HandoverPanel({ runId }) {
                     <h4>{tr("다음 조 할 일 (AI)")}</h4>
                     <ul>
                       {result.todo.map((line) => (
-                        <li key={line}>{line}</li>
+                        <li key={line}>{plainText(line)}</li>
                       ))}
                     </ul>
                   </>
@@ -112,12 +112,12 @@ export function HandoverPanel({ runId }) {
               </div>
             )}
             <details open={!result}>
-              <summary>{tr("전체 기록 (코드)")}</summary>
+              <summary>{tr("전체 기록 (자동 수집)")}</summary>
               <ul className="handover-facts">
                 {s.facts.map((f) => (
                   <li key={f.text} className={f.open ? "analysis-error" : undefined}>
                     {f.open && tr("[이어 볼 일] ")}
-                    {tr(f.text)}
+                    {plainText(tr(f.text))}
                   </li>
                 ))}
               </ul>
