@@ -27,7 +27,7 @@ function FactoryLighting() {
   );
 }
 
-export function Scene({ state, covers, view, effects }) {
+export function Scene({ state, covers, view, effects, fault }) {
   const running = state.mode === "RUNNING" && !state.sim.paused;
   const speed = state.sim.speed;
   return (
@@ -55,7 +55,7 @@ export function Scene({ state, covers, view, effects }) {
       <ConveyorLine m={state} running={running} speed={speed} />
       {state.stations.map((s) => {
         const Comp = STATION_COMPONENTS[s.name];
-        return Comp ? <Comp key={s.name} station={s} m={state} running={running} speed={speed} /> : null;
+        return Comp ? <Comp key={s.name} station={s} m={state} running={running} speed={speed} fault={fault} /> : null;
       })}
       <SignalTower mode={state.mode} />
       <HmiPendant mode={state.mode} />
