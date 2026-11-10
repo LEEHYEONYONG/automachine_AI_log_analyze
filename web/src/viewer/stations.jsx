@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { DoubleSide, MathUtils } from "three";
 
 import { Box, CableChain, Cyl, Hose, LinearRail, ServoMotor, Syringe, TrayStack } from "./details";
+import { FaultMarker } from "./FaultHighlight";
 import {
   BACK_Z,
   BELT_TOP,
@@ -213,7 +214,7 @@ export function Vision3D({ station, m, running, speed }) {
   );
 }
 
-export function Dispenser3D({ station, m, running, speed }) {
+export function Dispenser3D({ station, m, running, speed, fault }) {
   const p = useStepClock(station, running, speed);
   const part = useRef(null);
   const bridge = useRef(null);
@@ -292,6 +293,7 @@ export function Dispenser3D({ station, m, running, speed }) {
     <group position={[STATION_X.DISPENSER, 0, 0]}>
       <StationBase station={station} x={0} />
       <LiftUnit level={level} cups vacuum={(manualDevice(m, "DISP_FIXTURE_VAC") ?? 0) >= 1 || m.fixture_vacuum_on} />
+      <FaultMarker fault={fault} device="fixture" radius={0.34} flat={0.3} position={[0, 0.14, 0]} />
 
       {/* dispensing controller with its air line */}
       <group position={[-0.8, 0, -2.2]}>
@@ -304,6 +306,7 @@ export function Dispenser3D({ station, m, running, speed }) {
           <Cyl key={x} r={0.025} h={0.03} position={[x, 0.2, 0.215]} rotation={[Math.PI / 2, 0, 0]} mat="black" />
         ))}
         <Hose points={[[0.3, 0.3, 0], [0.55, 0.45, 0.1], [0.75, 0.6, 0.25]]} radius={0.015} />
+        <FaultMarker fault={fault} device="controller" radius={0.45} position={[0, 0.18, 0]} />
       </group>
 
       {/* weigh scale with a draft shield */}
@@ -346,6 +349,9 @@ export function Dispenser3D({ station, m, running, speed }) {
           <group ref={head} position={[0, HOME_Y, 0]}>
             <Box size={[0.08, 0.14, 0.12]} position={[0, 0.24, -0.1]} mat="aluDark" />
             <Syringe level={m.syringe_level_pct / 100} valveOpen={m.dispenser_valve_open} />
+            {/* inside the head, so the highlight rides along while the needle dispenses */}
+            <FaultMarker fault={fault} device="needle" radius={0.12} position={[0, 0.05, 0]} />
+            <FaultMarker fault={fault} device="syringe" radius={0.2} position={[0, 0.5, 0]} />
             <Box size={[0.07, 0.13, 0.08]} position={[0.14, 0.2, 0]} mat="black" />
             <mesh position={[0.14, 0.13, 0]} rotation={[Math.PI / 2, 0, 0]}>
               <planeGeometry args={[0.04, 0.04]} />

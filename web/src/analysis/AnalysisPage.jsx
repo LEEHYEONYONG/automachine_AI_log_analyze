@@ -2,6 +2,7 @@ import { localized, tr } from "../prefs";
 import { useEffect, useState } from "react";
 import { anomalyText, evidenceText, FEATURE, faultName, time } from "./evidence";
 import { HandoverPanel } from "./Handover";
+import { IncidentChart } from "./IncidentChart";
 import { LivePanel } from "./LiveWatch";
 import { Report } from "./Report";
 
@@ -40,6 +41,8 @@ function ForemanPanel({ runId }) {
   const [incidents, setIncidents] = useState(null);
   const [writing, setWriting] = useState(null);
   const [error, setError] = useState(null);
+  // Which incidents have their pressure/vacuum graph open. Closed by default so the list stays short.
+  const [charts, setCharts] = useState({});
 
   useEffect(() => {
     let current = true;
@@ -97,10 +100,16 @@ function ForemanPanel({ runId }) {
                 {i.tree_guess ? faultName(i.tree_guess) : tr("없음")}
               </div>
             </div>
-            <button className="btn" disabled={writing !== null} onClick={() => write(i.started_at)}>
-              {writing === i.started_at ? tr("작성 중…") : i.report ? tr("다시 쓰기") : tr("보고서 쓰기")}
-            </button>
+            <div className="incident-buttons">
+              <button className="btn btn-secondary" aria-expanded={!!charts[i.started_at]} onClick={() => setCharts((c) => ({ ...c, [i.started_at]: !c[i.started_at] }))}>
+                {charts[i.started_at] ? tr("그래프 닫기") : tr("압력·진공 그래프")}
+              </button>
+              <button className="btn" disabled={writing !== null} onClick={() => write(i.started_at)}>
+                {writing === i.started_at ? tr("작성 중…") : i.report ? tr("다시 쓰기") : tr("보고서 쓰기")}
+              </button>
+            </div>
           </div>
+          {charts[i.started_at] && <IncidentChart runId={runId} at={i.started_at} until={i.last_at} />}
           {i.report && <Report report={i.report} />}
         </div>
       ))}

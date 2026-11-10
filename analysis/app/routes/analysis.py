@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from ..config import LOGS_DIR
 from ..database import engine, get_db
-from .. import anomaly, classify, foreman, handover, ingest, rules
+from .. import anomaly, classify, foreman, handover, ingest, rules, trend
 
 router = APIRouter(
     prefix="/api/analysis",
@@ -128,6 +128,36 @@ def list_incidents(run_id: str, db: Session = Depends(get_db)):
         s = by_time.get(incident["started_at"])
         incident["report"] = _saved_view(s) if s else None
     return {"run_id": run_id, "incidents": incidents}
+
+
+@router.get("/runs/{run_id}/trend")
+def incident_trend(run_id: str, at: datetime, until: datetime, db: Session = Depends(get_db)):
+    """사건 하나의 그래프: 첫 경보(at) 60분 전부터 마지막 경보(until) 20분 뒤까지 토출 중 압력·진공,
+    경비원의 평소 범위, 그 구간의 설비 알람과 정비 기록. LLM은 쓰지 않는다."""
+    _require_run(db, run_id)
+    start, end = trend.window(at, until)
+    span = {"r": run_id, "a": start, "b": end}
+    samples = db.execute(text("""
+        SELECT ts, mode, disp_valve_open, disp_pressure_kpa, fixture_vac_kpa FROM sensor_trend
+        WHERE run_id = :r AND ts >= :a AND ts < :b ORDER BY ts
+    """), span).mappings().all()
+    # 구간 앞에서 시작한 제품의 레시피도 알아야 하므로 앞쪽은 하루 전까지 본다
+    parts = db.execute(text("""
+        SELECT start_time, recipe FROM production
+        WHERE run_id = :r AND start_time >= CAST(:a AS timestamp) - interval '1 day' AND start_time < :b
+        ORDER BY start_time
+    """), span).mappings().all()
+    alarms = db.execute(text("""
+        SELECT code, set_ts, message FROM alarms WHERE run_id = :r AND set_ts >= :a AND set_ts < :b ORDER BY set_ts
+    """), span).mappings().all()
+    maintenance = db.execute(text("""
+        SELECT ts, attrs->>'action' AS action FROM events
+        WHERE run_id = :r AND unit = 'MAINT' AND message LIKE 'Maintenance done%' AND ts >= :a AND ts < :b ORDER BY ts
+    """), span).mappings().all()
+    return {"run_id": run_id, **trend.build(samples, parts, start, end, anomaly.load_profile()),
+            "alarms": [{"code": a["code"], "at": a["set_ts"].isoformat(timespec="seconds"), "message": a["message"]}
+                       for a in alarms],
+            "maintenance": [{"action": m["action"], "at": m["ts"].isoformat(timespec="seconds")} for m in maintenance]}
 
 
 def _shifts(db, run_id):
