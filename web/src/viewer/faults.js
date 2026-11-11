@@ -29,13 +29,14 @@ export const DEVICE_LABEL = localized({
   controller: "디스펜서 컨트롤러·에어",
 });
 
-// An alert stays on the model until this long after its last evidence (equipment time), so a fixed fault fades out.
+// Without a recorded fix, an alert stays on the model until this long after its last evidence (equipment time).
 const SHOW_MIN = 30;
 
-/** The newest live alert that still has fresh evidence, and the part it points at. null if none. */
+/** The newest live alert that still has fresh evidence, and the part it points at. null if none.
+ *  An alert the watch marks settled (a fix was done and the evidence stopped) is gone at once. */
 export function activeFault(watch) {
   const alert = watch?.alerts?.at(-1);
-  if (!alert || !watch.sim_time) return null;
+  if (!alert || alert.settled || !watch.sim_time) return null;
   const age = (new Date(watch.sim_time) - new Date(alert.last_at)) / 60_000;
   if (age > SHOW_MIN) return null;
   const device = CAUSE_DEVICE[alert.cause] ?? alert.guard_values?.map((v) => GUARD_DEVICE[v]).find(Boolean);

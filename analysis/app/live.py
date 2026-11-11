@@ -153,6 +153,30 @@ def fixed_at(live):
     return sorted({c["checked_at"] for c in checks if c and c["recovered"]})
 
 
+# 고장을 고치는 조치가 아닌 정비. 제품을 빼거나 사람을 부른 것만으로는 경보를 거두지 않는다.
+NOT_A_FIX = {"remove_part", "empty_ng_buffer", "call_engineer"}
+# 조치 뒤 이만큼(장비 시간) 새 근거가 없으면 해결된 것으로 본다.
+# 10분 불량 수·10개 중앙값처럼 창을 쓰는 값은 조치 직후에도 몇 분 더 울리므로, 마지막 근거부터 센다.
+SETTLE_MIN = 5
+
+
+def fixed_by(live, incident):
+    """경보가 시작된 뒤 처음 한 조치 (정비 또는 레시피 수정). 없으면 None.
+    어떤 조치든 받는다: 엉뚱한 조치였다면 근거가 계속 나와 last_at이 밀리므로 settled가 되지 않는다."""
+    fixes = [(m["ts"], m["action"]) for m in live.maintenance if m["action"] not in NOT_A_FIX]
+    fixes += [(c["ts"], "recipe_change") for c in live.changes]
+    after = sorted(f for f in fixes if f[0] >= incident["started_at"])
+    return {"action": after[0][1], "at": after[0][0]} if after else None
+
+
+def settled(fix, incident, now):
+    """조치가 있었고, 조치와 마지막 근거 둘 다로부터 SETTLE_MIN이 지났으면 True. 화면은 이때 경보를 거둔다."""
+    if not fix or now is None:
+        return False
+    quiet_since = max(fix["at"], incident["last_at"])
+    return (now - quiet_since).total_seconds() / 60 >= SETTLE_MIN
+
+
 def analyze(live, profile, model):
     """지금까지 읽은 기록으로 사건과 원인을 정하고, 화면에 보낼 경보 목록을 만든다."""
     ctx = live.context()
@@ -160,8 +184,12 @@ def analyze(live, profile, model):
     from . import anomaly
     guard = anomaly.detect_anomaly(live.run_id, live.parts, live.sensors, profile)
     alerts = []
+    now = live.now()
     for incident in foreman.judge(ctx, rule_hits, profile, model, fixed_at(live)):
+        fix = fixed_by(live, incident)
         alerts.append({
+            "fixed_by": fix and {"action": fix["action"], "at": fix["at"].isoformat()},
+            "settled": settled(fix, incident, now),
             "started_at": incident["started_at"].isoformat(),
             "last_at": incident["last_at"].isoformat(),
             "cause": incident["cause"],

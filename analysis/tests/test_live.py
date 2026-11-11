@@ -78,5 +78,43 @@ class LeadTime(unittest.TestCase):
         self.assertIn("E3001", live.RELATED_ALARMS["vacuum_leak"])
 
 
+class Settled(unittest.TestCase):
+    """조치하고 근거가 멎으면 경보를 거둔다 (11/11 3D 화면에 청소 뒤에도 경보가 남던 것)."""
+
+    def setUp(self):
+        self.live = live.LiveRun("/nonexistent/20261111_0736_196575", {})
+        self.live.maintenance = [{"ts": t("40:00"), "action": "purge"},          # 경보 전 조치는 세지 않음
+                                 {"ts": t("42:30"), "action": "remove_part"},    # 고치는 조치가 아님
+                                 {"ts": t("42:42"), "action": "nozzle_clean"}]
+        self.incident = {"started_at": t("41:03"), "last_at": t("45:18")}
+
+    def test_first_fix_after_the_alert(self):
+        self.assertEqual(live.fixed_by(self.live, self.incident), {"action": "nozzle_clean", "at": t("42:42")})
+
+    def test_recipe_change_counts_as_fix(self):
+        self.live.maintenance = []
+        self.live.changes = [{"ts": t("43:00"), "attrs": {}}]
+        self.assertEqual(live.fixed_by(self.live, self.incident)["action"], "recipe_change")
+
+    def test_no_fix_never_settles(self):
+        self.live.maintenance = []
+        self.assertIsNone(live.fixed_by(self.live, self.incident))
+        self.assertFalse(live.settled(None, self.incident, t("59:00")))
+
+    def test_counts_from_last_evidence_not_the_fix(self):
+        fix = live.fixed_by(self.live, self.incident)
+        self.assertFalse(live.settled(fix, self.incident, t("50:00")))   # 마지막 근거 45:18에서 4.7분
+        self.assertTrue(live.settled(fix, self.incident, t("50:18")))
+
+    def test_evidence_after_a_wrong_fix_keeps_it_open(self):
+        fix = live.fixed_by(self.live, self.incident)
+        still = {**self.incident, "last_at": t("54:00")}                  # 조치 뒤에도 근거가 계속 나옴
+        self.assertFalse(live.settled(fix, still, t("55:00")))
+
+
+def t(mm_ss):
+    return datetime.fromisoformat(f"2026-11-11 07:{mm_ss}")
+
+
 if __name__ == "__main__":
     unittest.main()

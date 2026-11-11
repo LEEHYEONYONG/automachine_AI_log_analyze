@@ -1,5 +1,6 @@
 import { tr } from "../prefs";
 import { Fragment, useState } from "react";
+import { ACTION_LABEL } from "../labels";
 import { evidenceText, time } from "./evidence";
 import { plainBasis, plainText, runName, TERM } from "./plain";
 import { Report } from "./Report";
@@ -32,13 +33,23 @@ function evidenceLine(alert) {
   return alert.evidence ? plainText(evidenceText(alert.evidence.type, alert.evidence.data)) : plainBasis(alert.basis);
 }
 
-/** A strip under the header on every tab. Shows the newest AI alert until it is dismissed or a newer one arrives. */
+/** What the operator did after the alert, and whether the watch counts it as fixed. */
+function fixLine(alert) {
+  if (!alert.fixed_by) return null;
+  const { action, at } = alert.fixed_by;
+  const what = action === "recipe_change" ? tr("레시피 수정") : (ACTION_LABEL[action] ?? action);
+  return alert.settled
+    ? tr("{a} {b} 조치 뒤 정상", { a: what, b: time(at) })
+    : tr("{a} {b} 조치함 · 정상인지 확인 중", { a: what, b: time(at) });
+}
+
+/** A strip under the header on every tab. Shows the newest AI alert until it is dismissed, settled, or a newer one arrives. */
 export function LiveAlertBar({ onOpen }) {
   const watch = useWatch();
   const [hidden, setHidden] = useState(null);
   const alerts = watch?.alerts ?? [];
   const newest = alerts.at(-1);
-  if (!newest || hidden === `${watch.run_id}/${newest.started_at}`) return null;
+  if (!newest || newest.settled || hidden === `${watch.run_id}/${newest.started_at}`) return null;
   return (
     <div className="live-bar" role="status">
       <button className="live-bar-main" onClick={onOpen} title={tr("AI 분석 탭에서 경보 목록 보기")}>
@@ -123,6 +134,7 @@ export function LivePanel() {
                     {a.cause_label}
                     <div className="muted small">{plainBasis(a.basis)}</div>
                     {a.recheck_after_clean && <div className="muted small">{tr("노즐 청소 뒤 비드 폭을 보고 다시 판정합니다")}</div>}
+                    {a.fixed_by && <div className="small">{a.settled ? "✔ " : ""}{fixLine(a)}</div>}
                   </td>
                   <td className="detail">{evidenceLine(a)}</td>
                   <td className="detail">{a.actions?.steps ? plainText(a.actions.steps) : "-"}</td>
