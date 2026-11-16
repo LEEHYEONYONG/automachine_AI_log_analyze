@@ -64,6 +64,33 @@ echo "environment: $ENV"
 kubectl kustomize "k8s/overlays/$ENV" | sed "s#\(localhost:5000/automachine-[a-z]*\):dev#\1:$TAG#" | kubectl apply -f -
 kubectl -n automachine annotate deploy sim analysis web ops gpu-metrics watch kubernetes.io/change-cause="$TAG" --overwrite
 
+# The Tailscale Funnel address (https://<machine>.ts.net), only when .env has FUNNEL_HOST: the address belongs to this PC
+# and stays out of git. medi-info answers the same address, so k3s-switch turns off the sleeping project's Ingress
+# (ingressClassName) and only the awake one answers. No ingressClassName here, so a redeploy keeps what k3s-switch set.
+# /api/ops is listed so that it reaches ops, which refuses Funnel requests, instead of falling through to the simulator.
+if [ -n "${FUNNEL_HOST:-}" ]; then
+  kubectl apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: automachine-funnel
+  namespace: automachine
+spec:
+  rules:
+    - host: $FUNNEL_HOST
+      http:
+        paths:
+          - { path: /api/analysis/watch, pathType: Prefix, backend: { service: { name: watch,    port: { number: 8000 } } } }
+          - { path: /api/analysis,       pathType: Prefix, backend: { service: { name: analysis, port: { number: 8000 } } } }
+          - { path: /api/ops,            pathType: Prefix, backend: { service: { name: ops,      port: { number: 8000 } } } }
+          - { path: /api,                pathType: Prefix, backend: { service: { name: sim,      port: { number: 8000 } } } }
+          - { path: /ws,                 pathType: Prefix, backend: { service: { name: sim,      port: { number: 8000 } } } }
+          - { path: /,                   pathType: Prefix, backend: { service: { name: web,      port: { number: 8080 } } } }
+EOF
+else
+  kubectl -n automachine delete ingress automachine-funnel --ignore-not-found
+fi
+
 kubectl -n automachine rollout status statefulset/db --timeout=180s
 # The password is hex, so it is safe inside the SQL quotes.
 OPS_DB_PASS=$(kubectl -n automachine get secret ops-db -o jsonpath='{.data.password}' | base64 -d)
@@ -79,3 +106,7 @@ done
 # The foreman's manual search needs this. Ollama may be off; the rest of the site works without it.
 kubectl -n automachine exec deploy/analysis -- python -m app.manual \
   || echo "manual not loaded (is Ollama running?). Later: kubectl -n automachine exec deploy/analysis -- python -m app.manual"
+
+if [ -n "${FUNNEL_HOST:-}" ]; then
+  echo "outside (with Funnel on): https://$FUNNEL_HOST  — if medi-info is awake too, run: k3s-switch automachine"
+fi
