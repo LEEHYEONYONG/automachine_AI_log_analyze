@@ -220,7 +220,26 @@ WSL mirrored 네트워크에서는 PC에서 Service 주소로 들어가는 경�
 
 Ollama는 GPU를 쓰므로 클러스터 밖 WSL에서 돌고, 파드에서는 `ollama` Service를 거쳐 `10.42.0.1:11434`로 연결합니다.
 
+## 외부 공개 (Tailscale Funnel)
+
+`.env`에 `FUNNEL_HOST=<이 PC>.ts.net`이 있으면 `deploy.sh`가 그 주소용 Ingress(`automachine-funnel`)를 만듭니다. 주소는 이 PC 것이라 저장소에 적지 않습니다.
+
+```bash
+# Windows PowerShell에서 Funnel 켜기 (Traefik 80번으로)
+tailscale funnel --bg 80
+# WSL에서: 이 주소를 automachine이 받게 (medi-info와 같은 주소를 씀)
+k3s-switch automachine
+k3s-switch status        # Funnel 주소 automachine-funnel: 켜짐
+# 끝나면 Windows PowerShell에서
+tailscale funnel reset
+```
+
+- medi-info도 같은 Funnel 주소를 씁니다. k3s의 Traefik은 파드가 0개인 Ingress도 골라 503을 내므로, `k3s-switch`(이 PC의 `~/.local/bin`)가 자는 쪽의 `.ts.net` Ingress를 없는 IngressClass(`sleeping`)로 바꿔 Traefik이 무시하게 합니다. 이 Ingress에는 `ingressClassName`을 적지 않아서, 다시 배포해도 `k3s-switch`가 정한 값이 유지됩니다.
+- 시뮬레이터 API에는 인증이 없어서, 공개하면 밖에서도 장비 조작과 고장 주입이 됩니다. 발표·시연 때만 켭니다.
+- 운영 API는 Funnel 요청(`Tailscale-Funnel-Request` 헤더)을 거절합니다.
+- 이 PC에서 자기 `.ts.net` 주소를 열면 tailnet IP로 풀려 Funnel을 거치지 않습니다 (헤더가 없어 운영 API도 열림). 진짜 외부 동작은 다른 네트워크의 기기로 확인합니다.
+- 11/16 확인: 휴대폰 LTE에서 화면 정상, `/api/ops/live`는 403 `외부에서는 쓸 수 없음`.
+
 ## 아직 확인하지 못한 것
 
 - 네트워크가 바뀌어 노드 IP(현재 Wi-Fi)가 달라졌을 때의 동작 (리허설 전에 확인)
-- 외부 공개 (Tailscale Funnel)
