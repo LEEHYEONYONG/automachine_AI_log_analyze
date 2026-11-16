@@ -91,6 +91,16 @@ else
   kubectl -n automachine delete ingress automachine-funnel --ignore-not-found
 fi
 
+# The operations page refuses Funnel requests unless .env has OPS_ON_FUNNEL=1 (presentation day only; its buttons
+# still need the token). Set after the apply, because apply does not remove a variable it did not write.
+# Without a redeploy: kubectl -n automachine set env deploy/ops OPS_ON_FUNNEL=1  (off: OPS_ON_FUNNEL-)
+if [ "${OPS_ON_FUNNEL:-}" = 1 ]; then
+  kubectl -n automachine set env deploy/ops OPS_ON_FUNNEL=1
+  echo "WARNING: the operations page is open on the Funnel address. Afterwards remove OPS_ON_FUNNEL from .env and redeploy"
+else
+  kubectl -n automachine set env deploy/ops OPS_ON_FUNNEL-
+fi
+
 kubectl -n automachine rollout status statefulset/db --timeout=180s
 # The password is hex, so it is safe inside the SQL quotes.
 OPS_DB_PASS=$(kubectl -n automachine get secret ops-db -o jsonpath='{.data.password}' | base64 -d)
