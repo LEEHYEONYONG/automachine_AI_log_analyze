@@ -237,6 +237,14 @@ tailscale funnel reset
 - medi-info도 같은 Funnel 주소를 씁니다. k3s의 Traefik은 파드가 0개인 Ingress도 골라 503을 내므로, `k3s-switch`(이 PC의 `~/.local/bin`)가 자는 쪽의 `.ts.net` Ingress를 없는 IngressClass(`sleeping`)로 바꿔 Traefik이 무시하게 합니다. 이 Ingress에는 `ingressClassName`을 적지 않아서, 다시 배포해도 `k3s-switch`가 정한 값이 유지됩니다.
 - 시뮬레이터 API에는 인증이 없어서, 공개하면 밖에서도 장비 조작과 고장 주입이 됩니다. 발표·시연 때만 켭니다.
 - 운영 API는 Funnel 요청(`Tailscale-Funnel-Request` 헤더)을 거절합니다.
+- 다른 기기로 발표하는 날만 운영 화면을 Funnel에서도 엽니다. 보기만 열리고, 버튼은 그래도 운영 토큰이 있어야 합니다 (없으면 401). 재시작되는 것은 ops 파드뿐이라 장비 상태는 그대로입니다.
+
+  ```bash
+  kubectl -n automachine set env deploy/ops OPS_ON_FUNNEL=1   # 열기
+  kubectl -n automachine set env deploy/ops OPS_ON_FUNNEL-    # 닫기 (발표 끝나면 꼭)
+  ```
+
+  `.env`에 `OPS_ON_FUNNEL=1`을 두고 배포해도 열립니다. 그 줄이 없으면 배포할 때마다 닫힙니다.
 - 이 PC에서 자기 `.ts.net` 주소를 열면 tailnet IP로 풀려 Funnel을 거치지 않습니다 (헤더가 없어 운영 API도 열림). 진짜 외부 동작은 다른 네트워크의 기기로 확인합니다.
 - 11/16 확인: 휴대폰 LTE에서 화면 정상, `/api/ops/live`는 403 `외부에서는 쓸 수 없음`.
 

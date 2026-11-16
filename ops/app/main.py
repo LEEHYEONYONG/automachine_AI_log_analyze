@@ -29,6 +29,9 @@ AUTO_EVAL = "auto-eval"
 DB_HOST = os.environ.get("DB_HOST", "db")
 DB_NAME = os.environ.get("DB_NAME", "")
 OPS_DB_PASSWORD = os.environ.get("OPS_DB_PASSWORD", "")
+# 발표 날만 1: Funnel 주소(인터넷)에서도 운영 화면을 보여 준다. 조작은 그래도 토큰이 있어야 한다.
+# deploy.sh가 .env의 OPS_ON_FUNNEL을 보고 넣거나 뺀다 (k8s/README.md "외부 공개")
+OPS_ON_FUNNEL = os.environ.get("OPS_ON_FUNNEL") == "1"
 MIB = 1024 ** 2
 
 # 죽여도 되는 서비스만. db는 잠깐 전체가 멈추고, sim은 돌던 장비 상태가 사라진다.
@@ -46,8 +49,8 @@ app = FastAPI(title="automachine 운영 API", lifespan=lifespan)
 
 @app.middleware("http")
 async def refuse_public(request: Request, call_next):
-    """Tailscale Funnel은 공개 요청에 이 헤더를 붙인다. Funnel을 켜도 운영 API는 답하지 않는다."""
-    if "tailscale-funnel-request" in request.headers:
+    """Tailscale Funnel은 공개 요청에 이 헤더를 붙인다. Funnel을 켜도 운영 API는 답하지 않는다 (OPS_ON_FUNNEL이면 답함)."""
+    if "tailscale-funnel-request" in request.headers and not OPS_ON_FUNNEL:
         return JSONResponse({"detail": "외부에서는 쓸 수 없음"}, status_code=403)
     return await call_next(request)
 
